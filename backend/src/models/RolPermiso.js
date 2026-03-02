@@ -8,11 +8,13 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const RolPermiso = sequelize.define('RolPermiso', {
+    /** @type {number} ID único autoincremental de la asociación */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** @type {number} ID del Rol que recibe el permiso. */
     rolId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -22,6 +24,7 @@ const RolPermiso = sequelize.define('RolPermiso', {
         },
         onDelete: 'CASCADE',
     },
+    /** @type {number} ID del Permiso otorgado al rol. */
     permisoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -35,6 +38,7 @@ const RolPermiso = sequelize.define('RolPermiso', {
     tableName: 'rol_permisos',
     timestamps: true,
     indexes: [
+        /** Regla de Negocio: No se pueden duplicar permisos dentro de un mismo rol. */
         {
             unique: true,
             fields: ['rolId', 'permisoId'],

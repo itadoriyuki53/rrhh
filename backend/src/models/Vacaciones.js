@@ -17,11 +17,13 @@ const ESTADOS_VACACIONES = [
 ];
 
 const Vacaciones = sequelize.define('Vacaciones', {
+    /** @type {number} ID único autoincremental */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** @type {number} Relación Única (1:1) con el encabezado de Solicitud. */
     solicitudId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -31,6 +33,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
             key: 'id',
         },
     },
+    /** @type {number} Año fiscal al que corresponden los días devengados. */
     periodo: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -39,6 +42,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
             isInt: { msg: 'El período debe ser un año válido' },
         },
     },
+    /** @type {number} Total de días de vacaciones según antigüedad legal para el período. Max 35. */
     diasCorrespondientes: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -47,6 +51,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
             max: { args: [35], msg: 'Los días correspondientes no pueden superar 35' },
         },
     },
+    /** @type {number} Acumulador de días ya gozados de este período específico. */
     diasTomados: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -56,6 +61,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
             max: { args: [35], msg: 'Los días tomados no pueden superar 35' },
         },
     },
+    /** @type {number} Saldo de días remanentes para el período. */
     diasDisponibles: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -64,6 +70,10 @@ const Vacaciones = sequelize.define('Vacaciones', {
             max: { args: [35], msg: 'Los días disponibles no pueden superar 35' },
         },
     },
+    /** 
+     * @type {string} Fecha efectiva de inicio de vacaciones (YYYY-MM-DD).
+     * Regla: Debe ser día hábil.
+     */
     fechaInicio: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -72,6 +82,10 @@ const Vacaciones = sequelize.define('Vacaciones', {
             isDate: { msg: 'Debe ser una fecha válida' },
         },
     },
+    /** 
+     * @type {string} Último día de vacaciones (YYYY-MM-DD).
+     * Regla: Debe ser día hábil.
+     */
     fechaFin: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -80,6 +94,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
             isDate: { msg: 'Debe ser una fecha válida' },
         },
     },
+    /** @type {string} Fecha en que el empleado retoma tareas habituales (YYYY-MM-DD). */
     fechaRegreso: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -88,6 +103,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
             isDate: { msg: 'Debe ser una fecha válida' },
         },
     },
+    /** @type {string} Fecha en que RRHH notificó formalmente la concesión (YYYY-MM-DD). */
     notificadoEl: {
         type: DataTypes.DATEONLY,
         allowNull: true,
@@ -95,6 +111,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
             isDate: { msg: 'Debe ser una fecha válida' },
         },
     },
+    /** @type {number} Duración en días de esta solicitud puntual. */
     diasSolicitud: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -103,6 +120,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
             max: { args: [35], msg: 'Los días solicitados no pueden superar 35' },
         },
     },
+    /** @type {string} Motivos o comentarios sobre la fecha elegida. Max 500 chars. */
     descripcion: {
         type: DataTypes.STRING(500),
         allowNull: true,
@@ -110,6 +128,10 @@ const Vacaciones = sequelize.define('Vacaciones', {
             len: { args: [0, 500], msg: 'La descripción no puede exceder 500 caracteres' },
         },
     },
+    /** 
+     * @type {'pendiente'|'aprobada'|'rechazada'} Estado de aprobación.
+     * Valores: 'pendiente', 'aprobada', 'rechazada'.
+     */
     estado: {
         type: DataTypes.ENUM(...ESTADOS_VACACIONES),
         allowNull: false,
@@ -126,7 +148,15 @@ const Vacaciones = sequelize.define('Vacaciones', {
     timestamps: true,
 });
 
-// Hook para validar fechas
+/**
+ * Hook de Reglas de Negocio para Vacaciones.
+ * 1. Valida que la fecha de inicio no sea anterior a hoy.
+ * 2. Valida que inicio y fin sean días hábiles laborales.
+ * 3. Valida consistencia de fechas (Fin > Inicio).
+ * 4. Calcula automáticamente la duración de la solicitud.
+ * 5. Controla que no se soliciten más días de los disponibles para el período.
+ * 6. Valida que la notificación no sea fecha futura y sea día hábil.
+ */
 Vacaciones.addHook('beforeValidate', (vacaciones) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);

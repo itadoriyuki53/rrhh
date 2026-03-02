@@ -9,11 +9,13 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const EspacioTrabajo = sequelize.define('EspacioTrabajo', {
+    /** @type {number} ID único autoincremental */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** @type {string} Nombre del entorno multi-tenant. 2-100 chars. Requerido. */
     nombre: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -22,6 +24,7 @@ const EspacioTrabajo = sequelize.define('EspacioTrabajo', {
             len: { args: [2, 100], msg: 'El nombre debe tener entre 2 y 100 caracteres' },
         },
     },
+    /** @type {string} Comentarios o propósitos del espacio. Max 1000 chars. */
     descripcion: {
         type: DataTypes.TEXT,
         allowNull: true,
@@ -29,6 +32,7 @@ const EspacioTrabajo = sequelize.define('EspacioTrabajo', {
             len: { args: [0, 1000], msg: 'La descripción no puede exceder 1000 caracteres' },
         },
     },
+    /** @type {number} ID del Usuario creador/dueño del espacio. */
     propietarioId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -40,6 +44,7 @@ const EspacioTrabajo = sequelize.define('EspacioTrabajo', {
             notEmpty: { msg: 'El propietario es requerido' },
         },
     },
+    /** @type {boolean} Estado lógico de disponibilidad del espacio. Default: true. */
     activo: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

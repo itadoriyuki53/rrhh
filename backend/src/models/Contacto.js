@@ -10,11 +10,13 @@ const sequelize = require('../config/database');
 const { parseLocalDate } = require('../helpers/fechas.helper');
 
 const Contacto = sequelize.define('Contacto', {
+    /** @type {number} ID único autoincremental */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** @type {number} Relación con el empleado al que pertenece este vínculo/contacto. */
     empleadoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -26,16 +28,19 @@ const Contacto = sequelize.define('Contacto', {
             notEmpty: { msg: 'El empleado es requerido' },
         },
     },
+    /** @type {boolean} Indica si el contacto tiene un vínculo de parentesco legal. */
     esFamiliar: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
     },
+    /** @type {boolean} Indica si el contacto debe ser notificado ante emergencias médicas. */
     esContactoEmergencia: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
     },
+    /** @type {string} Nombre y apellido del contacto. 2-200 caracteres. Requerido. */
     nombreCompleto: {
         type: DataTypes.STRING(200),
         allowNull: false,
@@ -44,6 +49,10 @@ const Contacto = sequelize.define('Contacto', {
             len: { args: [2, 200], msg: 'El nombre debe tener entre 2 y 200 caracteres' },
         },
     },
+    /** 
+     * @type {string} DNI del contacto. 
+     * Validación: 8 dígitos numéricos o M/F + 7 dígitos.
+     */
     dni: {
         type: DataTypes.STRING(20),
         allowNull: false,
@@ -55,6 +64,10 @@ const Contacto = sequelize.define('Contacto', {
             },
         },
     },
+    /** 
+     * @type {string} Fecha de nacimiento (YYYY-MM-DD). 
+     * Reglas: Opcional. No futura. Mínimo 18 años para ser responsable de contacto.
+     */
     fechaNacimiento: {
         type: DataTypes.DATEONLY,
         allowNull: true,
@@ -92,6 +105,7 @@ const Contacto = sequelize.define('Contacto', {
             },
         },
     },
+    /** @type {string} Vínculo con el empleado (ej: 'Hijo', 'Esposo/a', 'Padre/Madre'). */
     parentesco: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -100,21 +114,25 @@ const Contacto = sequelize.define('Contacto', {
             len: { args: [2, 100], msg: 'El parentesco debe tener entre 2 y 100 caracteres' },
         },
     },
+    /** @type {boolean} Flag para carga de salarios familiares (Discapacidad). */
     discapacidad: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
     },
+    /** @type {boolean} Flag que indica si el familiar está a cargo del empleado. */
     dependiente: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
     },
+    /** @type {boolean} Flag para asignaciones por escolaridad. */
     escolaridad: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
     },
+    /** @type {string} Teléfono principal de contacto. Valida números, +, -, (), espacios. */
     telefonoPrincipal: {
         type: DataTypes.STRING(50),
         allowNull: false,
@@ -126,6 +144,7 @@ const Contacto = sequelize.define('Contacto', {
             },
         },
     },
+    /** @type {string} Teléfono alternativo u oficina. */
     telefonoSecundario: {
         type: DataTypes.STRING(50),
         allowNull: true,
@@ -136,6 +155,7 @@ const Contacto = sequelize.define('Contacto', {
             },
         },
     },
+    /** @type {string} Dirección residencial del contacto. Max 300 chars. */
     direccion: {
         type: DataTypes.STRING(300),
         allowNull: true,
@@ -143,6 +163,7 @@ const Contacto = sequelize.define('Contacto', {
             len: { args: [0, 300], msg: 'La dirección no puede exceder 300 caracteres' },
         },
     },
+    /** @type {boolean} Estado lógico del registro. */
     activo: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -153,7 +174,10 @@ const Contacto = sequelize.define('Contacto', {
     timestamps: true,
 });
 
-// Hook para validar que al menos uno de los checkboxes esté seleccionado
+/**
+ * Hook de Regla de Negocio para Contactos.
+ * Asegura la utilidad del registro validando que sea al menos un tipo de contacto válido (Familiar o Emergencia).
+ */
 Contacto.addHook('beforeValidate', (contacto) => {
     if (!contacto.esFamiliar && !contacto.esContactoEmergencia) {
         throw new Error('Debe seleccionar al menos una opción: Familiar o Contacto de Emergencia');

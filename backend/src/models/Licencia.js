@@ -38,11 +38,13 @@ const ESTADOS_LICENCIA = [
 ];
 
 const Licencia = sequelize.define('Licencia', {
+    /** @type {number} ID único autoincremental */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** @type {number} Relación Única (1:1) con el encabezado de Solicitud. */
     solicitudId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -52,12 +54,19 @@ const Licencia = sequelize.define('Licencia', {
             key: 'id',
         },
     },
+    /** 
+     * @type {boolean} Discriminador de tipo. 
+     * true = Licencia Justificada, false = Inasistencia Injustificada.
+     */
     esLicencia: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
-        comment: 'true = Licencia, false = Inasistencia',
     },
+    /** 
+     * @type {string} Causal legal de la ausencia. 
+     * Valores: matrimonio, nacimiento, fallecimiento (varios), examen, accidente_art, enfermedad, maternidad, etc.
+     */
     motivoLegal: {
         type: DataTypes.ENUM(...MOTIVOS_LEGALES),
         allowNull: false,
@@ -69,6 +78,10 @@ const Licencia = sequelize.define('Licencia', {
             },
         },
     },
+    /** 
+     * @type {string} Inicio del período de ausencia (YYYY-MM-DD).
+     * Regla: Debe ser día hábil.
+     */
     fechaInicio: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -77,6 +90,10 @@ const Licencia = sequelize.define('Licencia', {
             isDate: { msg: 'Debe ser una fecha válida' },
         },
     },
+    /** 
+     * @type {string} Fin del período de ausencia (YYYY-MM-DD).
+     * Regla: Debe ser día hábil y >= Inicio.
+     */
     fechaFin: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -85,6 +102,7 @@ const Licencia = sequelize.define('Licencia', {
             isDate: { msg: 'Debe ser una fecha válida' },
         },
     },
+    /** @type {number} Cantidad de días totales de la ausencia (incluye corridos). */
     diasSolicitud: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -92,6 +110,7 @@ const Licencia = sequelize.define('Licencia', {
             min: { args: [1], msg: 'Los días solicitados deben ser mayor a 0' },
         },
     },
+    /** @type {string} Link a repositorio externo con la imagen del justificante. Max 100 chars. */
     urlJustificativo: {
         type: DataTypes.STRING(100),
         allowNull: true,
@@ -100,6 +119,7 @@ const Licencia = sequelize.define('Licencia', {
             len: { args: [0, 100], msg: 'La URL no puede exceder 100 caracteres' },
         },
     },
+    /** @type {string} Observaciones adicionales del empleado o RRHH. Max 500 chars. */
     descripcion: {
         type: DataTypes.STRING(500),
         allowNull: true,
@@ -107,6 +127,7 @@ const Licencia = sequelize.define('Licencia', {
             len: { args: [0, 500], msg: 'La descripción no puede exceder 500 caracteres' },
         },
     },
+    /** @type {number} Referencia a examen médico si la licencia es por salud. */
     registroSaludId: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -115,6 +136,10 @@ const Licencia = sequelize.define('Licencia', {
             key: 'id',
         },
     },
+    /** 
+     * @type {'pendiente'|'justificada'|'injustificada'|'rechazada'} Estado de la solicitud.
+     * Valores: 'pendiente', 'justificada' (aprobada), 'injustificada' (aprobada como inasistencia), 'rechazada'.
+     */
     estado: {
         type: DataTypes.ENUM(...ESTADOS_LICENCIA),
         allowNull: false,
@@ -131,7 +156,13 @@ const Licencia = sequelize.define('Licencia', {
     timestamps: true,
 });
 
-// Hook para validar fechas y calcular días
+/**
+ * Hook de Reglas de Negocio para Licencias.
+ * 1. Valida que fechaFin sea posterior a Inicio.
+ * 2. Valida que ambas fechas sean días hábiles laborales.
+ * 3. Calcula automáticamente la duración en días.
+ * 4. Restringe la asociación de RegistroSalud a motivos médicos.
+ */
 Licencia.addHook('beforeValidate', (licencia) => {
     if (licencia.fechaFin && licencia.fechaInicio) {
         const inicio = parseLocalDate(licencia.fechaInicio);

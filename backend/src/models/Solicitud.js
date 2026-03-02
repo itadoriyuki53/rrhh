@@ -17,11 +17,13 @@ const TIPOS_SOLICITUD = [
 ];
 
 const Solicitud = sequelize.define('Solicitud', {
+    /** @type {number} ID único autoincremental del encabezado de solicitud */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** @type {number} Referencia al contrato laboral que genera la solicitud. */
     contratoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -33,6 +35,10 @@ const Solicitud = sequelize.define('Solicitud', {
             notEmpty: { msg: 'El contrato es requerido' },
         },
     },
+    /** 
+     * @type {'vacaciones'|'licencia'|'horas_extras'|'renuncia'} Clasificación de la novedad.
+     * Determina en qué tabla hija se encuentra el detalle.
+     */
     tipoSolicitud: {
         type: DataTypes.ENUM(...TIPOS_SOLICITUD),
         allowNull: false,
@@ -44,6 +50,7 @@ const Solicitud = sequelize.define('Solicitud', {
             },
         },
     },
+    /** @type {boolean} Estado lógico del registro. */
     activo: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

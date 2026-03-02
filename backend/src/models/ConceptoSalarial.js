@@ -11,11 +11,13 @@ const sequelize = require('../config/database');
 const TIPOS_CONCEPTO = ['remunerativo', 'deduccion'];
 
 const ConceptoSalarial = sequelize.define('ConceptoSalarial', {
+    /** @type {number} ID único autoincremental */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** @type {number} ID del Espacio de Trabajo propietario del concepto. Requerido. */
     espacioTrabajoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -25,6 +27,7 @@ const ConceptoSalarial = sequelize.define('ConceptoSalarial', {
         },
         onDelete: 'CASCADE',
     },
+    /** @type {string} Nombre descriptivo del concepto (ej: 'Obra Social'). 3-100 chars. */
     nombre: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -33,6 +36,10 @@ const ConceptoSalarial = sequelize.define('ConceptoSalarial', {
             len: { args: [3, 100], msg: 'El nombre debe tener entre 3 y 100 caracteres' },
         },
     },
+    /** 
+     * @type {'remunerativo'|'deduccion'} Naturaleza del concepto.
+     * Valores: 'remunerativo' (Suma), 'deduccion' (Resta).
+     */
     tipo: {
         type: DataTypes.ENUM(...TIPOS_CONCEPTO),
         allowNull: false,
@@ -44,11 +51,13 @@ const ConceptoSalarial = sequelize.define('ConceptoSalarial', {
             },
         },
     },
+    /** @type {boolean} Indica si el campo 'valor' representa un porcentaje (true) o un monto fijo (false). */
     esPorcentaje: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
     },
+    /** @type {number} Magnitud del concepto (fija o porcentual). Debe ser mayor o igual a 0. */
     valor: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
@@ -58,11 +67,16 @@ const ConceptoSalarial = sequelize.define('ConceptoSalarial', {
             min: { args: [0], msg: 'El valor no puede ser negativo' },
         },
     },
+    /** 
+     * @type {boolean} Flag de obligatoriedad laboral. 
+     * Si es true, se aplica automáticamente a todas las liquidaciones del espacio. 
+     */
     esObligatorio: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
     },
+    /** @type {boolean} Estado lógico del concepto. */
     activo: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

@@ -11,11 +11,13 @@ const bcrypt = require('bcrypt');
 const { parseLocalDate } = require('../helpers/fechas.helper');
 
 const Usuario = sequelize.define('Usuario', {
+    /** @type {number} ID único autoincremental del usuario */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** @type {string} Nombres del usuario. Longitud: 2-100 caracteres. Requerido. */
     nombre: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -24,6 +26,7 @@ const Usuario = sequelize.define('Usuario', {
             len: { args: [2, 100], msg: 'El nombre debe tener entre 2 y 100 caracteres' },
         },
     },
+    /** @type {string} Apellidos del usuario. Longitud: 2-100 caracteres. Requerido. */
     apellido: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -32,6 +35,7 @@ const Usuario = sequelize.define('Usuario', {
             len: { args: [2, 100], msg: 'El apellido debe tener entre 2 y 100 caracteres' },
         },
     },
+    /** @type {string} Dirección de correo electrónico. Debe ser único y tener formato válido. */
     email: {
         type: DataTypes.STRING(150),
         allowNull: false,
@@ -41,6 +45,10 @@ const Usuario = sequelize.define('Usuario', {
             isEmail: { msg: 'Debe ser un email válido' },
         },
     },
+    /** 
+     * @type {string} Contraseña encriptada. 
+     * Validación: min 8 caracteres, al menos una mayúscula, un número y un carácter especial.
+     */
     contrasena: {
         type: DataTypes.STRING(255),
         allowNull: false,
@@ -56,19 +64,19 @@ const Usuario = sequelize.define('Usuario', {
             }
         }
     },
-    // Booleano para determinar si es Admin
+    /** @type {boolean} Flag de administrador global (acceso total). Default: false. */
     esAdministrador: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
     },
-    // Booleano para determinar si es Empleado
+    /** @type {boolean} Flag que indica si el usuario posee ficha de empleado. Default: false. */
     esEmpleado: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
     },
-    // Booleano para indicar si el usuario está activo
+    /** @type {boolean} Estado lógico del usuario. Indica si puede iniciar sesión. Default: true. */
     activo: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -78,12 +86,20 @@ const Usuario = sequelize.define('Usuario', {
     tableName: 'usuarios',
     timestamps: true,
     hooks: {
+        /**
+         * Encriptación de contraseña antes de la creación física del registro.
+         * @param {Usuario} usuario - Instancia del usuario actual.
+         */
         beforeCreate: async (usuario) => {
             if (usuario.contrasena) {
                 const salt = await bcrypt.genSalt(10);
                 usuario.contrasena = await bcrypt.hash(usuario.contrasena, salt);
             }
         },
+        /**
+         * Encriptación de contraseña solo si fue modificada en la actualización.
+         * @param {Usuario} usuario - Instancia del usuario actual.
+         */
         beforeUpdate: async (usuario) => {
             if (usuario.changed('contrasena')) {
                 const salt = await bcrypt.genSalt(10);

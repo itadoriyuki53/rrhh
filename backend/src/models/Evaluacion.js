@@ -52,11 +52,16 @@ const ESCALAS = [
 ];
 
 const Evaluacion = sequelize.define('Evaluacion', {
+    /** @type {number} ID único autoincremental */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** 
+     * @type {string} Ciclo de tiempo al que pertenece la evaluación.
+     * Valores: 'anual', 'semestre_1', 'semestre_2', 'q1', 'q2', 'q3', 'q4', 'cierre_prueba', 'fin_proyecto', 'ad_hoc'.
+     */
     periodo: {
         type: DataTypes.ENUM(...PERIODOS),
         allowNull: false,
@@ -68,6 +73,10 @@ const Evaluacion = sequelize.define('Evaluacion', {
             },
         },
     },
+    /** 
+     * @type {string} Metodología aplicada.
+     * Valores: 'autoevaluacion', 'descendente_90', 'pares_jefe_180', 'ascendente_270', 'integral_360', 'competencias', 'objetivos', 'mixta', 'potencial'.
+     */
     tipoEvaluacion: {
         type: DataTypes.ENUM(...TIPOS_EVALUACION),
         allowNull: false,
@@ -79,6 +88,7 @@ const Evaluacion = sequelize.define('Evaluacion', {
             },
         },
     },
+    /** @type {string} Fecha de realización de la entrevista o carga (YYYY-MM-DD). Regla: No futura, día hábil. */
     fecha: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -87,6 +97,7 @@ const Evaluacion = sequelize.define('Evaluacion', {
             isDate: { msg: 'Debe ser una fecha válida' },
         },
     },
+    /** @type {number} Relación con el contrato del empleado que recibe el feedback. */
     contratoEvaluadoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -95,6 +106,10 @@ const Evaluacion = sequelize.define('Evaluacion', {
             key: 'id'
         }
     },
+    /** 
+     * @type {'pendiente'|'en_curso'|'finalizada'|'firmada'} Estado del proceso.
+     * Valores: 'pendiente', 'en_curso', 'finalizada' (por evaluador), 'firmada' (por empleado).
+     */
     estado: {
         type: DataTypes.ENUM(...ESTADOS),
         allowNull: false,
@@ -106,6 +121,7 @@ const Evaluacion = sequelize.define('Evaluacion', {
             },
         },
     },
+    /** @type {number} Calificación numérica final de 0 a 100. */
     puntaje: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -115,6 +131,10 @@ const Evaluacion = sequelize.define('Evaluacion', {
             max: { args: [100], msg: 'El puntaje máximo es 100' },
         },
     },
+    /** 
+     * @type {string} Calificación cualitativa resumida.
+     * Valores: 'supera_expectativas', 'cumple', 'necesita_mejora'.
+     */
     escala: {
         type: DataTypes.ENUM(...ESCALAS),
         allowNull: false,
@@ -126,6 +146,7 @@ const Evaluacion = sequelize.define('Evaluacion', {
             },
         },
     },
+    /** @type {string} Cuerpo principal del feedback y áreas de mejora. 10-2000 chars. */
     feedback: {
         type: DataTypes.TEXT,
         allowNull: false,
@@ -134,15 +155,18 @@ const Evaluacion = sequelize.define('Evaluacion', {
             len: { args: [10, 2000], msg: 'El feedback debe tener entre 10 y 2000 caracteres' },
         },
     },
+    /** @type {boolean} Flag que indica si el empleado leyó y aceptó el feedback. */
     reconocidoPorEmpleado: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
     },
+    /** @type {string} Fecha automática de cuando el empleado reconoció el feedback. */
     fechaReconocimiento: {
         type: DataTypes.DATEONLY,
         allowNull: true,
     },
+    /** @type {string} Observaciones internas no visibles para el empleado o notas de RRHH. */
     notas: {
         type: DataTypes.TEXT,
         allowNull: true,
@@ -150,6 +174,7 @@ const Evaluacion = sequelize.define('Evaluacion', {
             len: { args: [0, 1000], msg: 'Las notas no pueden superar los 1000 caracteres' },
         },
     },
+    /** @type {boolean} Estado lógico del registro. */
     activo: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -160,7 +185,11 @@ const Evaluacion = sequelize.define('Evaluacion', {
     timestamps: true,
 });
 
-// Hooks
+/**
+ * Hook de Reglas de Negocio para Evaluaciones.
+ * 1. Prohíbe fechas de evaluación futuras o en días no laborales.
+ * 2. Gestión de Auditoría: Setea fechaReconocimiento automáticamente al firmar.
+ */
 Evaluacion.addHook('beforeValidate', (evaluacion) => {
     // Validar que la fecha no sea futura
     if (evaluacion.fecha) {

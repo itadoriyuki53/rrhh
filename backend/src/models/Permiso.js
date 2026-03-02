@@ -9,11 +9,16 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const Permiso = sequelize.define('Permiso', {
+    /** @type {number} ID único autoincremental */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** 
+     * @type {string} Módulo funcional sobre el que aplica el permiso. 
+     * Valores: 'empleados', 'empresas', 'contratos', 'registros_salud', 'evaluaciones', 'contactos', 'solicitudes', 'liquidaciones', 'roles', 'reportes'.
+     */
     modulo: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -36,6 +41,10 @@ const Permiso = sequelize.define('Permiso', {
             },
         },
     },
+    /** 
+     * @type {string} Operación permitida.
+     * Valores: 'crear' (POST), 'leer' (GET), 'actualizar' (PUT/PATCH), 'eliminar' (DELETE).
+     */
     accion: {
         type: DataTypes.STRING(50),
         allowNull: false,
@@ -47,6 +56,7 @@ const Permiso = sequelize.define('Permiso', {
             },
         },
     },
+    /** @type {string} Explicación amigable del permiso para la UI. */
     descripcion: {
         type: DataTypes.STRING(255),
         allowNull: true,
@@ -55,6 +65,7 @@ const Permiso = sequelize.define('Permiso', {
     tableName: 'permisos',
     timestamps: true,
     indexes: [
+        /** Regla de Negocio: No pueden existir dos permisos idénticos para el mismo módulo y acción. */
         {
             unique: true,
             fields: ['modulo', 'accion'],

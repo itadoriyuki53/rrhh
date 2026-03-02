@@ -25,11 +25,16 @@ const RESULTADOS = [
 ];
 
 const RegistroSalud = sequelize.define('RegistroSalud', {
+    /** @type {number} ID único autoincremental */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** 
+     * @type {'pre_ocupacional'|'periodico'|'post_ocupacional'|'retorno_trabajo'} Categoría del examen.
+     * Valores: 'pre_ocupacional', 'periodico', 'post_ocupacional', 'retorno_trabajo'.
+     */
     tipoExamen: {
         type: DataTypes.ENUM(...TIPOS_EXAMEN),
         allowNull: false,
@@ -41,6 +46,10 @@ const RegistroSalud = sequelize.define('RegistroSalud', {
             },
         },
     },
+    /** 
+     * @type {'apto'|'apto_preexistencias'|'no_apto'} Conclusión médica.
+     * Valores: 'apto', 'apto_preexistencias', 'no_apto'.
+     */
     resultado: {
         type: DataTypes.ENUM(...RESULTADOS),
         allowNull: false,
@@ -52,6 +61,10 @@ const RegistroSalud = sequelize.define('RegistroSalud', {
             },
         },
     },
+    /** 
+     * @type {string} Fecha en que se realizó el examen (YYYY-MM-DD).
+     * Reglas: Requerida. No puede ser futura. Debe ser día hábil.
+     */
     fechaRealizacion: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -60,6 +73,10 @@ const RegistroSalud = sequelize.define('RegistroSalud', {
             isDate: { msg: 'Debe ser una fecha válida' },
         },
     },
+    /** 
+     * @type {string} Fecha de caducidad del examen (YYYY-MM-DD).
+     * Reglas: Requerida. Debe ser >= fechaRealizacion. Debe ser día hábil.
+     */
     fechaVencimiento: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -68,13 +85,18 @@ const RegistroSalud = sequelize.define('RegistroSalud', {
             isDate: { msg: 'Debe ser una fecha válida' },
         },
     },
+    /** 
+     * @type {boolean} Indica si el examen está actualmente dentro de término.
+     * Actualizado automáticamente por hooks si el vencimiento es superado.
+     */
     vigente: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
     },
+    /** @type {object[]} Array de objetos con metadatos de archivos adjuntos { data, nombre, tipo }. */
     comprobantes: {
-        type: DataTypes.JSON, // Array of { data, nombre, tipo }
+        type: DataTypes.JSON,
         allowNull: true,
         defaultValue: [],
         get() {
@@ -90,11 +112,13 @@ const RegistroSalud = sequelize.define('RegistroSalud', {
             return rawValue;
         },
     },
+    /** @type {boolean} Estado lógico del registro. */
     activo: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
     },
+    /** @type {number} Relación con el empleado evaluado. */
     empleadoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -108,7 +132,11 @@ const RegistroSalud = sequelize.define('RegistroSalud', {
     timestamps: true,
 });
 
-// Hook para validar que fechaVencimiento no sea anterior a fechaRealizacion
+/**
+ * Reglas de Negocio y Validaciones Cruzadas.
+ * 1. La fecha de realización no es futura y es día hábil.
+ * 2. La fecha de vencimiento es día hábil y >= realización.
+ */
 RegistroSalud.addHook('beforeValidate', (registro) => {
     // Solo validar si es un registro nuevo o si cambiaron las fechas
     const isNew = registro.isNewRecord;

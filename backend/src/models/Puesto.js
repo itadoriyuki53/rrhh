@@ -8,11 +8,13 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const Puesto = sequelize.define('Puesto', {
+    /** @type {number} ID único autoincremental */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** @type {string} Título del cargo (ej: 'Analista Contable'). Requerido. */
     nombre: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -20,6 +22,7 @@ const Puesto = sequelize.define('Puesto', {
             notEmpty: { msg: 'El nombre del puesto es requerido' },
         },
     },
+    /** @type {string} Requerimientos y responsabilidades del puesto. Max 500 chars. */
     descripcion: {
         type: DataTypes.STRING(500),
         allowNull: true,
@@ -27,6 +30,7 @@ const Puesto = sequelize.define('Puesto', {
             len: { args: [0, 500], msg: 'La descripción del puesto no puede exceder 500 caracteres' },
         },
     },
+    /** @type {number} Relación con el Departamento al que pertenece. */
     departamentoId: {
         type: DataTypes.INTEGER,
         allowNull: false,

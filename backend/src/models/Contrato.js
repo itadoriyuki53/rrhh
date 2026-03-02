@@ -30,11 +30,13 @@ const TIPOS_CONTRATO = [
 ];
 
 const Contrato = sequelize.define('Contrato', {
+    /** @type {number} ID único autoincremental del contrato */
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
     },
+    /** @type {number} ID del empleado asociado. Requerido. */
     empleadoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -46,14 +48,21 @@ const Contrato = sequelize.define('Contrato', {
             notEmpty: { msg: 'El empleado es requerido' },
         },
     },
+    /** @type {number} ID del Rol de seguridad asignado a este contrato (opcional). */
     rolId: {
         type: DataTypes.INTEGER,
-        allowNull: true, // Opcional, puede no tener rol de sistema asociado o ser default
+        allowNull: true,
         references: {
-            model: 'roles', // nombre de la tabla
+            model: 'roles',
             key: 'id',
         },
     },
+    /** 
+     * @type {string} Categoría legal del contrato.
+     * Valores LCT: 'tiempo_indeterminado', 'periodo_prueba', 'plazo_fijo', 'eventual', 'teletrabajo'.
+     * Valores No Laborales: 'locacion_servicios', 'monotributista', 'responsable_inscripto', 'honorarios', 'contrato_obra'.
+     * Valores Formativos: 'pasantia_educativa', 'beca', 'ad_honorem'.
+     */
     tipoContrato: {
         type: DataTypes.ENUM(...TIPOS_CONTRATO),
         allowNull: false,
@@ -65,6 +74,10 @@ const Contrato = sequelize.define('Contrato', {
             },
         },
     },
+    /** 
+     * @type {string} Fecha de inicio de labores (YYYY-MM-DD).
+     * Reglas: Requerida. No puede ser pasado. Debe ser día hábil (Lun-Vie no feriado).
+     */
     fechaInicio: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -79,29 +92,30 @@ const Contrato = sequelize.define('Contrato', {
                 if (value < today) {
                     throw new Error('La fecha de inicio no puede ser anterior a hoy');
                 }
-
-                // Validar día hábil
                 if (!esDiaHabil(value)) {
                     throw new Error('La fecha de inicio debe ser un día hábil (lunes a viernes, excluyendo feriados)');
                 }
             },
         },
     },
+    /** 
+     * @type {string} Fecha de finalización (YYYY-MM-DD).
+     * Reglas: Opcional. Si existe, debe ser día hábil.
+     */
     fechaFin: {
         type: DataTypes.DATEONLY,
         allowNull: true,
         validate: {
             isDate: { msg: 'Debe ser una fecha válida' },
             isBusinessDay(value) {
-                if (!value) return; // fechaFin es opcional
-
-                // Validar día hábil
+                if (!value) return;
                 if (!esDiaHabil(value)) {
                     throw new Error('La fecha de fin debe ser un día hábil (lunes a viernes, excluyendo feriados)');
                 }
             },
         },
     },
+    /** @type {string} Descripción del horario laboral (ej: 'Lunes a Viernes 09:00 a 18:00'). */
     horario: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -110,6 +124,7 @@ const Contrato = sequelize.define('Contrato', {
             len: { args: [5, 100], msg: 'El horario debe tener entre 5 y 100 caracteres' },
         },
     },
+    /** @type {number} Salario bruto pactado. Validado: Positivo hasta 999.999.999,99. */
     salario: {
         type: DataTypes.DECIMAL(12, 2),
         allowNull: false,
@@ -126,11 +141,16 @@ const Contrato = sequelize.define('Contrato', {
             },
         },
     },
+    /** 
+     * @type {'pendiente'|'en_curso'|'finalizado'} Estado actual del contrato. 
+     * Calculado automáticamente por hooks según fechas.
+     */
     estado: {
         type: DataTypes.ENUM('pendiente', 'en_curso', 'finalizado'),
         allowNull: false,
         defaultValue: 'pendiente',
     },
+    /** @type {string} Beneficios extra o items de compensación no salarial. Max 500 chars. */
     compensacion: {
         type: DataTypes.STRING(500),
         allowNull: true,
@@ -138,6 +158,7 @@ const Contrato = sequelize.define('Contrato', {
             len: { args: [0, 500], msg: 'La compensación no puede exceder 500 caracteres' },
         },
     },
+    /** @type {boolean} Estado lógico del registro. */
     activo: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -148,6 +169,12 @@ const Contrato = sequelize.define('Contrato', {
     timestamps: true,
 });
 
+/**
+ * Regla de Negocio: Mantenimiento Automático de Estados.
+ * Actualiza el campo 'estado' basándose en la fecha actual vs fechaInicio y fechaFin.
+ * Se ejecuta antes de persistir cualquier cambio.
+ * @param {Contrato} contrato - Instancia del contrato evaluado.
+ */
 const actualizarEstadoContrato = (contrato) => {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
