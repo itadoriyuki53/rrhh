@@ -440,13 +440,13 @@ const Solicitudes = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
 
@@ -670,7 +670,7 @@ const Solicitudes = () => {
                         {/* Pagination */}
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por pÃ¡gina:</span>
+                                <span>Filas por página:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                     {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
@@ -679,11 +679,11 @@ const Solicitudes = () => {
                                 </span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
-                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
                             </div>
                         </div>
                     </>
@@ -711,7 +711,7 @@ const Solicitudes = () => {
             <ConfirmDialog
                 isOpen={confirmOpen}
                 title="Desactivar solicitud"
-                message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar esta solicitud? PodrÃ¡s reactivarla mÃ¡s tarde.` : ''}
+                message={itemToDelete ? `¿Estás seguro de desactivar esta solicitud? Podrás reactivarla más tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -721,7 +721,7 @@ const Solicitudes = () => {
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
                 title="Desactivar solicitudes"
-                message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} solicitud(es)? PodrÃ¡s reactivarlas mÃ¡s tarde.`}
+                message={`¿Estás seguro de desactivar ${selectedIds.size} solicitud(es)? Podrás reactivarlas más tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todos"

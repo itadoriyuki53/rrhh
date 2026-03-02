@@ -1,5 +1,5 @@
 ﻿/**
- * @fileoverview Servicios para el mÃ³dulo de Liquidaciones y Conceptos Salariales.
+ * @fileoverview Servicios para el módulo de Liquidaciones y Conceptos Salariales.
  * @module services/liquidacionService
  */
 
@@ -8,7 +8,7 @@ import { httpClient, buildQueryString, API_URL } from './httpClient';
 // ===== LIQUIDACIONES =====
 
 /**
- * Obtiene la lista de liquidaciones segÃºn filtros.
+ * Obtiene la lista de liquidaciones según filtros.
  *
  * @param {Object} [filters={}] - (contratoId, periodo, estaPagada, etc.)
  * @returns {Promise<Object>} Lista paginada de liquidaciones.
@@ -20,31 +20,31 @@ export const getLiquidaciones = async (filters = {}) => {
 };
 
 /**
- * Ejecuta el proceso de liquidaciÃ³n masiva de sueldos del perÃ­odo actual.
+ * Ejecuta el proceso de liquidación masiva de sueldos del período actual.
  *
  * @returns {Promise<Object>} Resultado del proceso (cantidad liquidaciones generadas, errores, etc.).
  */
 export const ejecutarLiquidacion = async () => {
     const response = await httpClient(`${API_URL}/liquidaciones`, { method: 'POST' });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Error al ejecutar liquidaciÃ³n');
+    if (!response.ok) throw new Error(result.error || 'Error al ejecutar liquidación');
     return result;
 };
 
 /**
- * Obtiene una liquidaciÃ³n por su ID con todo el detalle de conceptos.
+ * Obtiene una liquidación por su ID con todo el detalle de conceptos.
  *
  * @param {number} id
  * @returns {Promise<Object>}
  */
 export const getLiquidacionById = async (id) => {
     const response = await httpClient(`${API_URL}/liquidaciones/${id}`);
-    if (!response.ok) throw new Error('Error al obtener liquidaciÃ³n');
+    if (!response.ok) throw new Error('Error al obtener liquidación');
     return response.json();
 };
 
 /**
- * Actualiza los datos de una liquidaciÃ³n (ej: marcar como pagada).
+ * Actualiza los datos de una liquidación (ej: marcar como pagada).
  *
  * @param {number} id
  * @param {Object} data - Campos a modificar.
@@ -56,23 +56,23 @@ export const updateLiquidacion = async (id, data) => {
         body: JSON.stringify(data),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Error al actualizar liquidaciÃ³n');
+    if (!response.ok) throw new Error(result.error || 'Error al actualizar liquidación');
     return result;
 };
 
 /**
- * Marca una liquidaciÃ³n como pagada o pendiente de pago.
+ * Marca una liquidación como pagada o pendiente de pago.
  *
- * @param {number} id - ID de la liquidaciÃ³n.
+ * @param {number} id - ID de la liquidación.
  * @param {boolean} estaPagada - `true` para marcar como pagada, `false` para revertir.
- * @returns {Promise<Object>} LiquidaciÃ³n actualizada.
+ * @returns {Promise<Object>} Liquidación actualizada.
  */
 export const marcarLiquidacionComoPagada = async (id, estaPagada) => {
     return updateLiquidacion(id, { estaPagada });
 };
 
 /**
- * Elimina lÃ³gicamente una liquidaciÃ³n.
+ * Elimina lógicamente una liquidación.
  *
  * @param {number} id
  * @returns {Promise<Object>}
@@ -80,12 +80,12 @@ export const marcarLiquidacionComoPagada = async (id, estaPagada) => {
 export const deleteLiquidacion = async (id) => {
     const response = await httpClient(`${API_URL}/liquidaciones/${id}`, { method: 'DELETE' });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Error al eliminar liquidaciÃ³n');
+    if (!response.ok) throw new Error(result.error || 'Error al eliminar liquidación');
     return result;
 };
 
 /**
- * Reactiva una liquidaciÃ³n dada de baja.
+ * Reactiva una liquidación dada de baja.
  *
  * @param {number} id
  * @returns {Promise<Object>}
@@ -93,12 +93,12 @@ export const deleteLiquidacion = async (id) => {
 export const reactivateLiquidacion = async (id) => {
     const response = await httpClient(`${API_URL}/liquidaciones/${id}/reactivate`, { method: 'PATCH' });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Error al reactivar liquidaciÃ³n');
+    if (!response.ok) throw new Error(result.error || 'Error al reactivar liquidación');
     return result;
 };
 
 /**
- * Elimina mÃºltiples liquidaciones.
+ * Elimina múltiples liquidaciones.
  *
  * @param {number[]} ids
  * @returns {Promise<Object>}
@@ -140,7 +140,7 @@ export const getConceptoSalarialById = async (id) => {
 };
 
 /**
- * Crea un nuevo concepto salarial (remunerativo o deducciÃ³n).
+ * Crea un nuevo concepto salarial (remunerativo o deducción).
  *
  * @param {Object} concepto - Datos del concepto.
  * @returns {Promise<Object>}
@@ -185,22 +185,22 @@ export const deleteConceptoSalarial = async (id) => {
     return result;
 };
 
-// ===== PARÃMETROS LABORALES =====
+// ===== PARÁMETROS LABORALES =====
 
 /**
- * Obtiene los parÃ¡metros laborales del espacio de trabajo activo.
+ * Obtiene los parámetros laborales del espacio de trabajo activo.
  *
  * @param {Object} [filters={}] - Filtros opcionales.
- * @returns {Promise<Object[]>} Lista de parÃ¡metros.
+ * @returns {Promise<Object[]>} Lista de parámetros.
  */
 export const getParametrosLaborales = async (filters = {}) => {
     const response = await httpClient(`${API_URL}/parametros-laborales${buildQueryString(filters)}`);
-    if (!response.ok) throw new Error('Error al obtener parÃ¡metros laborales');
+    if (!response.ok) throw new Error('Error al obtener parámetros laborales');
     return response.json();
 };
 
 /**
- * Actualiza los parÃ¡metros laborales del espacio de trabajo activo.
+ * Actualiza los parámetros laborales del espacio de trabajo activo.
  *
  * @param {Object[]} parametrosData - Array de objetos { tipo, valor }.
  * @returns {Promise<Object>}
@@ -211,7 +211,7 @@ export const updateParametrosLaborales = async (parametrosData) => {
         body: JSON.stringify(parametrosData),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Error al actualizar parÃ¡metros laborales');
+    if (!response.ok) throw new Error(result.error || 'Error al actualizar parámetros laborales');
     return result;
 };
 

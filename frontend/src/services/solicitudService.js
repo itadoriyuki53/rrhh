@@ -1,12 +1,12 @@
 ﻿/**
- * @fileoverview Servicios para el mÃ³dulo de Solicitudes (Vacaciones, Licencias, Horas Extras, Renuncias).
+ * @fileoverview Servicios para el módulo de Solicitudes (Vacaciones, Licencias, Horas Extras, Renuncias).
  * @module services/solicitudService
  */
 
 import { httpClient, buildQueryString, API_URL } from './httpClient';
 
 /**
- * Obtiene la lista de solicitudes segÃºn filtros.
+ * Obtiene la lista de solicitudes según filtros.
  *
  * @param {Object} [filters={}] - (contratoId, tipoSolicitud, estado, page, limit, etc.)
  * @returns {Promise<Object>} Lista paginada de solicitudes con su detalle.
@@ -32,7 +32,7 @@ export const getSolicitudById = async (id) => {
 /**
  * Crea una nueva solicitud de novedad.
  *
- * @param {Object} data - Datos de la solicitud (tipoSolicitud, contratoId y campos especÃ­ficos del tipo).
+ * @param {Object} data - Datos de la solicitud (tipoSolicitud, contratoId y campos específicos del tipo).
  * @returns {Promise<Object>} Solicitud creada.
  */
 export const createSolicitud = async (data) => {
@@ -63,7 +63,7 @@ export const updateSolicitud = async (id, data) => {
 };
 
 /**
- * Elimina lÃ³gicamente una solicitud.
+ * Elimina lógicamente una solicitud.
  *
  * @param {number} id
  * @returns {Promise<Object>}
@@ -89,7 +89,7 @@ export const reactivateSolicitud = async (id) => {
 };
 
 /**
- * Elimina mÃºltiples solicitudes.
+ * Elimina múltiples solicitudes.
  *
  * @param {number[]} ids
  * @returns {Promise<Object>}
@@ -105,10 +105,10 @@ export const deleteSolicitudesBulk = async (ids) => {
 };
 
 /**
- * Consulta los dÃ­as de vacaciones disponibles para un contrato en un perÃ­odo fiscal.
+ * Consulta los días de vacaciones disponibles para un contrato en un período fiscal.
  *
  * @param {number} contratoId - ID del contrato laboral.
- * @param {number} [periodo] - AÃ±o fiscal (ej: 2024). Si no se provee, usa el actual.
+ * @param {number} [periodo] - Año fiscal (ej: 2024). Si no se provee, usa el actual.
  * @returns {Promise<{ diasCorrespondientes: number, diasTomados: number, diasDisponibles: number }>}
  */
 export const getDiasDisponiblesVacaciones = async (contratoId, periodo) => {
@@ -116,12 +116,12 @@ export const getDiasDisponiblesVacaciones = async (contratoId, periodo) => {
     const response = await httpClient(
         `${API_URL}/solicitudes/vacaciones/diasDisponibles/${contratoId}${params}`
     );
-    if (!response.ok) throw new Error('Error al obtener dÃ­as de vacaciones');
+    if (!response.ok) throw new Error('Error al obtener días de vacaciones');
     return response.json();
 };
 
 /**
- * Calcula la cantidad de dÃ­as hÃ¡biles entre dos fechas para una solicitud de vacaciones.
+ * Calcula la cantidad de días hábiles entre dos fechas para una solicitud de vacaciones.
  *
  * @param {string} fechaInicio - Fecha inicio en YYYY-MM-DD.
  * @param {string} fechaFin - Fecha fin en YYYY-MM-DD.
@@ -132,7 +132,7 @@ export const getDiasSolicitadosVacaciones = async (fechaInicio, fechaFin) => {
     const response = await httpClient(
         `${API_URL}/solicitudes/vacaciones/diasSolicitados?${params.toString()}`
     );
-    if (!response.ok) throw new Error('Error al calcular dÃ­as solicitados');
+    if (!response.ok) throw new Error('Error al calcular días solicitados');
     return response.json();
 };
 

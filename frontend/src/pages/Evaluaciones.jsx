@@ -33,17 +33,17 @@ const PERIODO_LABELS = {
     q2: 'Q2',
     q3: 'Q3',
     q4: 'Q4',
-    cierre_prueba: 'Cierre PerÃ­odo de Prueba',
+    cierre_prueba: 'Cierre Período de Prueba',
     fin_proyecto: 'Fin de Proyecto',
     ad_hoc: 'Ad-hoc / Extraordinaria',
 };
 
 const TIPO_EVALUACION_LABELS = {
-    autoevaluacion: 'AutoevaluaciÃ³n',
-    descendente_90: '90Â° (Descendente)',
-    pares_jefe_180: '180Â° (Pares + Jefe)',
-    ascendente_270: '270Â° (Ascendente)',
-    integral_360: '360Â° (Integral)',
+    autoevaluacion: 'Autoevaluación',
+    descendente_90: '90° (Descendente)',
+    pares_jefe_180: '180° (Pares + Jefe)',
+    ascendente_270: '270° (Ascendente)',
+    integral_360: '360° (Integral)',
     competencias: 'Por Competencias',
     objetivos: 'Por Objetivos',
     mixta: 'Mixta',
@@ -84,7 +84,7 @@ const PERIODO_FILTER = [
     { value: 'q2', label: 'Q2' },
     { value: 'q3', label: 'Q3' },
     { value: 'q4', label: 'Q4' },
-    { value: 'cierre_prueba', label: 'Cierre PerÃ­odo de Prueba' },
+    { value: 'cierre_prueba', label: 'Cierre Período de Prueba' },
     { value: 'fin_proyecto', label: 'Fin de Proyecto' },
     { value: 'ad_hoc', label: 'Ad-hoc' },
 ];
@@ -351,9 +351,9 @@ const Evaluaciones = () => {
     const handleFormSuccess = () => {
         handleCloseForm();
         if (editingItem) {
-            setSuccess('EvaluaciÃ³n actualizada correctamente');
+            setSuccess('Evaluación actualizada correctamente');
         } else {
-            setSuccess('EvaluaciÃ³n creada correctamente');
+            setSuccess('Evaluación creada correctamente');
         }
         loadItems();
     };
@@ -367,7 +367,7 @@ const Evaluaciones = () => {
         if (!itemToDelete) return;
         try {
             await deleteEvaluacion(itemToDelete.id);
-            setSuccess('EvaluaciÃ³n desactivada correctamente');
+            setSuccess('Evaluación desactivada correctamente');
             loadItems();
         } catch (err) {
             setError(err.message);
@@ -390,7 +390,7 @@ const Evaluaciones = () => {
     const handleConfirmBulkDelete = async () => {
         try {
             await deleteEvaluacionesBulk(Array.from(selectedIds));
-            setSuccess(`${selectedIds.size} evaluaciÃ³n(es) desactivada(s) correctamente`);
+            setSuccess(`${selectedIds.size} evaluación(es) desactivada(s) correctamente`);
             setSelectedIds(new Set());
             loadItems();
         } catch (err) {
@@ -403,7 +403,7 @@ const Evaluaciones = () => {
     const handleReactivate = async (item) => {
         try {
             await reactivateEvaluacion(item.id);
-            setSuccess('EvaluaciÃ³n reactivada correctamente');
+            setSuccess('Evaluación reactivada correctamente');
             loadItems();
         } catch (err) {
             setError(err.message);
@@ -424,7 +424,7 @@ const Evaluaciones = () => {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Evaluaciones</h1>
-                    <p className="page-subtitle">Gestiona las evaluaciones de desempeÃ±o</p>
+                    <p className="page-subtitle">Gestiona las evaluaciones de desempeño</p>
                 </div>
             </div>
 
@@ -432,13 +432,13 @@ const Evaluaciones = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
 
@@ -465,7 +465,7 @@ const Evaluaciones = () => {
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                 </svg>
-                                Nueva EvaluaciÃ³n
+                                Nueva Evaluación
                             </button>
                         )}
                     </div>
@@ -482,7 +482,7 @@ const Evaluaciones = () => {
                         </div>
                         <div className="filter-group">
                             <select className="filter-input" value={filterPeriodo} onChange={(e) => { setFilterPeriodo(e.target.value); setPage(1); }}>
-                                <option value="">Todos los perÃ­odos</option>
+                                <option value="">Todos los períodos</option>
                                 {PERIODO_FILTER.map(p => (
                                     <option key={p.value} value={p.value}>{p.label}</option>
                                 ))}
@@ -505,10 +505,10 @@ const Evaluaciones = () => {
                             </select>
                         </div>
                         <div className="filter-group">
-                            <input type="number" className="filter-input" placeholder="Puntaje mÃ­n." value={filterPuntajeMin} onChange={e => { setFilterPuntajeMin(e.target.value); setPage(1); }} style={{ width: '200px' }} min="0" max="100" />
+                            <input type="number" className="filter-input" placeholder="Puntaje mín." value={filterPuntajeMin} onChange={e => { setFilterPuntajeMin(e.target.value); setPage(1); }} style={{ width: '200px' }} min="0" max="100" />
                         </div>
                         <div className="filter-group">
-                            <input type="number" className="filter-input" placeholder="Puntaje mÃ¡x." value={filterPuntajeMax} onChange={e => { setFilterPuntajeMax(e.target.value); setPage(1); }} style={{ width: '200px' }} min="0" max="100" />
+                            <input type="number" className="filter-input" placeholder="Puntaje máx." value={filterPuntajeMax} onChange={e => { setFilterPuntajeMax(e.target.value); setPage(1); }} style={{ width: '200px' }} min="0" max="100" />
                         </div>
                         <div className="filter-group">
                             <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }}>
@@ -557,7 +557,7 @@ const Evaluaciones = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
                         </svg>
                         <h3>No hay evaluaciones {showingInactive ? 'inactivas' : ''}</h3>
-                        <p>{showingInactive ? 'No hay evaluaciones desactivadas' : 'Crea una nueva evaluaciÃ³n para comenzar'}</p>
+                        <p>{showingInactive ? 'No hay evaluaciones desactivadas' : 'Crea una nueva evaluación para comenzar'}</p>
                     </div>
                 ) : (
                     <>
@@ -568,7 +568,7 @@ const Evaluaciones = () => {
                                         <th style={{ width: '40px' }}>
                                             <input type="checkbox" checked={allSelected} ref={input => { if (input) input.indeterminate = someSelected; }} onChange={handleSelectAll} />
                                         </th>
-                                        <th>PerÃ­odo</th>
+                                        <th>Período</th>
                                         <th>Tipo</th>
                                         {visibleColumns.empleadoEvaluado && <th>Evaluado</th>}
                                         {visibleColumns.espacio && <th>Espacio</th>}
@@ -689,7 +689,7 @@ const Evaluaciones = () => {
                         {/* Pagination */}
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por pÃ¡gina:</span>
+                                <span>Filas por página:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                     {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
@@ -698,11 +698,11 @@ const Evaluaciones = () => {
                                 </span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
-                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
                             </div>
                         </div>
                     </>
@@ -729,8 +729,8 @@ const Evaluaciones = () => {
 
             <ConfirmDialog
                 isOpen={confirmOpen}
-                title="Desactivar evaluaciÃ³n"
-                message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar esta evaluaciÃ³n? PodrÃ¡s reactivarla mÃ¡s tarde.` : ''}
+                title="Desactivar evaluación"
+                message={itemToDelete ? `¿Estás seguro de desactivar esta evaluación? Podrás reactivarla más tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -740,7 +740,7 @@ const Evaluaciones = () => {
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
                 title="Desactivar evaluaciones"
-                message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} evaluaciÃ³n(es)? PodrÃ¡s reactivarlas mÃ¡s tarde.`}
+                message={`¿Estás seguro de desactivar ${selectedIds.size} evaluación(es)? Podrás reactivarlas más tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todos"

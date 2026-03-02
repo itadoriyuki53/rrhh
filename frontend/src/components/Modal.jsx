@@ -29,7 +29,7 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '500px' }) => {
                 <div className="modal-header">
                     <h3 className="modal-title">{title}</h3>
                     <button className="modal-close" onClick={onClose} aria-label="Cerrar">
-                        âœ•
+                        ✕
                     </button>
                 </div>
                 <div className="modal-body">

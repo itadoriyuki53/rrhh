@@ -78,13 +78,13 @@ const EspacioTrabajoFormulario = ({ espacio, onClose, onSuccess }) => {
 
                 <form onSubmit={handleSubmit}>
                     <div className="modal-body" style={{ padding: '2rem' }}>
-                        {/* TÃ­tulo y subtÃ­tulo dentro del body */}
+                        {/* Título y subtítulo dentro del body */}
                         <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
                             <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                                InformaciÃ³n BÃ¡sica
+                                Información Básica
                             </h3>
                             <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                                {isEditMode ? 'Modifica los datos del espacio de trabajo' : 'Completa la informaciÃ³n para crear un nuevo espacio de trabajo'}
+                                {isEditMode ? 'Modifica los datos del espacio de trabajo' : 'Completa la información para crear un nuevo espacio de trabajo'}
                             </p>
                         </div>
 
@@ -109,13 +109,13 @@ const EspacioTrabajoFormulario = ({ espacio, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">DescripciÃ³n</label>
+                                <label className="form-label">Descripción</label>
                                 <textarea
                                     name="descripcion"
                                     className="form-input"
                                     value={formData.descripcion}
                                     onChange={handleChange}
-                                    placeholder="DescripciÃ³n del espacio de trabajo..."
+                                    placeholder="Descripción del espacio de trabajo..."
                                     rows={4}
                                     style={{ resize: 'vertical', minHeight: '100px' }}
                                     maxLength={1000}

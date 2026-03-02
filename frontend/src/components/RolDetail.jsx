@@ -47,7 +47,7 @@ const Icons = {
 const RolDetail = ({ rol, onClose, onEdit }) => {
     if (!rol) return null;
 
-    // Permisos del mÃ³dulo roles
+    // Permisos del módulo roles
     const { user } = useAuth();
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
@@ -86,7 +86,7 @@ const RolDetail = ({ rol, onClose, onEdit }) => {
         if (diffMinutes < 1) return 'menos de un minuto';
         if (diffMinutes < 60) return `${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
         if (diffHours < 24) return `${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-        return `${diffDays} dÃ­a${diffDays !== 1 ? 's' : ''}`;
+        return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
     };
 
     const getModuloLabel = (modulo) => {
@@ -125,7 +125,7 @@ const RolDetail = ({ rol, onClose, onEdit }) => {
         return colors[accion] || '#6b7280';
     };
 
-    // Agrupar permisos por mÃ³dulo
+    // Agrupar permisos por módulo
     const permisosAgrupados = (rol.permisos || []).reduce((acc, permiso) => {
         if (!acc[permiso.modulo]) {
             acc[permiso.modulo] = [];
@@ -244,7 +244,7 @@ const RolDetail = ({ rol, onClose, onEdit }) => {
 
                     {/* Registro de Actividad Section */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Ãšltimos cambios hace ${getRelativeTime(rol.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(rol.updatedAt)}`} />
                         <div className="activity-log-grid">
                             <div style={{
                                 display: 'flex',
@@ -256,7 +256,7 @@ const RolDetail = ({ rol, onClose, onEdit }) => {
                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0 }}>{Icons.calendar}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Fecha de CreaciÃ³n
+                                        Fecha de Creación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(rol.createdAt)}
@@ -299,7 +299,7 @@ const RolDetail = ({ rol, onClose, onEdit }) => {
                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0 }}>{Icons.clock}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Ãšltima ModificaciÃ³n
+                                        Última Modificación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(rol.updatedAt)}
@@ -311,9 +311,9 @@ const RolDetail = ({ rol, onClose, onEdit }) => {
 
                     {/* Two-column layout */}
                     <div className="detail-grid-2col">
-                        {/* Left Column: InformaciÃ³n BÃ¡sica */}
+                        {/* Left Column: Información Básica */}
                         <div>
-                            <SectionHeader title="Resumen" subtitle={`Ãšltimos cambios hace ${getRelativeTime(rol.updatedAt)}`} />
+                            <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(rol.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -321,7 +321,7 @@ const RolDetail = ({ rol, onClose, onEdit }) => {
                                 padding: '0.5rem 1rem'
                             }}>
                                 <Field icon={Icons.shield} label="Nombre" value={rol.nombre} />
-                                <Field icon={Icons.document} label="DescripciÃ³n" value={rol.descripcion} />
+                                <Field icon={Icons.document} label="Descripción" value={rol.descripcion} />
                             </div>
                         </div>
 
@@ -368,7 +368,7 @@ const RolDetail = ({ rol, onClose, onEdit }) => {
                                                     color: 'var(--text-primary)',
                                                     fontSize: '0.75rem'
                                                 }}>
-                                                    MÃ³dulo
+                                                    Módulo
                                                 </th>
                                                 <th style={{
                                                     padding: '0.5rem 0.75rem',

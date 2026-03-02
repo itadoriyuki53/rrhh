@@ -1,0 +1,39 @@
+{
+    "tags": {
+        "allowUnknownTags": true,
+        "dictionaries": [
+            "jsdoc",
+            "closure"
+        ]
+    },
+    "source": {
+        "include": [
+            "src"
+        ],
+        "includePattern": "\\.js$",
+        "excludePattern": "(node_modules/|bower_components)"
+    },
+    "plugins": [
+        "plugins/markdown"
+    ],
+    "opts": {
+        "template": "templates/default",
+        "encoding": "utf8",
+        "destination": "../docs/backend",
+        "recurse": true,
+        "verbose": true
+    },
+    "templates": {
+        "cleanslate": {
+            "staticFiles": {
+                "include": [
+                    "./static"
+                ]
+            }
+        },
+        "default": {
+            "outputSourceFiles": true,
+            "includeDate": true
+        }
+    }
+}

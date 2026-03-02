@@ -1,6 +1,6 @@
 ﻿/**
- * @fileoverview Servicio para datos geogrÃ¡ficos y de ubicaciÃ³n.
- * Consume APIs externas (REST Countries, Georef Argentina) con cachÃ© en memoria.
+ * @fileoverview Servicio para datos geográficos y de ubicación.
+ * Consume APIs externas (REST Countries, Georef Argentina) con caché en memoria.
  * @module services/geoService
  */
 
@@ -12,11 +12,11 @@ const cache = {
 };
 
 /**
- * Obtiene el listado de demÃ³nimos de todos los paÃ­ses del mundo (ej: "Argentino").
- * Usa cachÃ© en memoria para evitar peticiones repetidas durante la sesiÃ³n.
+ * Obtiene el listado de demónimos de todos los países del mundo (ej: "Argentino").
+ * Usa caché en memoria para evitar peticiones repetidas durante la sesión.
  *
- * @returns {Promise<string[]>} Lista de gentilicios ordenados alfabÃ©ticamente.
- * Si la API externa falla, retorna un fallback con los principales paÃ­ses de habla hispana.
+ * @returns {Promise<string[]>} Lista de gentilicios ordenados alfabéticamente.
+ * Si la API externa falla, retorna un fallback con los principales países de habla hispana.
  */
 export const getNacionalidades = async () => {
     if (cache.nacionalidades) return cache.nacionalidades;
@@ -39,16 +39,16 @@ export const getNacionalidades = async () => {
         cache.nacionalidades = [...new Set(nacionalidades)];
         return cache.nacionalidades;
     } catch {
-        return ['Argentino', 'BrasileÃ±o', 'Chileno', 'Paraguayo', 'Uruguayo', 'Boliviano', 'Peruano', 'Colombiano', 'Mexicano', 'EspaÃ±ol'];
+        return ['Argentino', 'Brasileño', 'Chileno', 'Paraguayo', 'Uruguayo', 'Boliviano', 'Peruano', 'Colombiano', 'Mexicano', 'Español'];
     }
 };
 
 /**
  * Obtiene las provincias de Argentina desde la API Georef del gobierno.
- * Usa cachÃ© en memoria para evitar peticiones repetidas durante la sesiÃ³n.
+ * Usa caché en memoria para evitar peticiones repetidas durante la sesión.
  *
- * @returns {Promise<Array<{ id: string, nombre: string }>>} Provincias ordenadas alfabÃ©ticamente.
- * Retorna array vacÃ­o si la API externa falla.
+ * @returns {Promise<Array<{ id: string, nombre: string }>>} Provincias ordenadas alfabéticamente.
+ * Retorna array vacío si la API externa falla.
  */
 export const getProvincias = async () => {
     if (cache.provincias) return cache.provincias;
@@ -66,11 +66,11 @@ export const getProvincias = async () => {
 
 /**
  * Obtiene los municipios de una provincia argentina desde la API Georef.
- * Usa cachÃ© por provincia para evitar peticiones repetidas.
+ * Usa caché por provincia para evitar peticiones repetidas.
  *
  * @param {string|number} provinciaId - ID de la provincia (Georef).
- * @returns {Promise<Array<{ id: string, nombre: string }>>} Municipios ordenados alfabÃ©ticamente.
- * Retorna array vacÃ­o si no hay provinciaId o si la API externa falla.
+ * @returns {Promise<Array<{ id: string, nombre: string }>>} Municipios ordenados alfabéticamente.
+ * Retorna array vacío si no hay provinciaId o si la API externa falla.
  */
 export const getCiudades = async (provinciaId) => {
     if (!provinciaId) return [];

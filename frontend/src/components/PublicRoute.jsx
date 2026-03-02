@@ -26,7 +26,7 @@ const PublicRoute = ({ children }) => {
         }
     }, [isAuthenticated, loading, navigate]);
 
-    // Mostrar loader mientras verifica autenticaciÃ³n
+    // Mostrar loader mientras verifica autenticación
     if (loading) {
         return (
             <div style={{
@@ -43,13 +43,13 @@ const PublicRoute = ({ children }) => {
                     textAlign: 'center',
                     boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
                 }}>
-                    <p style={{ margin: 0, color: 'var(--text-primary)' }}>Verificando sesiÃ³n...</p>
+                    <p style={{ margin: 0, color: 'var(--text-primary)' }}>Verificando sesión...</p>
                 </div>
             </div>
         );
     }
 
-    // Si no estÃ¡ autenticado, mostrar el contenido (login/register)
+    // Si no está autenticado, mostrar el contenido (login/register)
     return children;
 };
 

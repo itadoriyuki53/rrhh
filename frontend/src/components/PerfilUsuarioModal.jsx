@@ -57,16 +57,16 @@ const PerfilUsuarioModal = ({ user, onClose, onSuccess }) => {
         if (!form.nombre.trim()) e.nombre = 'El nombre es requerido';
         if (!form.apellido.trim()) e.apellido = 'El apellido es requerido';
         if (!form.email.trim()) e.email = 'El email es requerido';
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Email invÃ¡lido';
-        // ContraseÃ±a es opcional â€” solo validar si el usuario la completÃ³
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Email inválido';
+        // Contraseña es opcional — solo validar si el usuario la completó
         if (form.contrasena) {
-            if (!form.contrasenaActual) e.contrasenaActual = 'IngresÃ¡ tu contraseÃ±a actual';
-            if (form.contrasena.length < 8) e.contrasena = 'MÃ­nimo 8 caracteres';
-            else if (!/[A-Z]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos una mayÃºscula';
-            else if (!/[0-9]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos un nÃºmero';
-            else if (!/[@$!%*?&#]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos un carÃ¡cter especial (@$!%*?&#)';
-            if (!form.confirmarContrasena) e.confirmarContrasena = 'Debes confirmar la contraseÃ±a';
-            else if (form.contrasena !== form.confirmarContrasena) e.confirmarContrasena = 'Las contraseÃ±as no coinciden';
+            if (!form.contrasenaActual) e.contrasenaActual = 'Ingresá tu contraseña actual';
+            if (form.contrasena.length < 8) e.contrasena = 'Mínimo 8 caracteres';
+            else if (!/[A-Z]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos una mayúscula';
+            else if (!/[0-9]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos un número';
+            else if (!/[@$!%*?&#]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos un carácter especial (@$!%*?&#)';
+            if (!form.confirmarContrasena) e.confirmarContrasena = 'Debes confirmar la contraseña';
+            else if (form.contrasena !== form.confirmarContrasena) e.confirmarContrasena = 'Las contraseñas no coinciden';
         }
         return e;
     };
@@ -95,7 +95,7 @@ const PerfilUsuarioModal = ({ user, onClose, onSuccess }) => {
                 email: form.email.trim(),
             });
 
-            // Si completÃ³ contraseÃ±a, cambiarla tambiÃ©n
+            // Si completó contraseña, cambiarla también
             if (form.contrasena) {
                 await updatePassword({
                     contrasenaActual: form.contrasenaActual,
@@ -153,7 +153,7 @@ const PerfilUsuarioModal = ({ user, onClose, onSuccess }) => {
 
                         <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
                             <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>Datos Personales</h2>
-                            <p style={{ color: 'var(--neutral-500)', fontSize: '0.875rem' }}>CompletÃ¡ tus datos personales</p>
+                            <p style={{ color: 'var(--neutral-500)', fontSize: '0.875rem' }}>Completá tus datos personales</p>
                         </div>
 
                         {globalError && (
@@ -188,7 +188,7 @@ const PerfilUsuarioModal = ({ user, onClose, onSuccess }) => {
                                     className={`form-input${errors.apellido ? ' input-error' : ''}`}
                                     value={form.apellido}
                                     onChange={handleChange}
-                                    placeholder="PÃ©rez"
+                                    placeholder="Pérez"
                                     autoComplete="family-name"
                                 />
                                 <FieldError msg={errors.apellido} />
@@ -210,9 +210,9 @@ const PerfilUsuarioModal = ({ user, onClose, onSuccess }) => {
                             <FieldError msg={errors.email} />
                         </div>
 
-                        {/* ContraseÃ±a actual â€” siempre visible */}
+                        {/* Contraseña actual — siempre visible */}
                         <div className="form-group">
-                            <label className="form-label">ContraseÃ±a actual <span style={{ color: 'var(--neutral-400)', fontWeight: 400 }}>(requerida solo si cambiÃ¡s la contraseÃ±a)</span></label>
+                            <label className="form-label">Contraseña actual <span style={{ color: 'var(--neutral-400)', fontWeight: 400 }}>(requerida solo si cambiás la contraseña)</span></label>
                             <div style={{ position: 'relative', display: 'flex' }}>
                                 <input
                                     type={showActual ? 'text' : 'password'}
@@ -220,11 +220,11 @@ const PerfilUsuarioModal = ({ user, onClose, onSuccess }) => {
                                     className={`form-input${errors.contrasenaActual ? ' input-error' : ''}`}
                                     value={form.contrasenaActual}
                                     onChange={handleChange}
-                                    placeholder="Tu contraseÃ±a actual"
+                                    placeholder="Tu contraseña actual"
                                     style={{ paddingRight: '3rem', width: '100%' }}
                                     autoComplete="current-password"
                                 />
-                                <button type="button" style={eyeBtnStyle} onClick={() => setShowActual(p => !p)} aria-label="Mostrar contraseÃ±a actual">
+                                <button type="button" style={eyeBtnStyle} onClick={() => setShowActual(p => !p)} aria-label="Mostrar contraseña actual">
                                     <EyeIcon visible={showActual} />
                                 </button>
                             </div>
@@ -233,7 +233,7 @@ const PerfilUsuarioModal = ({ user, onClose, onSuccess }) => {
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div className="form-group">
-                                <label className="form-label">Nueva contraseÃ±a <span style={{ color: 'var(--neutral-400)', fontWeight: 400 }}>(opcional)</span></label>
+                                <label className="form-label">Nueva contraseña <span style={{ color: 'var(--neutral-400)', fontWeight: 400 }}>(opcional)</span></label>
                                 <div style={{ position: 'relative', display: 'flex' }}>
                                     <input
                                         type={showPassword ? 'text' : 'password'}
@@ -241,11 +241,11 @@ const PerfilUsuarioModal = ({ user, onClose, onSuccess }) => {
                                         className={`form-input${errors.contrasena ? ' input-error' : ''}`}
                                         value={form.contrasena}
                                         onChange={handleChange}
-                                        placeholder="Dejar vacÃ­o para no cambiar"
+                                        placeholder="Dejar vacío para no cambiar"
                                         style={{ paddingRight: '3rem', width: '100%' }}
                                         autoComplete="new-password"
                                     />
-                                    <button type="button" style={eyeBtnStyle} onClick={() => setShowPassword(p => !p)} aria-label="Mostrar contraseÃ±a">
+                                    <button type="button" style={eyeBtnStyle} onClick={() => setShowPassword(p => !p)} aria-label="Mostrar contraseña">
                                         <EyeIcon visible={showPassword} />
                                     </button>
                                 </div>
@@ -253,7 +253,7 @@ const PerfilUsuarioModal = ({ user, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">Confirmar contraseÃ±a</label>
+                                <label className="form-label">Confirmar contraseña</label>
                                 <div style={{ position: 'relative', display: 'flex' }}>
                                     <input
                                         type={showConfirm ? 'text' : 'password'}
@@ -261,11 +261,11 @@ const PerfilUsuarioModal = ({ user, onClose, onSuccess }) => {
                                         className={`form-input${errors.confirmarContrasena ? ' input-error' : ''}`}
                                         value={form.confirmarContrasena}
                                         onChange={handleChange}
-                                        placeholder="Repetir contraseÃ±a"
+                                        placeholder="Repetir contraseña"
                                         style={{ paddingRight: '3rem', width: '100%' }}
                                         autoComplete="new-password"
                                     />
-                                    <button type="button" style={eyeBtnStyle} onClick={() => setShowConfirm(p => !p)} aria-label="Mostrar confirmaciÃ³n">
+                                    <button type="button" style={eyeBtnStyle} onClick={() => setShowConfirm(p => !p)} aria-label="Mostrar confirmación">
                                         <EyeIcon visible={showConfirm} />
                                     </button>
                                 </div>

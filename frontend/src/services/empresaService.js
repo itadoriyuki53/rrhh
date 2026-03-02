@@ -1,6 +1,6 @@
 ﻿/**
- * @fileoverview Servicios CRUD para el mÃ³dulo de Empresas y su estructura organizacional.
- * Incluye operaciones sobre Empresas, Ãreas, Departamentos y Puestos.
+ * @fileoverview Servicios CRUD para el módulo de Empresas y su estructura organizacional.
+ * Incluye operaciones sobre Empresas, Áreas, Departamentos y Puestos.
  * @module services/empresaService
  */
 
@@ -11,7 +11,7 @@ import { httpClient, buildQueryString, API_URL } from './httpClient';
 /**
  * Obtiene la lista paginada de empresas. Por defecto, page=1 y limit=10.
  *
- * @param {Object} [filters={}] - Filtros de bÃºsqueda (search, activo, page, limit, etc.).
+ * @param {Object} [filters={}] - Filtros de búsqueda (search, activo, page, limit, etc.).
  * @returns {Promise<{ data: Object[], total: number }>} Lista de empresas.
  */
 export const getEmpresas = async (filters = {}) => {
@@ -26,7 +26,7 @@ export const getEmpresas = async (filters = {}) => {
 };
 
 /**
- * Obtiene una empresa por su ID con Ã¡reas, departamentos y puestos.
+ * Obtiene una empresa por su ID con áreas, departamentos y puestos.
  *
  * @param {number} id - ID de la empresa.
  * @returns {Promise<Object>} Datos completos de la empresa con su estructura.
@@ -71,10 +71,10 @@ export const updateEmpresa = async (id, data) => {
 };
 
 /**
- * Realiza una baja lÃ³gica de una empresa.
+ * Realiza una baja lógica de una empresa.
  *
  * @param {number} id - ID de la empresa a desactivar.
- * @returns {Promise<Object>} ConfirmaciÃ³n.
+ * @returns {Promise<Object>} Confirmación.
  */
 export const deleteEmpresa = async (id) => {
     const response = await httpClient(`${API_URL}/empresas/${id}`, { method: 'DELETE' });
@@ -84,10 +84,10 @@ export const deleteEmpresa = async (id) => {
 };
 
 /**
- * Reactiva una empresa dada de baja lÃ³gicamente.
+ * Reactiva una empresa dada de baja lógicamente.
  *
  * @param {number} id - ID de la empresa a reactivar.
- * @returns {Promise<Object>} ConfirmaciÃ³n.
+ * @returns {Promise<Object>} Confirmación.
  */
 export const reactivateEmpresa = async (id) => {
     const response = await httpClient(`${API_URL}/empresas/${id}/reactivate`, { method: 'PATCH' });
@@ -97,10 +97,10 @@ export const reactivateEmpresa = async (id) => {
 };
 
 /**
- * Elimina mÃºltiples empresas en una sola operaciÃ³n.
+ * Elimina múltiples empresas en una sola operación.
  *
  * @param {number[]} ids - IDs de las empresas a eliminar.
- * @returns {Promise<Object>} Resultado de la operaciÃ³n bulk.
+ * @returns {Promise<Object>} Resultado de la operación bulk.
  */
 export const deleteEmpresasBulk = async (ids) => {
     const response = await httpClient(`${API_URL}/empresas/bulk`, {
@@ -113,16 +113,16 @@ export const deleteEmpresasBulk = async (ids) => {
 };
 
 /**
- * Verifica si un Ã­tem de la estructura organizacional (Ã¡rea, departamento o puesto)
+ * Verifica si un ítem de la estructura organizacional (área, departamento o puesto)
  * puede ser eliminado sin violar contratos activos.
  *
- * @param {'area'|'departamento'|'puesto'} type - Tipo de Ã­tem a verificar.
- * @param {number} id - ID del Ã­tem.
- * @returns {Promise<{ canDelete: boolean, reason?: string }>} Resultado de la validaciÃ³n.
+ * @param {'area'|'departamento'|'puesto'} type - Tipo de ítem a verificar.
+ * @param {number} id - ID del ítem.
+ * @returns {Promise<{ canDelete: boolean, reason?: string }>} Resultado de la validación.
  */
 export const checkCanDeleteEmpresaItem = async (type, id) => {
     const response = await httpClient(`${API_URL}/empresas/check-can-delete/${type}/${id}`);
-    if (!response.ok) throw new Error('Error al verificar eliminaciÃ³n');
+    if (!response.ok) throw new Error('Error al verificar eliminación');
     return response.json();
 };
 

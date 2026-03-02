@@ -73,17 +73,17 @@ const PERIODO_LABELS = {
     q2: 'Q2',
     q3: 'Q3',
     q4: 'Q4',
-    cierre_prueba: 'Cierre PerÃ­odo de Prueba',
+    cierre_prueba: 'Cierre Período de Prueba',
     fin_proyecto: 'Fin de Proyecto',
     ad_hoc: 'Ad-hoc / Extraordinaria',
 };
 
 const TIPO_EVALUACION_LABELS = {
-    autoevaluacion: 'AutoevaluaciÃ³n',
-    descendente_90: '90Â° (Descendente)',
-    pares_jefe_180: '180Â° (Pares + Jefe)',
-    ascendente_270: '270Â° (Ascendente)',
-    integral_360: '360Â° (Integral)',
+    autoevaluacion: 'Autoevaluación',
+    descendente_90: '90° (Descendente)',
+    pares_jefe_180: '180° (Pares + Jefe)',
+    ascendente_270: '270° (Ascendente)',
+    integral_360: '360° (Integral)',
     competencias: 'Por Competencias',
     objetivos: 'Por Objetivos',
     mixta: 'Mixta',
@@ -129,7 +129,7 @@ const ESCALA_COLORS = {
 const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
     if (!evaluacion) return null;
 
-    // Permisos del mÃ³dulo evaluaciones
+    // Permisos del módulo evaluaciones
     const { user } = useAuth();
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
@@ -147,7 +147,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
         if (diffMinutes < 1) return 'menos de un minuto';
         if (diffMinutes < 60) return `${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
         if (diffHours < 24) return `${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-        return `${diffDays} dÃ­a${diffDays !== 1 ? 's' : ''}`;
+        return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
     };
 
     const formatContratoLabel = (contrato) => {
@@ -218,7 +218,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                 flexDirection: 'column'
             }}>
                 <div className="modal-header">
-                    <h2 className="modal-title">Detalle de la EvaluaciÃ³n</h2>
+                    <h2 className="modal-title">Detalle de la Evaluación</h2>
                     <button className="modal-close" onClick={onClose}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -267,7 +267,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
 
                     {/* Registro de Actividad Section */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Ãšltimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
                         <div className="activity-log-grid">
                             <div style={{
                                 display: 'flex',
@@ -279,7 +279,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0 }}>{Icons.calendar}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Fecha de CreaciÃ³n
+                                        Fecha de Creación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(evaluacion.createdAt)}
@@ -322,7 +322,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0 }}>{Icons.clock}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Ãšltima ModificaciÃ³n
+                                        Última Modificación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(evaluacion.updatedAt)}
@@ -337,7 +337,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                         {/* Column 1: Resumen, Resultado y Feedback */}
                         <div>
                             {/* Resumen */}
-                            <SectionHeader title="Resumen" subtitle={`Ãšltimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
+                            <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -345,13 +345,13 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                                 padding: '0 1rem',
                                 marginBottom: '1.5rem'
                             }}>
-                                <Field icon={Icons.clipboard} label="PerÃ­odo" value={PERIODO_LABELS[evaluacion.periodo] || evaluacion.periodo} />
-                                <Field icon={Icons.document} label="Tipo de EvaluaciÃ³n" value={TIPO_EVALUACION_LABELS[evaluacion.tipoEvaluacion] || evaluacion.tipoEvaluacion} />
+                                <Field icon={Icons.clipboard} label="Período" value={PERIODO_LABELS[evaluacion.periodo] || evaluacion.periodo} />
+                                <Field icon={Icons.document} label="Tipo de Evaluación" value={TIPO_EVALUACION_LABELS[evaluacion.tipoEvaluacion] || evaluacion.tipoEvaluacion} />
                                 <Field icon={Icons.calendar} label="Fecha" value={formatDateOnly(evaluacion.fecha)} />
                             </div>
 
                             {/* Resultado Final */}
-                            <SectionHeader title="Resultado" subtitle={`Ãšltimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
+                            <SectionHeader title="Resultado" subtitle={`Últimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -406,7 +406,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                             </div>
 
                             {/* Feedback Section */}
-                            <SectionHeader title="Feedback" subtitle={`Ãšltimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
+                            <SectionHeader title="Feedback" subtitle={`Últimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -419,10 +419,10 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                             </div>
                         </div>
 
-                        {/* Column 2: SituaciÃ³n Actual, Participantes y Notas */}
+                        {/* Column 2: Situación Actual, Participantes y Notas */}
                         <div>
-                            {/* SituaciÃ³n Actual */}
-                            <SectionHeader title="SituaciÃ³n Actual" subtitle={`Ãšltimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
+                            {/* Situación Actual */}
+                            <SectionHeader title="Situación Actual" subtitle={`Últimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -469,7 +469,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                                             Reconocido por el Empleado
                                         </div>
                                         <div style={{ fontWeight: 500, color: evaluacion.reconocidoPorEmpleado ? '#22c55e' : 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
-                                            {evaluacion.reconocidoPorEmpleado ? 'SÃ­' : 'No'}
+                                            {evaluacion.reconocidoPorEmpleado ? 'Sí' : 'No'}
                                             {evaluacion.reconocidoPorEmpleado && evaluacion.fechaReconocimiento && (
                                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '0.5rem', fontWeight: 400 }}>
                                                     ({formatDateOnly(evaluacion.fechaReconocimiento)})
@@ -541,7 +541,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                             {evaluacion.notas && (
                                 <>
                                     <div style={{ marginTop: '1.5rem' }}>
-                                        <SectionHeader title="Notas" subtitle={`Ãšltimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
+                                        <SectionHeader title="Notas" subtitle={`Últimos cambios hace ${getRelativeTime(evaluacion.updatedAt)}`} />
                                         <div style={{
                                             background: 'var(--card-bg)',
                                             borderRadius: '0.5rem',

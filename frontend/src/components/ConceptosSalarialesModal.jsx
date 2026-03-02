@@ -123,7 +123,7 @@ const ConceptosSalarialesModal = ({ onClose }) => {
                     </div>
 
                     <div className="modal-body" style={{ padding: '2rem' }}>
-                        {/* TÃ­tulo y subtÃ­tulo dentro del body */}
+                        {/* Título y subtítulo dentro del body */}
                         <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
                             <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
                                 Conceptos Salariales
@@ -159,7 +159,7 @@ const ConceptosSalarialesModal = ({ onClose }) => {
                                             <input
                                                 type="text"
                                                 className="form-input"
-                                                placeholder="Ej: JubilaciÃ³n"
+                                                placeholder="Ej: Jubilación"
                                                 required
                                                 value={formData.nombre}
                                                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
@@ -173,7 +173,7 @@ const ConceptosSalarialesModal = ({ onClose }) => {
                                                 onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
                                             >
                                                 <option value="remunerativo">Remunerativo</option>
-                                                <option value="deduccion">DeducciÃ³n</option>
+                                                <option value="deduccion">Deducción</option>
                                             </select>
                                         </div>
                                         <div className="form-group">
@@ -319,7 +319,7 @@ const ConceptosSalarialesModal = ({ onClose }) => {
             <ConfirmDialog
                 isOpen={confirmOpen}
                 title="Eliminar concepto salarial"
-                message={itemToDelete ? `Â¿EstÃ¡s seguro de eliminar el concepto "${itemToDelete.nombre}"? Esta acciÃ³n no se puede deshacer.` : ''}
+                message={itemToDelete ? `¿Estás seguro de eliminar el concepto "${itemToDelete.nombre}"? Esta acción no se puede deshacer.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Eliminar"

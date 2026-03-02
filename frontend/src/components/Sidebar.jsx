@@ -21,7 +21,7 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileOpen = false, onMobileClose })
     const { isDark, toggleTheme } = useTheme();
     const { user } = useAuth();
 
-    // Permisos de los mÃ³dulos
+    // Permisos de los módulos
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
     const canReadEmpleados = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'empleados' && p.accion === 'leer');
@@ -212,6 +212,7 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileOpen = false, onMobileClose })
                         {!isCollapsed && <span>Reportes</span>}
                     </NavLink>
                 )}
+
             </nav>
 
             <div className="sidebar-footer" style={{ flexShrink: 0 }}>
@@ -228,7 +229,7 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileOpen = false, onMobileClose })
                     {!isCollapsed && <span>{isDark ? 'Modo claro' : 'Modo oscuro'}</span>}
                 </button>
                 {!isCollapsed && (
-                    <p className="sidebar-copyright">Â© 2026 CataratasRH</p>
+                    <p className="sidebar-copyright">© 2026 CataratasRH</p>
                 )}
             </div>
         </aside>

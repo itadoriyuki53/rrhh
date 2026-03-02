@@ -59,7 +59,7 @@ const StepTracker = ({ currentStep, steps = [], totalSteps }) => {
                                 position: 'relative'
                             }}
                         >
-                            {/* CÃ­rculo del paso */}
+                            {/* Círculo del paso */}
                             <div
                                 style={{
                                     width: '32px',
@@ -93,7 +93,7 @@ const StepTracker = ({ currentStep, steps = [], totalSteps }) => {
                                 )}
                             </div>
 
-                            {/* LÃ­nea conectora - NO mostrar despuÃ©s del Ãºltimo paso */}
+                            {/* Línea conectora - NO mostrar después del último paso */}
                             {!isLast && (
                                 <div style={{
                                     flex: 1,

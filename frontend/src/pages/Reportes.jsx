@@ -232,8 +232,8 @@ const Reportes = () => {
         const types = {
             'tiempo_indeterminado': 'Tiempo Indeterminado',
             'plazo_fijo': 'Plazo Fijo',
-            'periodo_prueba': 'PerÃ­odo de Prueba',
-            'pasantia_educativa': 'PasantÃ­a Educativa',
+            'periodo_prueba': 'Período de Prueba',
+            'pasantia_educativa': 'Pasantía Educativa',
             'eventual': 'Eventual',
             'temporada': 'Temporada'
         };
@@ -296,7 +296,7 @@ const Reportes = () => {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Reportes</h1>
-                    <p className="page-subtitle">AnÃ¡lisis y estadÃ­sticas por empresa</p>
+                    <p className="page-subtitle">Análisis y estadísticas por empresa</p>
                 </div>
             </div>
 
@@ -304,7 +304,7 @@ const Reportes = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
 
@@ -337,7 +337,7 @@ const Reportes = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6.75h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
                     </svg>
                     <h3>No hay empresas disponibles</h3>
-                    <p>AÃºn no hay empresas registradas en el sistema para generar reportes.</p>
+                    <p>Aún no hay empresas registradas en el sistema para generar reportes.</p>
                 </div>
             ) : !empresaData ? (
                 <div className="empty-state">
@@ -351,7 +351,7 @@ const Reportes = () => {
                             <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <div>
                                     <h3 className="card-title" style={{ margin: 0 }}>Resumen Estructural</h3>
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Vista general de la conformaciÃ³n de la empresa</p>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Vista general de la conformación de la empresa</p>
                                 </div>
                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                                     <button
@@ -408,7 +408,7 @@ const Reportes = () => {
                             </div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', background: 'var(--card-bg)', borderTop: '1px solid var(--border-color)', borderRadius: '0 0 0.5rem 0.5rem' }}>
-                            <div style={{ borderRight: '1px solid var(--border-color)' }}><CounterCard value={totalAreas} label="Ãreas" color={primaryColor} /></div>
+                            <div style={{ borderRight: '1px solid var(--border-color)' }}><CounterCard value={totalAreas} label="Áreas" color={primaryColor} /></div>
                             <div style={{ borderRight: '1px solid var(--border-color)' }}><CounterCard value={totalDepartamentos} label="Departamentos" color="#22c55e" /></div>
                             <div style={{ borderRight: '1px solid var(--border-color)' }}><CounterCard value={totalPuestos} label="Puestos" color="#3b82f6" /></div>
                             <div><CounterCard value={totalEmpleados} label="Empleados" color="#8b5cf6" /></div>
@@ -425,8 +425,8 @@ const Reportes = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
                                     </svg>
                                     <div>
-                                        <h3 className="card-title" style={{ margin: 0 }}>DistribuciÃ³n Organizacional</h3>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>JerarquÃ­a de Ã¡reas, departamentos y puestos</p>
+                                        <h3 className="card-title" style={{ margin: 0 }}>Distribución Organizacional</h3>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Jerarquía de áreas, departamentos y puestos</p>
                                     </div>
                                 </div>
                             </div>
@@ -510,7 +510,7 @@ const Reportes = () => {
                                     </svg>
                                     <div>
                                         <h3 className="card-title" style={{ margin: 0 }}>Empleados por Tipo de Contrato</h3>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>DistribuciÃ³n de empleados activos segÃºn el acuerdo vigente</p>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Distribución de empleados activos según el acuerdo vigente</p>
                                     </div>
                                 </div>
                             </div>
@@ -527,7 +527,7 @@ const Reportes = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
                                     </svg>
                                     <div>
-                                        <h3 className="card-title" style={{ margin: 0 }}>EvoluciÃ³n Mensual</h3>
+                                        <h3 className="card-title" style={{ margin: 0 }}>Evolución Mensual</h3>
                                         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Historial de nuevos contratos iniciados</p>
                                     </div>
                                 </div>
@@ -545,8 +545,8 @@ const Reportes = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                                     </svg>
                                     <div>
-                                        <h3 className="card-title" style={{ margin: 0 }}>Ãšltimos Registros</h3>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Contratos mÃ¡s recientes cargados en el sistema</p>
+                                        <h3 className="card-title" style={{ margin: 0 }}>Últimos Registros</h3>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>Contratos más recientes cargados en el sistema</p>
                                     </div>
                                 </div>
                             </div>

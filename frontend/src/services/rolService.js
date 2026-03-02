@@ -1,5 +1,5 @@
 ﻿/**
- * @fileoverview Servicios para el mÃ³dulo de Roles, Permisos y Espacios de Trabajo.
+ * @fileoverview Servicios para el módulo de Roles, Permisos y Espacios de Trabajo.
  * @module services/rolService
  */
 
@@ -65,7 +65,7 @@ export const updateRol = async (id, rol) => {
 };
 
 /**
- * Elimina lÃ³gicamente un rol.
+ * Elimina lógicamente un rol.
  *
  * @param {number} id
  * @returns {Promise<Object>}
@@ -91,7 +91,7 @@ export const reactivateRol = async (id) => {
 };
 
 /**
- * Elimina mÃºltiples roles.
+ * Elimina múltiples roles.
  *
  * @param {number[]} ids
  * @returns {Promise<Object>}
@@ -120,9 +120,9 @@ export const getPermisos = async () => {
 };
 
 /**
- * Obtiene los permisos agrupados por mÃ³dulo para renderizar checkboxes en el wizard de roles.
+ * Obtiene los permisos agrupados por módulo para renderizar checkboxes en el wizard de roles.
  *
- * @returns {Promise<Object.<string, Object[]>>} Objeto con mÃ³dulos como claves y arrays de permisos como valores.
+ * @returns {Promise<Object.<string, Object[]>>} Objeto con módulos como claves y arrays de permisos como valores.
  */
 export const getPermisosGrouped = async () => {
     const response = await httpClient(`${API_URL}/permisos/grouped`);
@@ -133,7 +133,7 @@ export const getPermisosGrouped = async () => {
 /**
  * Inicializa los permisos del sistema con los valores por defecto del seed.
  *
- * @returns {Promise<Object>} Resultado de la inicializaciÃ³n.
+ * @returns {Promise<Object>} Resultado de la inicialización.
  */
 export const initializePermisos = async () => {
     const response = await httpClient(`${API_URL}/permisos/initialize`, { method: 'POST' });
@@ -228,7 +228,7 @@ export const reactivateEspacioTrabajo = async (id) => {
 };
 
 /**
- * Elimina mÃºltiples espacios de trabajo.
+ * Elimina múltiples espacios de trabajo.
  *
  * @param {number[]} ids
  * @returns {Promise<Object>}

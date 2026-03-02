@@ -6,19 +6,19 @@
 import { httpClient, API_URL } from './httpClient';
 
 /**
- * Obtiene las estadÃ­sticas generales del Dashboard para el espacio de trabajo activo.
+ * Obtiene las estadísticas generales del Dashboard para el espacio de trabajo activo.
  * Incluye totales de empleados activos, contratos en curso, solicitudes pendientes, etc.
  *
- * @returns {Promise<Object>} Objeto con las mÃ©tricas del dashboard.
+ * @returns {Promise<Object>} Objeto con las métricas del dashboard.
  */
 export const getDashboardStats = async () => {
     const response = await httpClient(`${API_URL}/dashboard/stats`);
-    if (!response.ok) throw new Error('Error al obtener estadÃ­sticas del dashboard');
+    if (!response.ok) throw new Error('Error al obtener estadísticas del dashboard');
     return response.json();
 };
 
 /**
- * Obtiene el reporte completo de una empresa con sus mÃ©tricas de RRHH.
+ * Obtiene el reporte completo de una empresa con sus métricas de RRHH.
  *
  * @param {number} empresaId - ID de la empresa.
  * @returns {Promise<Object>} Datos del reporte de la empresa.

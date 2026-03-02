@@ -6,7 +6,8 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "docs": "node -e \"const { execSync } = require('child_process'); try { execSync('jsdoc README.md -c jsdoc.json', { stdio: 'inherit' }); } catch (e) {} execSync('node ../inject_docs.js frontend', { stdio: 'inherit' });\""
     },
     "dependencies": {
         "react": "^18.2.0",
@@ -18,6 +19,8 @@
         "@types/react": "^18.2.37",
         "@types/react-dom": "^18.2.15",
         "@vitejs/plugin-react": "^4.2.0",
+        "better-docs": "^2.7.3",
+        "jsdoc": "^4.0.5",
         "vite": "^5.0.0"
     }
 }

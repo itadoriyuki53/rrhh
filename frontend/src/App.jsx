@@ -1,12 +1,12 @@
 ﻿/**
- * @fileoverview Componente raÃ­z de la aplicaciÃ³n. Define el Ã¡rbol de rutas y
+ * @fileoverview Componente raíz de la aplicación. Define el árbol de rutas y
  * el layout protegido con sidebar y navbar.
  *
  * **Estructura de rutas:**
- * - `/`                  â†’ LandingPage (pÃºblica, sin layout)
- * - `/login`, `/register`â†’ PublicRoute (redirige a /dashboard si ya autenticado)
- * - `/dashboard` y demÃ¡s â†’ ProtectedRoute â†’ ProtectedLayout â†’ pÃ¡gina especÃ­fica
- * - `/espacios-trabajo`  â†’ ademÃ¡s envuelto en NonEmployeeRoute (solo owners/admins)
+ * - `/`                  → LandingPage (pública, sin layout)
+ * - `/login`, `/register`→ PublicRoute (redirige a /dashboard si ya autenticado)
+ * - `/dashboard` y demás → ProtectedRoute → ProtectedLayout → página específica
+ * - `/espacios-trabajo`  → además envuelto en NonEmployeeRoute (solo owners/admins)
  *
  * @module App
  */
@@ -34,11 +34,12 @@ import Dashboard from './pages/Dashboard';
 import Reportes from './pages/Reportes';
 import Roles from './pages/Roles';
 import EspaciosTrabajo from './pages/EspaciosTrabajo';
+import TechnicalDocs from './pages/TechnicalDocs';
 
 /**
- * Layout para rutas protegidas. Incluye sidebar colapsable, overlay mÃ³vil y navbar.
+ * Layout para rutas protegidas. Incluye sidebar colapsable, overlay móvil y navbar.
  * Escucha el evento personalizado `toggle-sidebar` emitido por el Navbar para abrir
- * el sidebar en dispositivos mÃ³viles.
+ * el sidebar en dispositivos móviles.
  *
  * @param {{ sidebarCollapsed: boolean, setSidebarCollapsed: Function, children: React.ReactNode }} props
  * @returns {JSX.Element}
@@ -46,21 +47,21 @@ import EspaciosTrabajo from './pages/EspaciosTrabajo';
 function ProtectedLayout({ sidebarCollapsed, setSidebarCollapsed, children }) {
     const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
 
-    /** Escucha el botÃ³n hamburguesa del Navbar para abrir/cerrar el sidebar en mÃ³vil. */
+    /** Escucha el botón hamburguesa del Navbar para abrir/cerrar el sidebar en móvil. */
     useEffect(() => {
         const handler = () => setSidebarMobileOpen(prev => !prev);
         window.addEventListener('toggle-sidebar', handler);
         return () => window.removeEventListener('toggle-sidebar', handler);
     }, []);
 
-    /** Cierra el sidebar mÃ³vil al cambiar de pÃ¡gina (cuando `children` cambia). */
+    /** Cierra el sidebar móvil al cambiar de página (cuando `children` cambia). */
     useEffect(() => {
         setSidebarMobileOpen(false);
     }, [children]);
 
     return (
         <div className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-            {/* Overlay oscuro detrÃ¡s del sidebar en mÃ³vil */}
+            {/* Overlay oscuro detrás del sidebar en móvil */}
             {sidebarMobileOpen && (
                 <div
                     className="sidebar-overlay active"
@@ -84,8 +85,8 @@ function ProtectedLayout({ sidebarCollapsed, setSidebarCollapsed, children }) {
 }
 
 /**
- * Componente raÃ­z de la aplicaciÃ³n.
- * Provee el `AuthProvider` y define el Ã¡rbol completo de rutas con React Router.
+ * Componente raíz de la aplicación.
+ * Provee el `AuthProvider` y define el árbol completo de rutas con React Router.
  *
  * @returns {JSX.Element}
  */
@@ -95,10 +96,11 @@ function App() {
     return (
         <AuthProvider>
             <Routes>
-                {/* Ruta pÃºblica sin layout */}
+                {/* Ruta pública sin layout */}
                 <Route path="/" element={<LandingPage />} />
+                <Route path="/documentacion" element={<TechnicalDocs />} />
 
-                {/* Rutas de auth â€” redirigen a /dashboard si ya autenticado */}
+                {/* Rutas de auth — redirigen a /dashboard si ya autenticado */}
                 <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
                 <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 

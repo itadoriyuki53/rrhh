@@ -1,5 +1,5 @@
 ﻿/**
- * @fileoverview Servicios CRUD para los mÃ³dulos de Registros de Salud, Evaluaciones y Contactos.
+ * @fileoverview Servicios CRUD para los módulos de Registros de Salud, Evaluaciones y Contactos.
  * @module services/registroService
  */
 
@@ -8,7 +8,7 @@ import { httpClient, buildQueryString, API_URL } from './httpClient';
 // ===== REGISTROS DE SALUD =====
 
 /**
- * Obtiene la lista de registros de salud segÃºn filtros.
+ * Obtiene la lista de registros de salud según filtros.
  *
  * @param {Object} [filters={}] - (empleadoId, tipoExamen, vigente, etc.)
  * @returns {Promise<Object>} Lista paginada de registros.
@@ -34,7 +34,7 @@ export const getRegistroSaludById = async (id) => {
 /**
  * Crea un nuevo registro de salud para un empleado.
  *
- * @param {Object} data - Datos del examen mÃ©dico.
+ * @param {Object} data - Datos del examen médico.
  * @returns {Promise<Object>} Registro creado.
  */
 export const createRegistroSalud = async (data) => {
@@ -65,7 +65,7 @@ export const updateRegistroSalud = async (id, data) => {
 };
 
 /**
- * Elimina lÃ³gicamente un registro de salud.
+ * Elimina lógicamente un registro de salud.
  *
  * @param {number} id
  * @returns {Promise<Object>}
@@ -91,7 +91,7 @@ export const reactivateRegistroSalud = async (id) => {
 };
 
 /**
- * Elimina mÃºltiples registros de salud en un solo request.
+ * Elimina múltiples registros de salud en un solo request.
  *
  * @param {number[]} ids
  * @returns {Promise<Object>}
@@ -109,7 +109,7 @@ export const deleteRegistrosSaludBulk = async (ids) => {
 // ===== EVALUACIONES =====
 
 /**
- * Obtiene la lista de evaluaciones de desempeÃ±o.
+ * Obtiene la lista de evaluaciones de desempeño.
  *
  * @param {Object} [filters={}] - (contratoId, periodo, estado, etc.)
  * @returns {Promise<Object>}
@@ -121,21 +121,21 @@ export const getEvaluaciones = async (filters = {}) => {
 };
 
 /**
- * Obtiene una evaluaciÃ³n por su ID.
+ * Obtiene una evaluación por su ID.
  *
  * @param {number} id
  * @returns {Promise<Object>}
  */
 export const getEvaluacionById = async (id) => {
     const response = await httpClient(`${API_URL}/evaluaciones/${id}`);
-    if (!response.ok) throw new Error('Error al obtener evaluaciÃ³n');
+    if (!response.ok) throw new Error('Error al obtener evaluación');
     return response.json();
 };
 
 /**
- * Crea una nueva evaluaciÃ³n de desempeÃ±o.
+ * Crea una nueva evaluación de desempeño.
  *
- * @param {Object} data - Datos de la evaluaciÃ³n.
+ * @param {Object} data - Datos de la evaluación.
  * @returns {Promise<Object>}
  */
 export const createEvaluacion = async (data) => {
@@ -144,12 +144,12 @@ export const createEvaluacion = async (data) => {
         body: JSON.stringify(data),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Error al crear evaluaciÃ³n');
+    if (!response.ok) throw new Error(result.error || 'Error al crear evaluación');
     return result;
 };
 
 /**
- * Actualiza una evaluaciÃ³n existente.
+ * Actualiza una evaluación existente.
  *
  * @param {number} id
  * @param {Object} data
@@ -161,12 +161,12 @@ export const updateEvaluacion = async (id, data) => {
         body: JSON.stringify(data),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Error al actualizar evaluaciÃ³n');
+    if (!response.ok) throw new Error(result.error || 'Error al actualizar evaluación');
     return result;
 };
 
 /**
- * Elimina lÃ³gicamente una evaluaciÃ³n.
+ * Elimina lógicamente una evaluación.
  *
  * @param {number} id
  * @returns {Promise<Object>}
@@ -174,12 +174,12 @@ export const updateEvaluacion = async (id, data) => {
 export const deleteEvaluacion = async (id) => {
     const response = await httpClient(`${API_URL}/evaluaciones/${id}`, { method: 'DELETE' });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Error al eliminar evaluaciÃ³n');
+    if (!response.ok) throw new Error(result.error || 'Error al eliminar evaluación');
     return result;
 };
 
 /**
- * Reactiva una evaluaciÃ³n dada de baja.
+ * Reactiva una evaluación dada de baja.
  *
  * @param {number} id
  * @returns {Promise<Object>}
@@ -187,12 +187,12 @@ export const deleteEvaluacion = async (id) => {
 export const reactivateEvaluacion = async (id) => {
     const response = await httpClient(`${API_URL}/evaluaciones/${id}/reactivate`, { method: 'PATCH' });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Error al reactivar evaluaciÃ³n');
+    if (!response.ok) throw new Error(result.error || 'Error al reactivar evaluación');
     return result;
 };
 
 /**
- * Elimina mÃºltiples evaluaciones.
+ * Elimina múltiples evaluaciones.
  *
  * @param {number[]} ids
  * @returns {Promise<Object>}
@@ -267,7 +267,7 @@ export const updateContacto = async (id, data) => {
 };
 
 /**
- * Elimina lÃ³gicamente un contacto.
+ * Elimina lógicamente un contacto.
  *
  * @param {number} id
  * @returns {Promise<Object>}
@@ -293,7 +293,7 @@ export const reactivateContacto = async (id) => {
 };
 
 /**
- * Elimina mÃºltiples contactos.
+ * Elimina múltiples contactos.
  *
  * @param {number[]} ids
  * @returns {Promise<Object>}

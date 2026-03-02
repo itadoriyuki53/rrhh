@@ -27,7 +27,7 @@ const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
 const TIPOS_EXAMEN_LABELS = {
     pre_ocupacional: 'Pre-Ocupacional',
-    periodico: 'PeriÃ³dico',
+    periodico: 'Periódico',
     post_ocupacional: 'Post-Ocupacional',
     retorno_trabajo: 'Retorno al Trabajo',
 };
@@ -46,7 +46,7 @@ const RESULTADO_COLORS = {
 
 const TIPOS_EXAMEN_FILTER = [
     { value: 'pre_ocupacional', label: 'Pre-Ocupacional' },
-    { value: 'periodico', label: 'PeriÃ³dico' },
+    { value: 'periodico', label: 'Periódico' },
     { value: 'post_ocupacional', label: 'Post-Ocupacional' },
     { value: 'retorno_trabajo', label: 'Retorno al Trabajo' },
 ];
@@ -156,7 +156,7 @@ const RegistrosSalud = () => {
             if (espaciosList.length === 1 && !filterEspacio) {
                 setFilterEspacio({ value: espaciosList[0].id, label: espaciosList[0].nombre });
             }
-            // Auto-seleccionar empleado si es Ãºnico en la lista O si el usuario no tiene acceso full (Operativo)
+            // Auto-seleccionar empleado si es único en la lista O si el usuario no tiene acceso full (Operativo)
             if (!filterEmpleado) {
                 if (empleadosList.length === 1) {
                     const emp = empleadosList[0];
@@ -373,7 +373,7 @@ const RegistrosSalud = () => {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Registros de Salud</h1>
-                    <p className="page-subtitle">Gestiona los exÃ¡menes mÃ©dicos de los empleados</p>
+                    <p className="page-subtitle">Gestiona los exámenes médicos de los empleados</p>
                 </div>
             </div>
 
@@ -381,13 +381,13 @@ const RegistrosSalud = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
 
@@ -575,7 +575,7 @@ const RegistrosSalud = () => {
                                                                     if (diffDays >= 0) {
                                                                         return (
                                                                             <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                                                                                {diffDays} dÃ­as restantes
+                                                                                {diffDays} días restantes
                                                                             </span>
                                                                         );
                                                                     }
@@ -635,7 +635,7 @@ const RegistrosSalud = () => {
                         {/* Pagination */}
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por pÃ¡gina:</span>
+                                <span>Filas por página:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                     {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
@@ -644,11 +644,11 @@ const RegistrosSalud = () => {
                                 </span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
-                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
                             </div>
                         </div>
                     </>
@@ -676,7 +676,7 @@ const RegistrosSalud = () => {
             <ConfirmDialog
                 isOpen={confirmOpen}
                 title="Desactivar registro de salud"
-                message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar este registro de salud? PodrÃ¡s reactivarlo mÃ¡s tarde.` : ''}
+                message={itemToDelete ? `¿Estás seguro de desactivar este registro de salud? Podrás reactivarlo más tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -686,7 +686,7 @@ const RegistrosSalud = () => {
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
                 title="Desactivar registros de salud"
-                message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} registro(s) de salud? PodrÃ¡s reactivarlos mÃ¡s tarde.`}
+                message={`¿Estás seguro de desactivar ${selectedIds.size} registro(s) de salud? Podrás reactivarlos más tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todos"

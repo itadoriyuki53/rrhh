@@ -12,9 +12,9 @@ import { useIsDark } from '../helpers/hooks';
 import { buildSelectStyles } from '../helpers/selectStyles';
 
 const PARENTESCOS = [
-    'CÃ³nyuge', 'Padre', 'Madre', 'Hijo/a', 'Hermano/a',
-    'Abuelo/a', 'Nieto/a', 'TÃ­o/a', 'Sobrino/a', 'Primo/a',
-    'Suegro/a', 'CuÃ±ado/a', 'Yerno', 'Nuera', 'Otro'
+    'Cónyuge', 'Padre', 'Madre', 'Hijo/a', 'Hermano/a',
+    'Abuelo/a', 'Nieto/a', 'Tío/a', 'Sobrino/a', 'Primo/a',
+    'Suegro/a', 'Cuñado/a', 'Yerno', 'Nuera', 'Otro'
 ];
 
 /**
@@ -157,7 +157,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
         if (currentStep === 1) {
             if (!formData.empleadoId) errors.empleadoId = 'Debe seleccionar un empleado';
             if (!formData.esFamiliar && !formData.esContactoEmergencia) {
-                errors.checkboxes = 'Debe seleccionar al menos una opciÃ³n: Familiar o Contacto de Emergencia';
+                errors.checkboxes = 'Debe seleccionar al menos una opción: Familiar o Contacto de Emergencia';
             }
             if (!formData.nombreCompleto) {
                 errors.nombreCompleto = 'El nombre completo es requerido';
@@ -167,7 +167,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
             if (!formData.dni) {
                 errors.dni = 'El DNI es requerido';
             } else if (!/^(\d{8}|[MF]\d{7})$/.test(formData.dni)) {
-                errors.dni = 'El DNI debe ser 8 nÃºmeros o comenzar con M/F seguido de 7 nÃºmeros';
+                errors.dni = 'El DNI debe ser 8 números o comenzar con M/F seguido de 7 números';
             }
             if (formData.fechaNacimiento) {
                 const birthDate = new Date(formData.fechaNacimiento);
@@ -176,7 +176,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                 today.setHours(0, 0, 0, 0);
 
                 if (birthDate < minDate) {
-                    errors.fechaNacimiento = 'La fecha de nacimiento no es vÃ¡lida';
+                    errors.fechaNacimiento = 'La fecha de nacimiento no es válida';
                 } else if (birthDate > today) {
                     errors.fechaNacimiento = 'La fecha de nacimiento no puede ser futura';
                 } else {
@@ -187,7 +187,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                         age--;
                     }
                     if (age < 18) {
-                        errors.fechaNacimiento = 'El contacto debe tener al menos 18 aÃ±os para ser responsable';
+                        errors.fechaNacimiento = 'El contacto debe tener al menos 18 años para ser responsable';
                     }
                 }
             }
@@ -198,15 +198,15 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
 
         if (currentStep === 2) {
             if (!formData.telefonoPrincipal) {
-                errors.telefonoPrincipal = 'El telÃ©fono principal es requerido';
+                errors.telefonoPrincipal = 'El teléfono principal es requerido';
             } else if (!/^[0-9+\-\s()]*$/.test(formData.telefonoPrincipal)) {
-                errors.telefonoPrincipal = 'El telÃ©fono solo puede contener nÃºmeros, +, -, espacios y parÃ©ntesis';
+                errors.telefonoPrincipal = 'El teléfono solo puede contener números, +, -, espacios y paréntesis';
             }
             if (formData.telefonoSecundario && !/^[0-9+\-\s()]*$/.test(formData.telefonoSecundario)) {
-                errors.telefonoSecundario = 'El telÃ©fono solo puede contener nÃºmeros, +, -, espacios y parÃ©ntesis';
+                errors.telefonoSecundario = 'El teléfono solo puede contener números, +, -, espacios y paréntesis';
             }
             if (formData.direccion && formData.direccion.length > 300) {
-                errors.direccion = 'La direcciÃ³n no puede exceder 300 caracteres';
+                errors.direccion = 'La dirección no puede exceder 300 caracteres';
             }
         }
 
@@ -382,7 +382,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
         <div style={{ display: 'grid', gap: '1.5rem' }}>
             {/* Checkboxes adicionales */}
             <div className="form-group">
-                <label className="form-label">InformaciÃ³n Adicional</label>
+                <label className="form-label">Información Adicional</label>
                 <div style={{ display: 'flex', gap: '2rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                         <input
@@ -414,10 +414,10 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                 </div>
             </div>
 
-            {/* TelÃ©fonos */}
+            {/* Teléfonos */}
             <div className="form-grid-stacked">
                 <div className="form-group">
-                    <label className="form-label">TelÃ©fono Principal *</label>
+                    <label className="form-label">Teléfono Principal *</label>
                     <input
                         type="tel"
                         className={`form-input ${touched.telefonoPrincipal && fieldErrors.telefonoPrincipal ? 'input-error' : ''}`}
@@ -429,7 +429,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                     <FieldError message={touched.telefonoPrincipal && fieldErrors.telefonoPrincipal} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">TelÃ©fono Secundario</label>
+                    <label className="form-label">Teléfono Secundario</label>
                     <input
                         type="tel"
                         className={`form-input ${touched.telefonoSecundario && fieldErrors.telefonoSecundario ? 'input-error' : ''}`}
@@ -442,15 +442,15 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                 </div>
             </div>
 
-            {/* DirecciÃ³n */}
+            {/* Dirección */}
             <div className="form-group">
-                <label className="form-label">DirecciÃ³n</label>
+                <label className="form-label">Dirección</label>
                 <textarea
                     className={`form-input ${touched.direccion && fieldErrors.direccion ? 'input-error' : ''}`}
                     value={formData.direccion}
                     onChange={(e) => handleChange('direccion', e.target.value)}
                     onBlur={() => handleBlur('direccion')}
-                    placeholder="DirecciÃ³n completa (opcional)"
+                    placeholder="Dirección completa (opcional)"
                     rows={3}
                     style={{ resize: 'vertical' }}
                     maxLength={300}
@@ -481,8 +481,8 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                             {steps[currentStep - 1].title}
                         </h3>
                         <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                            {currentStep === 1 && 'Ingresa los datos bÃ¡sicos del contacto'}
-                            {currentStep === 2 && 'Completa la informaciÃ³n adicional del contacto'}
+                            {currentStep === 1 && 'Ingresa los datos básicos del contacto'}
+                            {currentStep === 2 && 'Completa la información adicional del contacto'}
                         </p>
                     </div>
 

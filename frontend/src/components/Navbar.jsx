@@ -265,10 +265,10 @@ const Navbar = () => {
     const handleEditProfile = () => {
         setShowProfile(false);
         if (user.esEmpleado) {
-            // Empleado â†’ wizard de empleado
+            // Empleado → wizard de empleado
             setShowEditWizard(true);
         } else {
-            // Propietario (no empleado) â†’ modal de ediciÃ³n de perfil
+            // Propietario (no empleado) → modal de edición de perfil
             setShowPerfilModal(true);
         }
     };
@@ -284,7 +284,7 @@ const Navbar = () => {
     const handleLogoutClick = () => { setShowMenu(false); setShowLogoutConfirm(true); };
     const handleConfirmLogout = async () => {
         try { await logout(); navigate('/login'); }
-        catch (error) { console.error('Error al cerrar sesiÃ³n:', error); }
+        catch (error) { console.error('Error al cerrar sesión:', error); }
     };
 
     /**
@@ -313,7 +313,7 @@ const Navbar = () => {
                         <button
                             className="navbar-menu-btn"
                             onClick={toggleSidebar}
-                            aria-label="Abrir menÃº"
+                            aria-label="Abrir menú"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
@@ -326,7 +326,7 @@ const Navbar = () => {
                             <button
                                 className="user-menu-trigger"
                                 onClick={() => setShowMenu(!showMenu)}
-                                aria-label="MenÃº de usuario"
+                                aria-label="Menú de usuario"
                             >
                                 <img
                                     src={avatarPath}
@@ -362,14 +362,14 @@ const Navbar = () => {
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                                         </svg>
-                                        Ver informaciÃ³n
+                                        Ver información
                                     </button>
                                     <div className="menu-divider"></div>
                                     <button className="menu-item menu-item-danger" onClick={handleLogoutClick}>
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                                         </svg>
-                                        Cerrar sesiÃ³n
+                                        Cerrar sesión
                                     </button>
                                 </div>
                             )}
@@ -405,11 +405,11 @@ const Navbar = () => {
 
             <ConfirmDialog
                 isOpen={showLogoutConfirm}
-                title="Cerrar sesiÃ³n"
-                message="Â¿EstÃ¡s seguro de que deseas cerrar sesiÃ³n?"
+                title="Cerrar sesión"
+                message="¿Estás seguro de que deseas cerrar sesión?"
                 onConfirm={handleConfirmLogout}
                 onCancel={() => setShowLogoutConfirm(false)}
-                confirmText="Cerrar sesiÃ³n"
+                confirmText="Cerrar sesión"
                 variant="danger"
             />
         </>

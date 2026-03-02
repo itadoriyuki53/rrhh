@@ -285,14 +285,14 @@ const Liquidaciones = () => {
 
     const handleFormularioSuccess = () => {
         handleCloseFormulario();
-        setSuccess('LiquidaciÃ³n actualizada correctamente');
+        setSuccess('Liquidación actualizada correctamente');
         loadItems();
     };
 
     const handleMarcarComoPagada = async (item) => {
         try {
             await marcarLiquidacionComoPagada(item.id, true);
-            setSuccess('LiquidaciÃ³n marcada como pagada correctamente');
+            setSuccess('Liquidación marcada como pagada correctamente');
             loadItems();
         } catch (err) {
             setError(err.message);
@@ -303,7 +303,7 @@ const Liquidaciones = () => {
         try {
             setLoading(true);
             await ejecutarLiquidacion();
-            setSuccess('SimulaciÃ³n de liquidaciones ejecutada correctamente');
+            setSuccess('Simulación de liquidaciones ejecutada correctamente');
             loadItems();
         } catch (err) {
             setError(err.message);
@@ -317,7 +317,7 @@ const Liquidaciones = () => {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Liquidaciones</h1>
-                    <p className="page-subtitle">Visualiza y gestiona las liquidaciones generadas automÃ¡ticamente</p>
+                    <p className="page-subtitle">Visualiza y gestiona las liquidaciones generadas automáticamente</p>
                 </div>
             </div>
 
@@ -325,13 +325,13 @@ const Liquidaciones = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
 
@@ -350,7 +350,7 @@ const Liquidaciones = () => {
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                                 </svg>
-                                Simular LiquidaciÃ³n
+                                Simular Liquidación
                             </button>
                         )}
                         {canEdit && (
@@ -367,7 +367,7 @@ const Liquidaciones = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.004.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                ParÃ¡metros Laborales
+                                Parámetros Laborales
                             </button>
                         )}
                     </div>
@@ -419,7 +419,7 @@ const Liquidaciones = () => {
                             </button>
                             {showColumnSelector && (
                                 <div className="column-selector-dropdown">
-                                    {Object.entries({ espacio: 'Espacio', periodo: 'PerÃ­odo', totalBruto: 'Total Bruto', retenciones: 'Retenciones', neto: 'Neto', estado: 'Estado' }).map(([key, label]) => (
+                                    {Object.entries({ espacio: 'Espacio', periodo: 'Período', totalBruto: 'Total Bruto', retenciones: 'Retenciones', neto: 'Neto', estado: 'Estado' }).map(([key, label]) => (
                                         <label key={key} className="column-option">
                                             <input type="checkbox" checked={visibleColumns[key]} onChange={() => toggleColumn(key)} />
                                             <span>{label}</span>
@@ -448,7 +448,7 @@ const Liquidaciones = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
                         </svg>
                         <h3>No hay liquidaciones</h3>
-                        <p>Las liquidaciones se generan automÃ¡ticamente el primer dÃ­a de cada mes</p>
+                        <p>Las liquidaciones se generan automáticamente el primer día de cada mes</p>
                     </div>
                 ) : (
                     <>
@@ -461,7 +461,7 @@ const Liquidaciones = () => {
                                         </th>
                                         <th>Empleado</th>
                                         {visibleColumns.espacio && <th>Espacio</th>}
-                                        {visibleColumns.periodo && <th>PerÃ­odo</th>}
+                                        {visibleColumns.periodo && <th>Período</th>}
                                         {visibleColumns.totalBruto && <th>Total Bruto</th>}
                                         {visibleColumns.retenciones && <th>Retenciones</th>}
                                         {visibleColumns.neto && <th>Neto</th>}
@@ -560,7 +560,7 @@ const Liquidaciones = () => {
                         {/* Pagination */}
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por pÃ¡gina:</span>
+                                <span>Filas por página:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                     {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
@@ -569,11 +569,11 @@ const Liquidaciones = () => {
                                 </span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
-                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
                             </div>
                         </div>
                     </>

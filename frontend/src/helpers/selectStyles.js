@@ -1,5 +1,5 @@
 ﻿/**
- * @fileoverview Estilos de react-select adaptados al tema claro/oscuro de la aplicaciÃ³n.
+ * @fileoverview Estilos de react-select adaptados al tema claro/oscuro de la aplicación.
  * Centraliza la paleta de colores para que todos los Select del sistema sean consistentes.
  * @module helpers/selectStyles
  */

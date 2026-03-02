@@ -31,19 +31,19 @@ const TIPOS_RELACION_DEPENDENCIA = [
 const MOTIVOS_LEGALES = [
     { value: 'matrimonio', label: 'Matrimonio (LCT Art. 168)' },
     { value: 'nacimiento_hijo', label: 'Nacimiento de hijo (Paternidad)' },
-    { value: 'fallecimiento_conyugue_hijo_padres', label: 'Fallecimiento de cÃ³nyuge, hijo o padres' },
+    { value: 'fallecimiento_conyugue_hijo_padres', label: 'Fallecimiento de cónyuge, hijo o padres' },
     { value: 'fallecimiento_hermano', label: 'Fallecimiento de hermano' },
     { value: 'examen_estudio', label: 'Examen / Estudio' },
     { value: 'accidente_trabajo_art', label: 'Accidente de trabajo / Enfermedad profesional (ART)' },
     { value: 'enfermedad_inculpable', label: 'Enfermedad inculpable' },
     { value: 'maternidad', label: 'Maternidad' },
     { value: 'excedencia', label: 'Estado de excedencia' },
-    { value: 'donacion_sangre', label: 'DonaciÃ³n de sangre' },
-    { value: 'citacion_judicial', label: 'CitaciÃ³n judicial' },
+    { value: 'donacion_sangre', label: 'Donación de sangre' },
+    { value: 'citacion_judicial', label: 'Citación judicial' },
     { value: 'presidente_mesa', label: 'Presidente de mesa (electoral)' },
     { value: 'mudanza', label: 'Mudanza' },
-    { value: 'cumpleanos', label: 'DÃ­a de cumpleaÃ±os' },
-    { value: 'tramites_personales', label: 'TrÃ¡mites personales' },
+    { value: 'cumpleanos', label: 'Día de cumpleaños' },
+    { value: 'tramites_personales', label: 'Trámites personales' },
     { value: 'compensatorio_franco', label: 'Compensatorio / Franco' },
 ];
 
@@ -51,7 +51,7 @@ const MOTIVOS_SALUD = ['accidente_trabajo_art', 'enfermedad_inculpable'];
 
 const TIPO_EXAMEN_LABELS = {
     pre_ocupacional: 'Pre-ocupacional',
-    periodico: 'PeriÃ³dico',
+    periodico: 'Periódico',
     post_ocupacional: 'Post-ocupacional',
     retorno_trabajo: 'Retorno al trabajo',
 };
@@ -82,22 +82,22 @@ const ESTADOS_RENUNCIA = [
 ];
 
 const TIPOS_HORAS_EXTRA = [
-    { value: '50', label: '50% (dÃ­as hÃ¡biles)' },
+    { value: '50', label: '50% (días hábiles)' },
     { value: '100', label: '100% (fines de semana / feriados)' },
 ];
 
-const TOOLTIP_VACACIONES = `SegÃºn la **Ley de Contrato de Trabajo de Argentina (LCT)**, los dÃ­as de vacaciones se determinan por la antigÃ¼edad del trabajador:
+const TOOLTIP_VACACIONES = `Según la **Ley de Contrato de Trabajo de Argentina (LCT)**, los días de vacaciones se determinan por la antigÃ¼edad del trabajador:
 
-â€¢ Hasta 5 aÃ±os de antigÃ¼edad: **14 dÃ­as corridos**
-â€¢ MÃ¡s de 5 y hasta 10 aÃ±os: **21 dÃ­as corridos**
-â€¢ MÃ¡s de 10 y hasta 20 aÃ±os: **28 dÃ­as corridos**
-â€¢ MÃ¡s de 20 aÃ±os: **35 dÃ­as corridos**
+• Hasta 5 años de antigÃ¼edad: **14 días corridos**
+• Más de 5 y hasta 10 años: **21 días corridos**
+• Más de 10 y hasta 20 años: **28 días corridos**
+• Más de 20 años: **35 días corridos**
 
-Si el trabajador no hubiere prestado servicios durante la mitad de los dÃ­as hÃ¡biles del aÃ±o calendario, tendrÃ¡ derecho a **1 dÃ­a de vacaciones por cada 20 dÃ­as de trabajo efectivo**. 
+Si el trabajador no hubiere prestado servicios durante la mitad de los días hábiles del año calendario, tendrá derecho a **1 día de vacaciones por cada 20 días de trabajo efectivo**. 
 
-Los dÃ­as se calculan como dÃ­as hÃ¡biles (excluyendo fines de semana y feriados nacionales).`;
+Los días se calculan como días hábiles (excluyendo fines de semana y feriados nacionales).`;
 
-const TOOLTIP_RENUNCIA = `SegÃºn la Ley de Contrato de Trabajo de Argentina (LCT), el **preaviso** es obligatorio y debe ser de 15 dÃ­as, con el fin de que la empresa busque reemplazo.`;
+const TOOLTIP_RENUNCIA = `Según la Ley de Contrato de Trabajo de Argentina (LCT), el **preaviso** es obligatorio y debe ser de 15 días, con el fin de que la empresa busque reemplazo.`;
 
 /**
  * Componente interno de error de campo.
@@ -312,7 +312,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         }
     }, [selectedTipo, formData.fecha]);
 
-    // Cargar informaciÃ³n de vacaciones (dÃ­as disponibles, correspondientes, tomados)
+    // Cargar información de vacaciones (días disponibles, correspondientes, tomados)
     useEffect(() => {
         const loadVacationInfo = async () => {
             if (selectedTipo === 'vacaciones' && selectedContrato?.value && formData.periodo) {
@@ -334,7 +334,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         loadVacationInfo();
     }, [selectedTipo, selectedContrato, formData.periodo]);
 
-    // Calcular dÃ­as solicitados y fecha de regreso (Vacaciones y Licencias)
+    // Calcular días solicitados y fecha de regreso (Vacaciones y Licencias)
     useEffect(() => {
         const calculateDays = async () => {
             if (!formData.fechaInicio || !formData.fechaFin) return;
@@ -434,7 +434,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         });
         setError('');
 
-        // Validar dÃ­a hÃ¡bil en tiempo real SÃNCRONO
+        // Validar día hábil en tiempo real SÍNCRONO
         const camposFecha = ['fechaInicio', 'fechaFin', 'fecha', 'fechaNotificacion', 'fechaBajaEfectiva', 'notificadoEl'];
         const esHorasExtrasFecha = selectedTipo === 'horas_extras' && field === 'fecha';
 
@@ -444,18 +444,18 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                     fechaInicio: 'La fecha de inicio',
                     fechaFin: 'La fecha de fin',
                     fecha: 'La fecha',
-                    fechaNotificacion: 'La fecha de notificaciÃ³n',
+                    fechaNotificacion: 'La fecha de notificación',
                     fechaBajaEfectiva: 'La fecha de baja',
-                    notificadoEl: 'La fecha de notificaciÃ³n'
+                    notificadoEl: 'La fecha de notificación'
                 };
-                validarDiaHabil(value, nombresCampos[field]); // âœ… SÃ­ncrono
+                validarDiaHabil(value, nombresCampos[field]); // ✅ Síncrono
                 setFieldErrors(prev => ({ ...prev, [field]: null }));
             } catch (error) {
                 setFieldErrors(prev => ({ ...prev, [field]: error.message }));
                 setTouched(prev => ({ ...prev, [field]: true })); // Marcar como touched para mostrar error
             }
         } else if (esHorasExtrasFecha) {
-            // Limpiar error de dÃ­a hÃ¡bil si existiera (aunque ya no se valida)
+            // Limpiar error de día hábil si existiera (aunque ya no se valida)
             setFieldErrors(prev => ({ ...prev, [field]: null }));
         }
 
@@ -501,10 +501,10 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 errors.fechaFin = 'La fecha de fin no puede ser anterior a la de inicio';
             }
             if (formData.descripcion && formData.descripcion.length > 500) {
-                errors.descripcion = 'La descripciÃ³n no puede exceder los 500 caracteres';
+                errors.descripcion = 'La descripción no puede exceder los 500 caracteres';
             }
         } else if (selectedTipo === 'vacaciones') {
-            if (!formData.periodo) errors.periodo = 'El perÃ­odo es requerido';
+            if (!formData.periodo) errors.periodo = 'El período es requerido';
             if (!formData.fechaInicio) errors.fechaInicio = 'La fecha de inicio es requerida';
             if (!formData.fechaFin) errors.fechaFin = 'La fecha de fin es requerida';
             // Today IS valid - only reject strictly past dates
@@ -515,25 +515,25 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 errors.fechaFin = 'La fecha de fin no puede ser anterior a la de inicio';
             }
 
-            // Validar rango por perÃ­odo (1 de Mayo aÃ±o X al 30 de Abril aÃ±o X+1)
+            // Validar rango por período (1 de Mayo año X al 30 de Abril año X+1)
             if (formData.periodo && (formData.fechaInicio || formData.fechaFin)) {
                 const anio = parseInt(formData.periodo);
                 const minFecha = `${anio}-05-01`;
                 const maxFecha = `${anio + 1}-04-30`;
 
                 if (formData.fechaInicio && (formData.fechaInicio < minFecha || formData.fechaInicio > maxFecha)) {
-                    errors.fechaInicio = `Para el perÃ­odo ${anio}, la fecha debe ser entre el 01/05/${anio} y el 30/04/${anio + 1}`;
+                    errors.fechaInicio = `Para el período ${anio}, la fecha debe ser entre el 01/05/${anio} y el 30/04/${anio + 1}`;
                 }
                 if (formData.fechaFin && (formData.fechaFin < minFecha || formData.fechaFin > maxFecha)) {
-                    errors.fechaFin = `Para el perÃ­odo ${anio}, la fecha debe ser entre el 01/05/${anio} y el 30/04/${anio + 1}`;
+                    errors.fechaFin = `Para el período ${anio}, la fecha debe ser entre el 01/05/${anio} y el 30/04/${anio + 1}`;
                 }
             }
 
             if (formData.diasSolicitud && formData.diasDisponibles && formData.diasSolicitud > formData.diasDisponibles) {
-                errors.fechaFin = `Los dÃ­as solicitados (${formData.diasSolicitud}) exceden los disponibles (${formData.diasDisponibles})`;
+                errors.fechaFin = `Los días solicitados (${formData.diasSolicitud}) exceden los disponibles (${formData.diasDisponibles})`;
             }
             if (formData.descripcion && formData.descripcion.length > 500) {
-                errors.descripcion = 'La descripciÃ³n no puede exceder los 500 caracteres';
+                errors.descripcion = 'La descripción no puede exceder los 500 caracteres';
             }
         } else if (selectedTipo === 'horas_extras') {
             if (!formData.fecha) errors.fecha = 'La fecha es requerida';
@@ -552,30 +552,30 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         } else if (selectedTipo === 'renuncia') {
             // Usar valor de formData o valor por defecto (hoy)
             const fechaNot = formData.fechaNotificacion || getTodayStr();
-            if (!fechaNot) errors.fechaNotificacion = 'La fecha de notificaciÃ³n es requerida';
+            if (!fechaNot) errors.fechaNotificacion = 'La fecha de notificación es requerida';
             if (formData.motivo && formData.motivo.length > 500) {
                 errors.motivo = 'El motivo no puede exceder los 500 caracteres';
             }
         }
 
-        // Preservar solo los errores de dÃ­as hÃ¡biles de campos que NO estÃ¡n siendo validados ahora
+        // Preservar solo los errores de días hábiles de campos que NO están siendo validados ahora
         const allErrors = setFieldErrors(prev => {
             const camposFecha = ['fechaInicio', 'fechaFin', 'fecha', 'fechaNotificacion', 'fechaBajaEfectiva', 'notificadoEl'];
             const erroresDiasHabiles = {};
 
-            // Preservar solo errores de dÃ­as hÃ¡biles en campos de fecha
+            // Preservar solo errores de días hábiles en campos de fecha
             camposFecha.forEach(campo => {
-                if (prev[campo] && prev[campo].includes('dÃ­a hÃ¡bil')) {
+                if (prev[campo] && prev[campo].includes('día hábil')) {
                     erroresDiasHabiles[campo] = prev[campo];
                 }
             });
 
-            // Combinar: errores de la validaciÃ³n actual + errores de dÃ­as hÃ¡biles preservados
+            // Combinar: errores de la validación actual + errores de días hábiles preservados
             const combined = { ...erroresDiasHabiles, ...errors };
             return combined;
         });
 
-        // Retornar false si hay CUALQUIER error (validaciÃ³n bÃ¡sica O dÃ­as hÃ¡biles)
+        // Retornar false si hay CUALQUIER error (validación básica O días hábiles)
         return Object.keys(errors).length === 0 && !Object.values(fieldErrors).some(err => err !== null);
     };
 
@@ -765,7 +765,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         <FieldError message={touched.fechaFin && fieldErrors.fechaFin} />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">DÃ­as Solicitados</label>
+                        <label className="form-label">Días Solicitados</label>
                         <input
                             type="number"
                             className="form-input"
@@ -801,10 +801,10 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">DescripciÃ³n</label>
+                    <label className="form-label">Descripción</label>
                     <textarea
                         className="form-input"
-                        placeholder="InformaciÃ³n adicional sobre la licencia..."
+                        placeholder="Información adicional sobre la licencia..."
                         value={formData.descripcion || ''}
                         onChange={e => handleChange('descripcion', e.target.value)}
                         rows={2}
@@ -830,7 +830,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 {/* Row 1: Period and days info */}
                 <div className="form-grid-stacked">
                     <div className="form-group">
-                        <label className="form-label">PerÃ­odo *</label>
+                        <label className="form-label">Período *</label>
                         <select
                             className={`form-input ${touched.periodo && fieldErrors.periodo ? 'input-error' : ''}`}
                             value={formData.periodo || ''}
@@ -838,14 +838,14 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                             onBlur={() => handleBlur('periodo')}
                             disabled={isReadOnly()}
                         >
-                            <option value="">AÃ±o...</option>
+                            <option value="">Año...</option>
                             {periodos.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                         </select>
                         <FieldError message={touched.periodo && fieldErrors.periodo} />
                     </div>
                     <div className="form-group">
                         <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            DÃ­as Corresp.
+                            Días Corresp.
                             <span
                                 className="tooltip-icon"
                                 onClick={() => setShowTooltipVacaciones(!showTooltipVacaciones)}
@@ -866,11 +866,11 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 )}
                 <div className="form-grid-stacked">
                     <div className="form-group">
-                        <label className="form-label">DÃ­as Tomados</label>
+                        <label className="form-label">Días Tomados</label>
                         <input type="number" className="form-input" value={formData.diasTomados || 0} disabled />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">DÃ­as Disponibles</label>
+                        <label className="form-label">Días Disponibles</label>
                         <input type="number" className="form-input" value={formData.diasDisponibles || 0} disabled />
                     </div>
                 </div>
@@ -906,7 +906,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         <input type="date" className="form-input" value={formData.fechaRegreso || ''} disabled />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">DÃ­as Solic.</label>
+                        <label className="form-label">Días Solic.</label>
                         <input type="number" className="form-input" value={formData.diasSolicitud || 0} disabled />
                     </div>
                 </div>
@@ -924,7 +924,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                             disabled={true}
                         />
                         <small style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', display: 'block' }}>
-                            Se completa automÃ¡ticamente al aprobar la solicitud
+                            Se completa automáticamente al aprobar la solicitud
                         </small>
                     </div>
                     <div className="form-group">
@@ -940,10 +940,10 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">DescripciÃ³n</label>
+                    <label className="form-label">Descripción</label>
                     <textarea
                         className="form-input"
-                        placeholder="InformaciÃ³n adicional sobre las vacaciones..."
+                        placeholder="Información adicional sobre las vacaciones..."
                         value={formData.descripcion || ''}
                         onChange={e => handleChange('descripcion', e.target.value)}
                         rows={2}
@@ -1072,7 +1072,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         <div style={{ display: 'grid', gap: '1rem' }}>
             <div className="form-grid-stacked">
                 <div className="form-group">
-                    <label className="form-label">Fecha NotificaciÃ³n *</label>
+                    <label className="form-label">Fecha Notificación *</label>
                     <input
                         type="date"
                         className={`form-input ${touched.fechaNotificacion && fieldErrors.fechaNotificacion ? 'input-error' : ''}`}
@@ -1101,7 +1101,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         value={formData.fechaBajaEfectiva || ''}
                         disabled
                     />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Se calcula automÃ¡ticamente: 15 dÃ­as desde la notificaciÃ³n (preaviso)</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Se calcula automáticamente: 15 días desde la notificación (preaviso)</span>
                 </div>
             </div>
 
@@ -1192,7 +1192,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
 
                     {/* isReadOnly() && (
                         <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
-                            No podÃ©s editar los datos de la solicitud porque no estÃ¡ pendiente. Solo podÃ©s cambiar su estado.
+                            No podés editar los datos de la solicitud porque no está pendiente. Solo podés cambiar su estado.
                         </div>
                     )*/}
 

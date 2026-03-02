@@ -63,7 +63,7 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
                 <div className="modal-header">
-                    <h2 className="modal-title">Editar LiquidaciÃ³n</h2>
+                    <h2 className="modal-title">Editar Liquidación</h2>
                     <button className="modal-close" onClick={onClose}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -73,13 +73,13 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
 
                 <form onSubmit={handleSubmit}>
                     <div className="modal-body" style={{ padding: '2rem' }}>
-                        {/* TÃ­tulo y subtÃ­tulo dentro del body */}
+                        {/* Título y subtítulo dentro del body */}
                         <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
                             <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
                                 Editar Valores
                             </h3>
                             <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                                Modifica los conceptos remunerativos y deducciones de la liquidaciÃ³n
+                                Modifica los conceptos remunerativos y deducciones de la liquidación
                             </p>
                         </div>
 
@@ -104,7 +104,7 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">PerÃ­odo</label>
+                                <label className="form-label">Período</label>
                                 <input
                                     type="text"
                                     className="form-input"
@@ -116,7 +116,7 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">BÃ¡sico *</label>
+                                <label className="form-label">Básico *</label>
                                 <input
                                     type="number"
                                     step="0.01"

@@ -41,7 +41,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
     const [fieldErrors, setFieldErrors] = useState({});
     const [permisosAgrupados, setPermisosAgrupados] = useState({});
 
-    // Form data - Paso 1: InformaciÃ³n bÃ¡sica
+    // Form data - Paso 1: Información básica
     const [info, setInfo] = useState({
         nombre: '',
         descripcion: '',
@@ -56,7 +56,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
     const [permisos, setPermisos] = useState([]);
 
     const steps = [
-        { number: 1, title: 'InformaciÃ³n BÃ¡sica' },
+        { number: 1, title: 'Información Básica' },
         { number: 2, title: 'Permisos' },
     ];
 
@@ -76,7 +76,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
         loadPermisos();
     }, []);
 
-    // Cargar datos del rol en modo ediciÃ³n
+    // Cargar datos del rol en modo edición
     useEffect(() => {
         if (rol) {
             setInfo({
@@ -257,13 +257,13 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
             </div>
 
             <div className="form-group">
-                <label className="form-label">DescripciÃ³n</label>
+                <label className="form-label">Descripción</label>
                 <textarea
                     name="descripcion"
                     className="form-input"
                     value={info.descripcion}
                     onChange={handleInfoChange}
-                    placeholder="DescripciÃ³n del rol y sus responsabilidades..."
+                    placeholder="Descripción del rol y sus responsabilidades..."
                     rows={4}
                     style={{ resize: 'vertical', minHeight: '100px' }}
                     maxLength={1000}
@@ -289,7 +289,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
         // Definir el orden de las acciones
         const accionesOrdenadas = ['crear', 'leer', 'actualizar', 'eliminar'];
 
-        // Calcular si todos los permisos estÃ¡n seleccionados
+        // Calcular si todos los permisos están seleccionados
         const todosLosPermisos = Object.values(permisosAgrupados).flat().map(p => p.id);
         const todosSeleccionados = todosLosPermisos.length > 0 && todosLosPermisos.every(id => permisos.includes(id));
         const algunosSeleccionados = todosLosPermisos.some(id => permisos.includes(id)) && !todosSeleccionados;
@@ -374,7 +374,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
                                             background: 'var(--bg-secondary)',
                                             zIndex: 1
                                         }}>
-                                            MÃ³dulo
+                                            Módulo
                                         </th>
                                         {accionesOrdenadas.map(accion => (
                                             <th key={accion} style={{
@@ -504,8 +504,8 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
                         {steps[currentStep - 1].title}
                     </h3>
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                        {currentStep === 1 && 'Define el nombre y descripciÃ³n del rol'}
-                        {currentStep === 2 && 'Selecciona los permisos que tendrÃ¡ este rol'}
+                        {currentStep === 1 && 'Define el nombre y descripción del rol'}
+                        {currentStep === 2 && 'Selecciona los permisos que tendrá este rol'}
                     </p>
                 </div>
 

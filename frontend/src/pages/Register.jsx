@@ -48,7 +48,7 @@ const Register = () => {
                             <h2>Cataratas<span>RH</span></h2>
                             <p>Registrate en el sistema</p>
                             <Link to="/login" className="register-back-link">
-                                â† Iniciar sesiÃ³n
+                                ← Iniciar sesión
                             </Link>
                         </div>
                     </div>
@@ -60,7 +60,7 @@ const Register = () => {
                         {/* Mobile-only: link back to login (left sidebar is hidden on mobile) */}
                         <div className="auth-mobile-link">
                             <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)', marginBottom: '0.5rem' }}>
-                                Â¿Ya tenÃ©s cuenta?
+                                ¿Ya tenés cuenta?
                             </p>
                             <Link to="/login" style={{
                                 display: 'inline-flex',
@@ -74,7 +74,7 @@ const Register = () => {
                                 fontWeight: 600,
                                 textDecoration: 'none'
                             }}>
-                                â† Volver al Login
+                                ← Volver al Login
                             </Link>
                         </div>
                     </div>

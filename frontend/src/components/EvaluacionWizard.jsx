@@ -15,24 +15,24 @@ import { buildSelectStyles } from '../helpers/selectStyles';
 // Periods
 const PERIODOS = [
     { value: 'anual', label: 'Anual' },
-    { value: 'semestre_1', label: `${new Date().getFullYear()} â€“ 1er Semestre` },
-    { value: 'semestre_2', label: `${new Date().getFullYear()} â€“ 2do Semestre` },
+    { value: 'semestre_1', label: `${new Date().getFullYear()} – 1er Semestre` },
+    { value: 'semestre_2', label: `${new Date().getFullYear()} – 2do Semestre` },
     { value: 'q1', label: 'Trimestral / Q1' },
     { value: 'q2', label: 'Trimestral / Q2' },
     { value: 'q3', label: 'Trimestral / Q3' },
     { value: 'q4', label: 'Trimestral / Q4' },
-    { value: 'cierre_prueba', label: 'Cierre de PerÃ­odo de Prueba' },
+    { value: 'cierre_prueba', label: 'Cierre de Período de Prueba' },
     { value: 'fin_proyecto', label: 'Fin de Proyecto' },
     { value: 'ad_hoc', label: 'Ad-hoc / Extraordinaria' },
 ];
 
-// Tipos de evaluaciÃ³n
+// Tipos de evaluación
 const TIPOS_EVALUACION = [
-    { value: 'autoevaluacion', label: 'AutoevaluaciÃ³n' },
-    { value: 'descendente_90', label: '90Â° (Descendente)' },
-    { value: 'pares_jefe_180', label: '180Â° (Pares + Jefe)' },
-    { value: 'ascendente_270', label: '270Â° (Ascendente)' },
-    { value: 'integral_360', label: '360Â° (Integral)' },
+    { value: 'autoevaluacion', label: 'Autoevaluación' },
+    { value: 'descendente_90', label: '90° (Descendente)' },
+    { value: 'pares_jefe_180', label: '180° (Pares + Jefe)' },
+    { value: 'ascendente_270', label: '270° (Ascendente)' },
+    { value: 'integral_360', label: '360° (Integral)' },
     { value: 'competencias', label: 'Por Competencias' },
     { value: 'objetivos', label: 'Por Objetivos (KPIs / OKRs)' },
     { value: 'mixta', label: 'Mixta' },
@@ -55,10 +55,10 @@ const ESCALAS = [
 ];
 
 // Tooltips
-const TOOLTIP_PERIODO = `Define el **lapso evaluado**: anual, semestral, trimestral, cierre de perÃ­odo de prueba, fin de proyecto o fuera de calendario.`;
-const TOOLTIP_TIPO_EVALUACION = `Define la **metodologÃ­a y el alcance de la evaluaciÃ³n**: quiÃ©n evalÃºa a quiÃ©n (auto, jefe, pares, 360Â°) y el enfoque (competencias, objetivos, mixto o potencial).`;
-const TOOLTIP_ESTADO = `**Estado del proceso de evaluaciÃ³n**: Pendiente, En curso, Finalizada o Firmada.`;
-const TOOLTIP_ESCALA = `**Escala de valoraciÃ³n**: Supera expectativas, Cumple o Necesita mejora.`;
+const TOOLTIP_PERIODO = `Define el **lapso evaluado**: anual, semestral, trimestral, cierre de período de prueba, fin de proyecto o fuera de calendario.`;
+const TOOLTIP_TIPO_EVALUACION = `Define la **metodología y el alcance de la evaluación**: quién evalúa a quién (auto, jefe, pares, 360°) y el enfoque (competencias, objetivos, mixto o potencial).`;
+const TOOLTIP_ESTADO = `**Estado del proceso de evaluación**: Pendiente, En curso, Finalizada o Firmada.`;
+const TOOLTIP_ESCALA = `**Escala de valoración**: Supera expectativas, Cumple o Necesita mejora.`;
 
 // Field error component
 const FieldError = ({ message }) => {
@@ -133,7 +133,7 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
     const [activeTooltip, setActiveTooltip] = useState(null);
 
     const steps = [
-        { number: 1, title: 'InformaciÃ³n BÃ¡sica' },
+        { number: 1, title: 'Información Básica' },
         { number: 2, title: 'Participantes' },
         { number: 3, title: 'Resultado Final' },
     ];
@@ -270,7 +270,7 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
         if (field === 'fecha' && value) {
             try {
                 const nombresCampos = {
-                    fecha: 'La fecha de evaluaciÃ³n'
+                    fecha: 'La fecha de evaluación'
                 };
                 validarDiaHabil(value, nombresCampos[field]);
                 setFieldErrors(prev => ({ ...prev, fecha: null }));
@@ -286,8 +286,8 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
         let isValid = true;
 
         if (currentStep === 1) {
-            if (!formData.periodo) errors.periodo = 'El perÃ­odo es requerido';
-            if (!formData.tipoEvaluacion) errors.tipoEvaluacion = 'El tipo de evaluaciÃ³n es requerido';
+            if (!formData.periodo) errors.periodo = 'El período es requerido';
+            if (!formData.tipoEvaluacion) errors.tipoEvaluacion = 'El tipo de evaluación es requerido';
             if (!formData.fecha) errors.fecha = 'La fecha es requerida';
             else if (new Date(formData.fecha) > new Date()) errors.fecha = 'La fecha no puede ser futura';
             if (!formData.estado) errors.estado = 'El estado es requerido';
@@ -306,7 +306,7 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
                 if (formData.contratosEvaluadosIds.length > 0 && formData.evaluadoresIds.length > 0) {
                     const intersection = formData.contratosEvaluadosIds.filter(id => formData.evaluadoresIds.includes(id));
                     if (intersection.length > 0) {
-                        errors.contratosEvaluadosIds = 'No puede evaluar a quien lo evalÃºa (conflicto de intereses)';
+                        errors.contratosEvaluadosIds = 'No puede evaluar a quien lo evalúa (conflicto de intereses)';
                     }
                 }
             }
@@ -382,11 +382,11 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
 
     const renderStep1 = () => (
         <div style={{ display: 'grid', gap: '1.5rem' }}>
-            {/* PerÃ­odo y Tipo */}
+            {/* Período y Tipo */}
             <div className="form-grid-stacked">
                 <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        PerÃ­odo *
+                        Período *
                         <TooltipIcon content={TOOLTIP_PERIODO} isOpen={activeTooltip === 'periodo'} onToggle={() => setActiveTooltip(activeTooltip === 'periodo' ? null : 'periodo')} />
                     </label>
                     <TooltipContent content={TOOLTIP_PERIODO} isOpen={activeTooltip === 'periodo'} />
@@ -608,7 +608,7 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
                 <div className="modal-header">
-                    <h2 className="modal-title">{isEditing ? 'Editar EvaluaciÃ³n' : 'Nueva EvaluaciÃ³n'}</h2>
+                    <h2 className="modal-title">{isEditing ? 'Editar Evaluación' : 'Nueva Evaluación'}</h2>
                     <button className="modal-close" onClick={onClose}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -624,7 +624,7 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
                             {steps[currentStep - 1].title}
                         </h3>
                         <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                            {currentStep === 1 && 'Define el perÃ­odo, tipo y estado de la evaluaciÃ³n'}
+                            {currentStep === 1 && 'Define el período, tipo y estado de la evaluación'}
                             {currentStep === 2 && 'Selecciona los evaluadores y evaluados'}
                             {currentStep === 3 && 'Ingresa el puntaje, escala y feedback'}
                         </p>
@@ -659,7 +659,7 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
                             </button>
                         ) : (
                             <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
-                                {submitting ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear')} EvaluaciÃ³n
+                                {submitting ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear')} Evaluación
                             </button>
                         )}
                     </div>

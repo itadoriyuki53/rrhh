@@ -1,5 +1,5 @@
 ﻿/**
- * @fileoverview Barrel de re-exportaciÃ³n de todos los helpers del frontend.
+ * @fileoverview Barrel de re-exportación de todos los helpers del frontend.
  * Permite importar desde una sola ruta: `import { formatDateOnly, esDiaHabilSincrono } from '../helpers'`
  * @module helpers/index
  */

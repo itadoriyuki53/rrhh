@@ -123,7 +123,7 @@ const Empleados = () => {
                 setEspaciosList(espaciosRes.data || []);
                 setCurrentUser(userMe);
 
-                // LÃ³gica de preselecciÃ³n de espacio SOLO SI ES EMPLEADO
+                // Lógica de preselección de espacio SOLO SI ES EMPLEADO
                 if (userMe && userMe.esEmpleado) {
                     const espacios = espaciosRes.data || [];
                     // Si el usuario tiene un espacio asignado, priorizar ese
@@ -383,7 +383,7 @@ const Empleados = () => {
                 <div className="page-header">
                     <div>
                         <h1 className="page-title">Empleados</h1>
-                        <p className="page-subtitle">Gestiona los empleados de la organizaciÃ³n</p>
+                        <p className="page-subtitle">Gestiona los empleados de la organización</p>
                     </div>
                 </div>
 
@@ -391,13 +391,13 @@ const Empleados = () => {
                 {error && (
                     <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                         {error}
-                        <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                        <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                     </div>
                 )}
                 {success && (
                     <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                         {success}
-                        <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                        <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                     </div>
                 )}
 
@@ -590,7 +590,7 @@ const Empleados = () => {
                             {/* Pagination */}
                             <div className="pagination-bar">
                                 <div className="pagination-info">
-                                    <span>Filas por pÃ¡gina:</span>
+                                    <span>Filas por página:</span>
                                     <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                         {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                     </select>
@@ -599,11 +599,11 @@ const Empleados = () => {
                                     </span>
                                 </div>
                                 <div className="pagination-controls">
-                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
-                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
-                                    <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
-                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
-                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+                                    <span className="pagination-page">Página {page} de {totalPages || 1}</span>
+                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
                                 </div>
                             </div>
                         </>
@@ -631,7 +631,7 @@ const Empleados = () => {
                 <ConfirmDialog
                     isOpen={confirmOpen}
                     title="Desactivar empleado"
-                    message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar al empleado "${itemToDelete.nombre} ${itemToDelete.apellido}"? PodrÃ¡s reactivarlo mÃ¡s tarde.` : ''}
+                    message={itemToDelete ? `¿Estás seguro de desactivar al empleado "${itemToDelete.nombre} ${itemToDelete.apellido}"? Podrás reactivarlo más tarde.` : ''}
                     onConfirm={handleConfirmDelete}
                     onCancel={handleCancelDelete}
                     confirmText="Desactivar"
@@ -641,22 +641,22 @@ const Empleados = () => {
                 <ConfirmDialog
                     isOpen={confirmBulkOpen}
                     title="Desactivar empleados"
-                    message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} empleado(s)? PodrÃ¡s reactivarlos mÃ¡s tarde.`}
+                    message={`¿Estás seguro de desactivar ${selectedIds.size} empleado(s)? Podrás reactivarlos más tarde.`}
                     onConfirm={handleConfirmBulkDelete}
                     onCancel={() => setConfirmBulkOpen(false)}
                     confirmText="Desactivar todos"
                     variant="danger"
                 />
 
-                {/* Prompt para crear contrato despuÃ©s de crear empleado */}
+                {/* Prompt para crear contrato después de crear empleado */}
                 <ConfirmDialog
                     isOpen={showContratoPrompt}
-                    title="Â¿Registrar contrato?"
-                    message={nuevoEmpleado ? `El empleado "${nuevoEmpleado.nombre} ${nuevoEmpleado.apellido}" fue creado exitosamente. Â¿Deseas registrar un contrato para este empleado ahora?` : ''}
+                    title="¿Registrar contrato?"
+                    message={nuevoEmpleado ? `El empleado "${nuevoEmpleado.nombre} ${nuevoEmpleado.apellido}" fue creado exitosamente. ¿Deseas registrar un contrato para este empleado ahora?` : ''}
                     onConfirm={handleContratoPromptYes}
                     onCancel={handleContratoPromptNo}
-                    confirmText="SÃ­, crear contrato"
-                    cancelText="No, mÃ¡s tarde"
+                    confirmText="Sí, crear contrato"
+                    cancelText="No, más tarde"
                 />
             </div>
         </>

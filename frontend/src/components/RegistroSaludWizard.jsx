@@ -14,7 +14,7 @@ import { buildSelectStyles } from '../helpers/selectStyles';
 
 const TIPOS_EXAMEN = [
     { value: 'pre_ocupacional', label: 'Pre-Ocupacional' },
-    { value: 'periodico', label: 'PeriÃ³dico' },
+    { value: 'periodico', label: 'Periódico' },
     { value: 'post_ocupacional', label: 'Post-Ocupacional' },
     { value: 'retorno_trabajo', label: 'Retorno al Trabajo' },
 ];
@@ -26,8 +26,8 @@ const RESULTADOS = [
 ];
 
 // Tooltip content for medical certificate
-const TOOLTIP_COMPROBANTE = `El comprobante mÃ©dico sirve para **justificar una licencia o inasistencia** laboral.
-Cuando la inasistencia estÃ¡ debidamente justificada con un comprobante mÃ©dico, el empleado puede solicitar licencia o inasistencia y continuar percibiendo su salario, conforme a la normativa vigente de la ART.`;
+const TOOLTIP_COMPROBANTE = `El comprobante médico sirve para **justificar una licencia o inasistencia** laboral.
+Cuando la inasistencia está debidamente justificada con un comprobante médico, el empleado puede solicitar licencia o inasistencia y continuar percibiendo su salario, conforme a la normativa vigente de la ART.`;
 
 // Field error component
 const FieldError = ({ message }) => {
@@ -73,8 +73,8 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
     const isDark = useIsDark();
 
     const steps = [
-        { number: 1, title: 'InformaciÃ³n BÃ¡sica' },
-        { number: 2, title: 'DocumentaciÃ³n MÃ©dica' },
+        { number: 1, title: 'Información Básica' },
+        { number: 2, title: 'Documentación Médica' },
     ];
 
 
@@ -156,17 +156,17 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
         validateStep();
     };
 
-    const handleChange = (field, value) => { // âœ… SÃ­ncrono ahora
+    const handleChange = (field, value) => { // ✅ Síncrono ahora
         setFormData(prev => ({ ...prev, [field]: value }));
         setError('');
 
-        // Validar dÃ­as hÃ¡biles en tiempo real SÃNCRONO
+        // Validar días hábiles en tiempo real SÍNCRONO
         if ((field === 'fechaRealizacion' || field === 'fechaVencimiento') && value) {
             try {
                 const nombreCampo = field === 'fechaRealizacion'
-                    ? 'La fecha de realizaciÃ³n'
+                    ? 'La fecha de realización'
                     : 'La fecha de vencimiento';
-                validarDiaHabil(value, nombreCampo); // âœ… SÃ­ncrono
+                validarDiaHabil(value, nombreCampo); // ✅ Síncrono
                 setFieldErrors(prev => ({ ...prev, [field]: null }));
             } catch (error) {
                 setFieldErrors(prev => ({ ...prev, [field]: error.message }));
@@ -187,7 +187,7 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
 
         files.forEach(file => {
             if (!validTypes.includes(file.type)) {
-                setFieldErrors(prev => ({ ...prev, comprobantes: 'Solo se permiten archivos PDF o imÃ¡genes' }));
+                setFieldErrors(prev => ({ ...prev, comprobantes: 'Solo se permiten archivos PDF o imágenes' }));
                 hasError = true;
                 return;
             }
@@ -228,31 +228,31 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
             if (!formData.tipoExamen) errors.tipoExamen = 'El tipo de examen es requerido';
             if (!formData.resultado) errors.resultado = 'El resultado es requerido';
             if (!formData.fechaRealizacion) {
-                errors.fechaRealizacion = 'La fecha de realizaciÃ³n es requerida';
+                errors.fechaRealizacion = 'La fecha de realización es requerida';
             } else if (new Date(formData.fechaRealizacion) > new Date()) {
-                errors.fechaRealizacion = 'La fecha de realizaciÃ³n no puede ser mayor a la fecha actual';
+                errors.fechaRealizacion = 'La fecha de realización no puede ser mayor a la fecha actual';
             }
             if (!formData.fechaVencimiento) {
                 errors.fechaVencimiento = 'La fecha de vencimiento es requerida';
             } else if (formData.fechaRealizacion && new Date(formData.fechaVencimiento) < new Date(formData.fechaRealizacion)) {
-                errors.fechaVencimiento = 'La fecha de vencimiento no puede ser anterior a la fecha de realizaciÃ³n';
+                errors.fechaVencimiento = 'La fecha de vencimiento no puede ser anterior a la fecha de realización';
             }
         }
         // Step 2 has no required fields (comprobantes are optional)
 
-        // Preservar solo los errores de dÃ­as hÃ¡biles de campos de fecha
+        // Preservar solo los errores de días hábiles de campos de fecha
         setFieldErrors(prev => {
             const camposFecha = ['fechaRealizacion', 'fechaVencimiento'];
             const erroresDiasHabiles = {};
 
-            // Preservar errores de dÃ­as hÃ¡biles en campos de fecha
+            // Preservar errores de días hábiles en campos de fecha
             camposFecha.forEach(campo => {
-                if (prev[campo] && prev[campo].includes('dÃ­a hÃ¡bil')) {
+                if (prev[campo] && prev[campo].includes('día hábil')) {
                     erroresDiasHabiles[campo] = prev[campo];
                 }
             });
 
-            // Combinar: errores de la validaciÃ³n actual + errores de dÃ­as hÃ¡biles preservados
+            // Combinar: errores de la validación actual + errores de días hábiles preservados
             return { ...erroresDiasHabiles, ...errors };
         });
 
@@ -366,7 +366,7 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
             {/* Fechas - 2 columns */}
             <div className="form-grid-stacked">
                 <div className="form-group">
-                    <label className="form-label">Fecha de RealizaciÃ³n *</label>
+                    <label className="form-label">Fecha de Realización *</label>
                     <input
                         type="date"
                         className={`form-input ${touched.fechaRealizacion && fieldErrors.fechaRealizacion ? 'input-error' : ''}`}
@@ -396,7 +396,7 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
             {/* Comprobantes - Multiple files */}
             <div className="form-group">
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    Comprobantes MÃ©dicos
+                    Comprobantes Médicos
                     <span
                         className="tooltip-icon"
                         onClick={() => setShowTooltip(!showTooltip)}
@@ -486,7 +486,7 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
                         Haz clic o arrastra archivos para subir
                     </p>
                     <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        PDF o imÃ¡genes â€¢ MÃ¡ximo 10MB cada uno
+                        PDF o imágenes • Máximo 10MB cada uno
                     </p>
                 </div>
                 <input
@@ -522,8 +522,8 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
                             {steps[currentStep - 1].title}
                         </h3>
                         <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                            {currentStep === 1 && 'Ingresa los datos bÃ¡sicos del registro de salud'}
-                            {currentStep === 2 && 'Adjunta los comprobantes mÃ©dicos (opcional)'}
+                            {currentStep === 1 && 'Ingresa los datos básicos del registro de salud'}
+                            {currentStep === 2 && 'Adjunta los comprobantes médicos (opcional)'}
                         </p>
                     </div>
 

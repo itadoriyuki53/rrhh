@@ -1,7 +1,7 @@
 ﻿/**
  * @fileoverview Contexto global de tema visual (claro/oscuro).
  * Persiste la preferencia del usuario en `localStorage` y sincroniza la clase
- * `dark` en `<html>` para que los estilos CSS respondan automÃ¡ticamente.
+ * `dark` en `<html>` para que los estilos CSS respondan automáticamente.
  * @module context/ThemeContext
  */
 
@@ -15,7 +15,7 @@ const ThemeContext = createContext();
 
 /**
  * Hook para acceder al contexto de tema desde cualquier componente.
- * Debe usarse dentro del Ã¡rbol envuelto por `ThemeProvider`.
+ * Debe usarse dentro del árbol envuelto por `ThemeProvider`.
  *
  * @returns {{ isDark: boolean, toggleTheme: Function, resetTheme: Function }}
  * @throws {Error} Si se llama fuera de un `ThemeProvider`.
@@ -53,7 +53,7 @@ export const ThemeProvider = ({ children }) => {
     const toggleTheme = () => setIsDark(prev => !prev);
 
     /**
-     * Resetea al tema claro (ej: al cerrar sesiÃ³n).
+     * Resetea al tema claro (ej: al cerrar sesión).
      */
     const resetTheme = () => setIsDark(false);
 

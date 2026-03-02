@@ -116,7 +116,7 @@ const Empresas = () => {
                 setEspaciosList(espaciosRes.data || []);
                 setCurrentUser(userMe);
 
-                // LÃ³gica de preselecciÃ³n de espacio SOLO SI ES EMPLEADO
+                // Lógica de preselección de espacio SOLO SI ES EMPLEADO
                 if (userMe && userMe.esEmpleado) {
                     const espacios = espaciosRes.data || [];
                     if (userMe.espacioTrabajoId) {
@@ -377,13 +377,13 @@ const Empresas = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
 
@@ -438,13 +438,13 @@ const Empresas = () => {
                             <input type="text" className="filter-input" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} style={{ width: '200px' }} />
                         </div>
                         <div className="filter-group">
-                            <input type="text" className="filter-input" placeholder="TelÃ©fono" value={telefonoInput} onChange={(e) => setTelefonoInput(e.target.value)} style={{ width: '200px' }} />
+                            <input type="text" className="filter-input" placeholder="Teléfono" value={telefonoInput} onChange={(e) => setTelefonoInput(e.target.value)} style={{ width: '200px' }} />
                         </div>
                         <div className="filter-group">
                             <input type="text" className="filter-input" placeholder="Industria" value={industriaInput} onChange={(e) => setIndustriaInput(e.target.value)} style={{ width: '200px' }} />
                         </div>
                         <div className="filter-group">
-                            <input type="text" className="filter-input" placeholder="DirecciÃ³n" value={direccionInput} onChange={(e) => setDireccionInput(e.target.value)} style={{ width: '200px' }} />
+                            <input type="text" className="filter-input" placeholder="Dirección" value={direccionInput} onChange={(e) => setDireccionInput(e.target.value)} style={{ width: '200px' }} />
                         </div>
                         <div className="filter-group">
                             <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }} style={{ width: '200px' }}>
@@ -464,7 +464,7 @@ const Empresas = () => {
                             </button>
                             {showColumnSelector && (
                                 <div className="column-selector-dropdown">
-                                    {Object.entries({ espacio: 'Espacio', email: 'Email', telefono: 'TelÃ©fono', industria: 'Industria', direccion: 'DirecciÃ³n' }).map(([key, label]) => (
+                                    {Object.entries({ espacio: 'Espacio', email: 'Email', telefono: 'Teléfono', industria: 'Industria', direccion: 'Dirección' }).map(([key, label]) => (
                                         <label key={key} className="column-option">
                                             <input type="checkbox" checked={visibleColumns[key]} onChange={() => toggleColumn(key)} />
                                             <span>{label}</span>
@@ -507,9 +507,9 @@ const Empresas = () => {
                                         <th>Nombre</th>
                                         {visibleColumns.espacio && <th>Espacio</th>}
                                         {visibleColumns.email && <th>Email</th>}
-                                        {visibleColumns.telefono && <th>TelÃ©fono</th>}
+                                        {visibleColumns.telefono && <th>Teléfono</th>}
                                         {visibleColumns.industria && <th>Industria</th>}
-                                        {visibleColumns.direccion && <th>DirecciÃ³n</th>}
+                                        {visibleColumns.direccion && <th>Dirección</th>}
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -572,7 +572,7 @@ const Empresas = () => {
                         {/* Pagination */}
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por pÃ¡gina:</span>
+                                <span>Filas por página:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                     {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
@@ -581,11 +581,11 @@ const Empresas = () => {
                                 </span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
-                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
                             </div>
                         </div>
                     </>
@@ -613,7 +613,7 @@ const Empresas = () => {
             <ConfirmDialog
                 isOpen={confirmOpen}
                 title="Desactivar empresa"
-                message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar la empresa "${itemToDelete.nombre}"? PodrÃ¡s reactivarla mÃ¡s tarde.` : ''}
+                message={itemToDelete ? `¿Estás seguro de desactivar la empresa "${itemToDelete.nombre}"? Podrás reactivarla más tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -623,7 +623,7 @@ const Empresas = () => {
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
                 title="Desactivar empresas"
-                message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} empresa(s)? PodrÃ¡s reactivarlas mÃ¡s tarde.`}
+                message={`¿Estás seguro de desactivar ${selectedIds.size} empresa(s)? Podrás reactivarlas más tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todas"

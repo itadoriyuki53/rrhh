@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
-/* â”€â”€â”€ SVG Icon Components â”€â”€â”€ */
+/* ─── SVG Icon Components ─── */
 const CheckIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -55,52 +55,52 @@ const ArrowRightIcon = () => (
     </svg>
 );
 
-/* â”€â”€â”€ Data â”€â”€â”€ */
+/* ─── Data ─── */
 const features = [
     {
         icon: <UsersIcon />,
-        title: 'GestiÃ³n de Empleados',
-        description: 'Centraliza la informaciÃ³n de todo tu equipo: datos personales, cargos, contactos de emergencia y asignaciones organizacionales en un solo lugar.',
+        title: 'Gestión de Empleados',
+        description: 'Centraliza la información de todo tu equipo: datos personales, cargos, contactos de emergencia y asignaciones organizacionales en un solo lugar.',
     },
     {
         icon: <ContractIcon />,
         title: 'Contratos y Liquidaciones',
-        description: 'Administra contratos laborales, tipos de vinculaciÃ³n y genera liquidaciones salariales de forma Ã¡gil y transparente.',
+        description: 'Administra contratos laborales, tipos de vinculación y genera liquidaciones salariales de forma ágil y transparente.',
     },
     {
         icon: <EvalIcon />,
-        title: 'Evaluaciones de DesempeÃ±o',
-        description: 'Realiza seguimiento del rendimiento de tus colaboradores con evaluaciones periÃ³dicas configurables y mÃ©tricas claras.',
+        title: 'Evaluaciones de Desempeño',
+        description: 'Realiza seguimiento del rendimiento de tus colaboradores con evaluaciones periódicas configurables y métricas claras.',
     },
     {
         icon: <HealthIcon />,
         title: 'Registros de Salud',
-        description: 'Gestiona certificados mÃ©dicos, licencias por enfermedad y el historial sanitario de cada empleado de forma organizada.',
+        description: 'Gestiona certificados médicos, licencias por enfermedad y el historial sanitario de cada empleado de forma organizada.',
     },
     {
         icon: <RequestIcon />,
         title: 'Solicitudes y Permisos',
-        description: 'Simplifica el proceso de solicitudes de vacaciones, permisos y licencias con flujos de aprobaciÃ³n claros.',
+        description: 'Simplifica el proceso de solicitudes de vacaciones, permisos y licencias con flujos de aprobación claros.',
     },
     {
         icon: <ChartIcon />,
-        title: 'Reportes y AnalÃ­ticas',
-        description: 'ObtÃ©n mÃ©tricas clave sobre dotaciÃ³n de personal, tipos de contrato y distribuciÃ³n organizacional con reportes visuales.',
+        title: 'Reportes y Analíticas',
+        description: 'Obtén métricas clave sobre dotación de personal, tipos de contrato y distribución organizacional con reportes visuales.',
     },
 ];
 
 const pricingPlans = [
     {
-        name: 'BÃ¡sico',
-        description: 'Perfecto para equipos pequeÃ±os',
+        name: 'Básico',
+        description: 'Perfecto para equipos pequeños',
         price: '$12',
         period: '/usuario/mes',
         cta: 'Comenzar Prueba',
         ctaStyle: 'outline',
         features: [
             'Hasta 10 empleados',
-            'GestiÃ³n de contratos',
-            'Reportes bÃ¡sicos',
+            'Gestión de contratos',
+            'Reportes básicos',
             'Soporte por email',
         ],
     },
@@ -112,13 +112,13 @@ const pricingPlans = [
         cta: 'Comenzar Prueba',
         ctaStyle: 'primary',
         featured: true,
-        badge: 'MÃ¡s Popular',
+        badge: 'Más Popular',
         features: [
             'Hasta 50 empleados',
             'Evaluaciones y salud',
             'Reportes avanzados',
             'Soporte prioritario',
-            'Liquidaciones automÃ¡ticas',
+            'Liquidaciones automáticas',
         ],
     },
     {
@@ -130,7 +130,7 @@ const pricingPlans = [
         ctaStyle: 'outline',
         features: [
             'Empleados ilimitados',
-            'MÃ³dulos completos',
+            'Módulos completos',
             'Seguridad avanzada',
             'Gestor de cuenta dedicado',
             'SLA personalizado',
@@ -166,7 +166,7 @@ function useScrollAnimation() {
     return ref;
 }
 
-/* â”€â”€â”€ Main Component â”€â”€â”€ */
+/* ─── Main Component ─── */
 /**
  * Componente LandingPage
  * 
@@ -204,7 +204,7 @@ const LandingPage = () => {
 
     return (
         <div ref={containerRef} style={{ background: 'white' }}>
-            {/* â”€â”€ Header â”€â”€ */}
+            {/* ── Header ── */}
             <header className={`landing-header ${scrolled ? 'scrolled' : ''}`}>
                 <div className="landing-header-inner">
                     <a href="#" className="landing-brand" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
@@ -212,7 +212,7 @@ const LandingPage = () => {
                         <span className="landing-brand-name">Cataratas<span>RH</span></span>
                     </a>
 
-                    <button className="landing-menu-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label="MenÃº">
+                    <button className="landing-menu-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menú">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                             {menuOpen ? (
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -224,31 +224,37 @@ const LandingPage = () => {
 
                     <nav className={`landing-nav ${menuOpen ? 'open' : ''}`}>
                         <a href="#caracteristicas" className="landing-nav-link" onClick={(e) => handleNavClick(e, 'caracteristicas')}>
-                            CaracterÃ­sticas
+                            Características
                         </a>
                         <a href="#precios" className="landing-nav-link" onClick={(e) => handleNavClick(e, 'precios')}>
                             Precios
                         </a>
+                        <Link
+                            to="/documentacion"
+                            className="landing-nav-link"
+                        >
+                            Documentación
+                        </Link>
                         <Link to="/login" className="landing-login-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                             </svg>
-                            Iniciar sesiÃ³n
+                            Iniciar sesión
                         </Link>
                     </nav>
                 </div>
             </header>
 
-            {/* â”€â”€ Hero â”€â”€ */}
+            {/* ── Hero ── */}
             <section className="landing-hero">
                 <div className="landing-hero-inner">
                     <div className="landing-hero-content">
                         <h1 className="landing-hero-title">
-                            Sistema de GestiÃ³n de{' '}
+                            Sistema de Gestión de{' '}
                             <span className="highlight">Recursos Humanos</span>
                         </h1>
                         <p className="landing-hero-description">
-                            CataratasRH centraliza y simplifica la gestiÃ³n de recursos humanos de tu empresa.
+                            CataratasRH centraliza y simplifica la gestión de recursos humanos de tu empresa.
                             Administra empleados, contratos, liquidaciones, evaluaciones y solicitudes de forma eficiente.
                         </p>
                         <div className="landing-hero-actions">
@@ -269,12 +275,12 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* â”€â”€ Stats â”€â”€ */}
+            {/* ── Stats ── */}
             <section className="landing-stats">
                 <div className="landing-stats-inner">
                     <div className="landing-stat landing-animate">
                         <div className="landing-stat-number">10+</div>
-                        <div className="landing-stat-label">MÃ³dulos integrados</div>
+                        <div className="landing-stat-label">Módulos integrados</div>
                     </div>
                     <div className="landing-stat landing-animate">
                         <div className="landing-stat-number">100%</div>
@@ -291,14 +297,14 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* â”€â”€ Features â”€â”€ */}
+            {/* ── Features ── */}
             <section id="caracteristicas" className="landing-features">
                 <div className="landing-section-inner">
                     <div className="landing-section-header landing-animate">
                         <div className="landing-section-tag">Funcionalidades</div>
-                        <h2 className="landing-section-title">Todo lo que necesitÃ¡s para gestionar tu equipo</h2>
+                        <h2 className="landing-section-title">Todo lo que necesitás para gestionar tu equipo</h2>
                         <p className="landing-section-subtitle">
-                            Herramientas poderosas diseÃ±adas para optimizar la gestiÃ³n de tu organizaciÃ³n y el bienestar de tus colaboradores.
+                            Herramientas poderosas diseñadas para optimizar la gestión de tu organización y el bienestar de tus colaboradores.
                         </p>
                     </div>
                     <div className="landing-features-grid">
@@ -313,14 +319,14 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* â”€â”€ Pricing â”€â”€ */}
+            {/* ── Pricing ── */}
             <section id="precios" className="landing-pricing">
                 <div className="landing-section-inner">
                     <div className="landing-section-header landing-animate">
                         <div className="landing-section-tag">Precios</div>
                         <h2 className="landing-section-title">Precios simples y transparentes</h2>
                         <p className="landing-section-subtitle">
-                            ElegÃ­ el plan adecuado para tu equipo. Todos los planes incluyen una prueba gratuita de 14 dÃ­as.
+                            Elegí el plan adecuado para tu equipo. Todos los planes incluyen una prueba gratuita de 14 días.
                         </p>
                     </div>
                     <div className="landing-pricing-grid">
@@ -348,14 +354,14 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* â”€â”€ Footer â”€â”€ */}
+            {/* ── Footer ── */}
             <footer className="landing-footer">
                 <div className="landing-footer-inner">
                     <div className="landing-footer-grid">
                         <div>
                             <div className="landing-footer-brand-name">Cataratas<span>RH</span></div>
                             <p className="landing-footer-brand-desc">
-                                GestiÃ³n de recursos humanos moderna para equipos que se mueven rÃ¡pido.
+                                Gestión de recursos humanos moderna para equipos que se mueven rápido.
                             </p>
                         </div>
                         <div className="landing-footer-section">
@@ -401,10 +407,10 @@ const LandingPage = () => {
                         </div>
                     </div>
                     <div className="landing-footer-bottom">
-                        <p>Â© 2025 CataratasRH. Todos los derechos reservados.</p>
+                        <p>© 2025 CataratasRH. Todos los derechos reservados.</p>
                         <div className="landing-footer-bottom-links">
-                            <a href="#">PolÃ­tica de Privacidad</a>
-                            <a href="#">TÃ©rminos de Servicio</a>
+                            <a href="#">Política de Privacidad</a>
+                            <a href="#">Términos de Servicio</a>
                         </div>
                     </div>
                 </div>

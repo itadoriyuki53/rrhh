@@ -1,6 +1,6 @@
 ﻿/**
  * @fileoverview Cliente HTTP base para todas las peticiones a la API del servidor.
- * Centraliza la URL base, credenciales de sesiÃ³n y construcciÃ³n de query strings.
+ * Centraliza la URL base, credenciales de sesión y construcción de query strings.
  * @module services/httpClient
  */
 
@@ -8,7 +8,7 @@
 const API_URL = '/api';
 
 /**
- * Realiza una peticiÃ³n fetch incluyendo automÃ¡ticamente las cookies de sesiÃ³n
+ * Realiza una petición fetch incluyendo automáticamente las cookies de sesión
  * y el header `Content-Type: application/json`.
  *
  * @param {string} url - URL completa del endpoint.
@@ -28,10 +28,10 @@ export const httpClient = (url, options = {}) => {
 
 /**
  * Construye una query string a partir de un objeto de filtros,
- * omitiendo claves con valores vacÃ­os, nulos o indefinidos.
+ * omitiendo claves con valores vacíos, nulos o indefinidos.
  *
  * @param {Object} params - Objeto con pares clave-valor a serializar.
- * @returns {string} Query string con el signo "?" incluido, o "" si no hay parÃ¡metros.
+ * @returns {string} Query string con el signo "?" incluido, o "" si no hay parámetros.
  * @example
  * buildQueryString({ page: 1, search: 'juan', estado: '' });
  * // "?page=1&search=juan"

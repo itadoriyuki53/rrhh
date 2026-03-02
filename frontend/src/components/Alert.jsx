@@ -40,10 +40,10 @@ const Alert = ({ message, type = 'info', onClose, duration = 5000 }) => {
     };
 
     const icons = {
-        success: 'âœ“',
-        error: 'âœ•',
-        warning: 'âš ',
-        info: 'â„¹',
+        success: '✓',
+        error: '✕',
+        warning: '⚠️',
+        info: 'ℹ️',
     };
 
     if (!isVisible) return null;
@@ -55,7 +55,7 @@ const Alert = ({ message, type = 'info', onClose, duration = 5000 }) => {
                 <p className="alert-message">{message}</p>
             </div>
             <button className="alert-close" onClick={handleClose} aria-label="Cerrar">
-                âœ•
+                ✕
             </button>
         </div>
     );

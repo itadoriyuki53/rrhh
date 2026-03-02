@@ -21,55 +21,55 @@ import { getTodayStr, formatFullName } from '../helpers/formatters';
 import { useIsDark } from '../helpers/hooks';
 import { buildSelectStyles } from '../helpers/selectStyles';
 
-// Tipos de contrato agrupados por categorÃ­a
+// Tipos de contrato agrupados por categoría
 const TIPOS_CONTRATO = {
-    'RelaciÃ³n de Dependencia (Ley 20.744 â€“ LCT)': [
+    'Relación de Dependencia (Ley 20.744 – LCT)': [
         { value: 'tiempo_indeterminado', label: 'Contrato por Tiempo Indeterminado (Efectivo)' },
-        { value: 'periodo_prueba', label: 'PerÃ­odo de Prueba (Art. 92 bis)' },
+        { value: 'periodo_prueba', label: 'Período de Prueba (Art. 92 bis)' },
         { value: 'plazo_fijo', label: 'Contrato a Plazo Fijo' },
         { value: 'eventual', label: 'Contrato Eventual' },
         { value: 'teletrabajo', label: 'Contrato de Teletrabajo (Ley 27.555)' },
     ],
     'No Laborales / Extracontractuales (Freelancers / Outsourcing)': [
-        { value: 'locacion_servicios', label: 'LocaciÃ³n de Servicios (Contractor / Freelancer)' },
+        { value: 'locacion_servicios', label: 'Locación de Servicios (Contractor / Freelancer)' },
         { value: 'monotributista', label: 'Monotributista' },
-        { value: 'responsable_inscripto', label: 'Responsable Inscripto (AutÃ³nomo)' },
+        { value: 'responsable_inscripto', label: 'Responsable Inscripto (Autónomo)' },
         { value: 'honorarios', label: 'Honorarios' },
         { value: 'contrato_obra', label: 'Contrato de Obra' },
     ],
     'Formativos (Educativos)': [
-        { value: 'pasantia_educativa', label: 'PasantÃ­a Educativa (Ley 26.427)' },
+        { value: 'pasantia_educativa', label: 'Pasantía Educativa (Ley 26.427)' },
         { value: 'beca', label: 'Beca' },
         { value: 'ad_honorem', label: 'Ad honorem' },
     ],
 };
 
 // Tooltip content for Step 1 - Puestos
-const TOOLTIP_PUESTOS = `**Reglas de asignaciÃ³n:**
-â€¢ Un empleado puede tener varios puestos en un mismo contrato solo si pertenecen a la misma empresa.
-â€¢ Si los puestos son de empresas distintas, deben crearse contratos separados.
-â€¢ No se permite crear un contrato para un puesto que el empleado ya tiene asignado en otro contrato activo.
+const TOOLTIP_PUESTOS = `**Reglas de asignación:**
+• Un empleado puede tener varios puestos en un mismo contrato solo si pertenecen a la misma empresa.
+• Si los puestos son de empresas distintas, deben crearse contratos separados.
+• No se permite crear un contrato para un puesto que el empleado ya tiene asignado en otro contrato activo.
 
-**CategorÃ­a superior:** SegÃºn la Ley de Contrato de Trabajo, si el empleado realiza dos tareas de distinta jerarquÃ­a, se le debe remunerar segÃºn la de mayor categorÃ­a o proporcionalmente al tiempo dedicado a cada una.`;
+**Categoría superior:** Según la Ley de Contrato de Trabajo, si el empleado realiza dos tareas de distinta jerarquía, se le debe remunerar según la de mayor categoría o proporcionalmente al tiempo dedicado a cada una.`;
 
 // Tooltip content for Step 2 - Tipos de Contrato
-const TOOLTIP_TIPOS_CONTRATO = `**RelaciÃ³n de Dependencia**
-â€¢ La empresa paga cargas sociales (jubilaciÃ³n, obra social, ART).
-â€¢ El estÃ¡ndar es el contrato por tiempo indeterminado.
-â€¢ El perÃ­odo de prueba comprende los primeros 3 meses (Art. 92 bis).
-â€¢ El plazo fijo tiene fecha de fin y requiere preaviso especial.
-â€¢ El contrato eventual cubre necesidades extraordinarias.
-â€¢ El teletrabajo debe registrarse segÃºn la ley vigente.
+const TOOLTIP_TIPOS_CONTRATO = `**Relación de Dependencia**
+• La empresa paga cargas sociales (jubilación, obra social, ART).
+• El estándar es el contrato por tiempo indeterminado.
+• El período de prueba comprende los primeros 3 meses (Art. 92 bis).
+• El plazo fijo tiene fecha de fin y requiere preaviso especial.
+• El contrato eventual cubre necesidades extraordinarias.
+• El teletrabajo debe registrarse según la ley vigente.
 
 **No Laborales / Extracontractuales**
-â€¢ Incluye locaciÃ³n de servicios, monotributistas, responsables inscriptos, honorarios y contrato de obra.
-â€¢ No tienen recibo de sueldo ni vacaciones pagas automÃ¡ticas.
-â€¢ Requieren constancia de inscripciÃ³n y facturaciÃ³n mensual.
+• Incluye locación de servicios, monotributistas, responsables inscriptos, honorarios y contrato de obra.
+• No tienen recibo de sueldo ni vacaciones pagas automáticas.
+• Requieren constancia de inscripción y facturación mensual.
 
 **Formativos**
-â€¢ Incluye pasantÃ­a educativa, beca y ad honorem.
-â€¢ No son empleados ni freelancers.
-â€¢ La pasantÃ­a tiene duraciÃ³n mÃ¡xima y asignaciÃ³n estÃ­mulo.`;
+• Incluye pasantía educativa, beca y ad honorem.
+• No son empleados ni freelancers.
+• La pasantía tiene duración máxima y asignación estímulo.`;
 
 /**
  * Componente interno de error de campo.
@@ -216,7 +216,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                 roleFilters.espacioTrabajoId = filters.espacioTrabajoId;
             }
 
-            // Para empresas, tambiÃ©n usamos el mismo filtro
+            // Para empresas, también usamos el mismo filtro
             const empresaFilters = { limit: 100, activo: 'true' };
             if (filters.espacioTrabajoId) {
                 empresaFilters.espacioTrabajoId = filters.espacioTrabajoId;
@@ -307,7 +307,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
 
         setSelectedEmpleados(selectedOptions);
 
-        // Resetear puestos al cambiar selecciÃ³n, except when loading edit data
+        // Resetear puestos al cambiar selección, except when loading edit data
         if (!skipPuestosReset) {
             setSelectedPuestos([]);
             setSelectedEmpresa(null);
@@ -354,11 +354,11 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
         } else if (currentStep === 2) {
             if (!tipoContrato) errors.tipoContrato = 'Debe seleccionar un tipo de contrato';
         } else if (currentStep === 3) {
-            // ValidaciÃ³n de fecha de inicio
+            // Validación de fecha de inicio
             if (!formData.fechaInicio) {
                 errors.fechaInicio = 'La fecha de inicio es requerida';
             } else if (!isEditMode) {
-                // Solo validar que no sea anterior a hoy si no es ediciÃ³n
+                // Solo validar que no sea anterior a hoy si no es edición
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const [year, month, day] = formData.fechaInicio.split('-');
@@ -368,55 +368,55 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                 }
             }
 
-            // ValidaciÃ³n de fecha de fin (si se ingresÃ³)
+            // Validación de fecha de fin (si se ingresó)
             if (formData.fechaFin && formData.fechaInicio) {
                 if (new Date(formData.fechaFin) < new Date(formData.fechaInicio)) {
                     errors.fechaFin = 'La fecha de fin no puede ser anterior a la fecha de inicio';
                 }
             }
 
-            // ValidaciÃ³n de horario
+            // Validación de horario
             if (!formData.horario?.trim()) {
                 errors.horario = 'El horario es requerido';
             } else if (formData.horario.length < 5 || formData.horario.length > 100) {
                 errors.horario = 'El horario debe tener entre 5 y 100 caracteres';
             }
 
-            // ValidaciÃ³n de salario
+            // Validación de salario
             if (!formData.salario) {
                 errors.salario = 'El salario es requerido';
             } else if (isNaN(parseFloat(formData.salario))) {
-                errors.salario = 'Debe ser un nÃºmero vÃ¡lido';
+                errors.salario = 'Debe ser un número válido';
             } else if (parseFloat(formData.salario) < 0) {
                 errors.salario = 'El salario no puede ser negativo';
             } else if (parseFloat(formData.salario) > 999999999.99) {
                 errors.salario = 'El salario no puede exceder 999,999,999.99';
             }
 
-            // ValidaciÃ³n de compensaciÃ³n (opcional pero con lÃ­mite)
+            // Validación de compensación (opcional pero con límite)
             if (formData.compensacion && formData.compensacion.length > 500) {
-                errors.compensacion = 'La compensaciÃ³n no puede exceder 500 caracteres';
+                errors.compensacion = 'La compensación no puede exceder 500 caracteres';
             }
 
-            // ValidaciÃ³n de rol
+            // Validación de rol
             if (!formData.rolId) {
                 errors.rolId = 'El rol es requerido';
             }
         }
 
-        // Preservar solo los errores de dÃ­as hÃ¡biles de campos de fecha
+        // Preservar solo los errores de días hábiles de campos de fecha
         setFieldErrors(prev => {
             const camposFecha = ['fechaInicio', 'fechaFin'];
             const erroresDiasHabiles = {};
 
-            // Preservar errores de dÃ­as hÃ¡biles en campos de fecha
+            // Preservar errores de días hábiles en campos de fecha
             camposFecha.forEach(campo => {
-                if (prev[campo] && prev[campo].includes('dÃ­a hÃ¡bil')) {
+                if (prev[campo] && prev[campo].includes('día hábil')) {
                     erroresDiasHabiles[campo] = prev[campo];
                 }
             });
 
-            // Combinar: errores de la validaciÃ³n actual + errores de dÃ­as hÃ¡biles preservados
+            // Combinar: errores de la validación actual + errores de días hábiles preservados
             return { ...erroresDiasHabiles, ...errors };
         });
 
@@ -436,17 +436,17 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
         validateStep();
     };
 
-    const handleChange = (e) => { // âœ… SÃ­ncrono ahora
+    const handleChange = (e) => { // ✅ Síncrono ahora
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
 
-        // Validar dÃ­as hÃ¡biles en tiempo real SÃNCRONO
+        // Validar días hábiles en tiempo real SÍNCRONO
         if ((name === 'fechaInicio' || name === 'fechaFin') && value) {
             try {
                 const nombreCampo = name === 'fechaInicio'
                     ? 'La fecha de inicio'
                     : 'La fecha de fin';
-                validarDiaHabil(value, nombreCampo); // âœ… SÃ­ncrono
+                validarDiaHabil(value, nombreCampo); // ✅ Síncrono
                 setFieldErrors(prev => ({ ...prev, [name]: null }));
             } catch (error) {
                 setFieldErrors(prev => ({ ...prev, [name]: error.message }));
@@ -592,7 +592,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                     {isEditMode ? 'Empleado *' : 'Empleado(s) *'}
                     {!isEditMode && selectedEmpleados.length > 1 && (
                         <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--primary-color)', fontWeight: 500 }}>
-                            ({selectedEmpleados.length} seleccionados - se crearÃ¡ un contrato por cada uno)
+                            ({selectedEmpleados.length} seleccionados - se creará un contrato por cada uno)
                         </span>
                     )}
                 </label>
@@ -790,7 +790,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                 <FieldError message={touched.horario && fieldErrors.horario} />
             </div>
 
-            {/* Salario y CompensaciÃ³n */}
+            {/* Salario y Compensación */}
             <div className="form-grid-stacked">
                 <div className="form-group">
                     <label className="form-label">Salario *</label>
@@ -808,7 +808,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                     <FieldError message={touched.salario && fieldErrors.salario} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">CompensaciÃ³n</label>
+                    <label className="form-label">Compensación</label>
                     <input
                         type="text"
                         name="compensacion"
@@ -884,7 +884,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                             {steps[currentStep - 1].title}
                         </h3>
                         <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                            {currentStep === 1 && 'Selecciona el empleado y los puestos que ocuparÃ¡'}
+                            {currentStep === 1 && 'Selecciona el empleado y los puestos que ocupará'}
                             {currentStep === 2 && 'Elige el tipo de contrato laboral'}
                             {currentStep === 3 && 'Completa los datos del contrato'}
                         </p>

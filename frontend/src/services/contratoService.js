@@ -1,12 +1,12 @@
 ﻿/**
- * @fileoverview Servicios CRUD para el mÃ³dulo de Contratos laborales.
+ * @fileoverview Servicios CRUD para el módulo de Contratos laborales.
  * @module services/contratoService
  */
 
 import { httpClient, buildQueryString, API_URL } from './httpClient';
 
 /**
- * Obtiene la lista de contratos segÃºn filtros.
+ * Obtiene la lista de contratos según filtros.
  *
  * @param {Object} [filters={}] - Filtros (empleadoId, estado, page, limit, etc.).
  * @returns {Promise<Object>} Lista de contratos paginada.
@@ -63,10 +63,10 @@ export const updateContrato = async (id, data) => {
 };
 
 /**
- * Realiza una baja lÃ³gica de un contrato.
+ * Realiza una baja lógica de un contrato.
  *
  * @param {number} id - ID del contrato.
- * @returns {Promise<Object>} ConfirmaciÃ³n.
+ * @returns {Promise<Object>} Confirmación.
  */
 export const deleteContrato = async (id) => {
     const response = await httpClient(`${API_URL}/contratos/${id}`, { method: 'DELETE' });
@@ -79,7 +79,7 @@ export const deleteContrato = async (id) => {
  * Reactiva un contrato dado de baja.
  *
  * @param {number} id - ID del contrato.
- * @returns {Promise<Object>} ConfirmaciÃ³n.
+ * @returns {Promise<Object>} Confirmación.
  */
 export const reactivateContrato = async (id) => {
     const response = await httpClient(`${API_URL}/contratos/${id}/reactivate`, { method: 'PATCH' });
@@ -89,7 +89,7 @@ export const reactivateContrato = async (id) => {
 };
 
 /**
- * Elimina mÃºltiples contratos en una sola operaciÃ³n.
+ * Elimina múltiples contratos en una sola operación.
  *
  * @param {number[]} ids - IDs de los contratos.
  * @returns {Promise<Object>} Resultado bulk.
@@ -105,7 +105,7 @@ export const deleteContratosBulk = async (ids) => {
 };
 
 /**
- * Obtiene los puestos que ya tienen contrato activo para un empleado especÃ­fico.
+ * Obtiene los puestos que ya tienen contrato activo para un empleado específico.
  * Usado para evitar asignar dos contratos al mismo puesto.
  *
  * @param {number} empleadoId - ID del empleado.

@@ -1,22 +1,22 @@
 ﻿/**
- * @fileoverview Barrel de re-exportaciÃ³n de todos los servicios de la API.
+ * @fileoverview Barrel de re-exportación de todos los servicios de la API.
  *
  * Este archivo mantiene la retrocompatibilidad con importaciones existentes del tipo:
  *   `import { getEmpleados, getRoles } from '../services/api'`
  *
- * Para nuevos componentes, se recomienda importar directamente desde el servicio especÃ­fico:
+ * Para nuevos componentes, se recomienda importar directamente desde el servicio específico:
  *   `import { getEmpleados } from '../services/empleadoService'`
  *
  * @module services/api
  */
 
-// --- AutenticaciÃ³n y sesiÃ³n ---
+// --- Autenticación y sesión ---
 export * from './authService';
 
-// --- Datos geogrÃ¡ficos externos ---
+// --- Datos geográficos externos ---
 export * from './geoService';
 
-// --- MÃ³dulos de RRHH ---
+// --- Módulos de RRHH ---
 export * from './empleadoService';
 export * from './empresaService';
 export * from './contratoService';

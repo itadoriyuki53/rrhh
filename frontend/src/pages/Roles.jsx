@@ -108,7 +108,7 @@ const Roles = () => {
                 setEspaciosList(espaciosRes.data || []);
                 setCurrentUser(userMe);
 
-                // LÃ³gica de preselecciÃ³n de espacio SOLO SI ES EMPLEADO
+                // Lógica de preselección de espacio SOLO SI ES EMPLEADO
                 if (userMe && userMe.esEmpleado) {
                     const espacios = espaciosRes.data || [];
                     if (userMe.espacioTrabajoId) {
@@ -338,13 +338,13 @@ const Roles = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
 
@@ -396,7 +396,7 @@ const Roles = () => {
                             <input type="text" className="filter-input" placeholder="Buscar por nombre..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} style={{ minWidth: '200px' }} />
                         </div>
                         <div className="filter-group">
-                            <input type="text" className="filter-input" placeholder="DescripciÃ³n" value={descripcionInput} onChange={(e) => setDescripcionInput(e.target.value)} style={{ minWidth: '200px' }} />
+                            <input type="text" className="filter-input" placeholder="Descripción" value={descripcionInput} onChange={(e) => setDescripcionInput(e.target.value)} style={{ minWidth: '200px' }} />
                         </div>
                         <div className="filter-group">
                             <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }}>
@@ -418,7 +418,7 @@ const Roles = () => {
                                 <div className="column-selector-dropdown">
                                     {Object.entries({
                                         espacio: 'Espacio',
-                                        descripcion: 'DescripciÃ³n',
+                                        descripcion: 'Descripción',
                                         usuarios: 'Usuarios',
                                         permisos: 'Permisos',
                                     }).map(([key, label]) => (
@@ -467,7 +467,7 @@ const Roles = () => {
                                         </th>
                                         <th>Nombre</th>
                                         {visibleColumns.espacio && <th>Espacio</th>}
-                                        {visibleColumns.descripcion && <th>DescripciÃ³n</th>}
+                                        {visibleColumns.descripcion && <th>Descripción</th>}
                                         {visibleColumns.usuarios && <th>Usuarios</th>}
                                         {visibleColumns.permisos && <th>Permisos</th>}
                                         <th>Acciones</th>
@@ -545,7 +545,7 @@ const Roles = () => {
                         {/* Pagination */}
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por pÃ¡gina:</span>
+                                <span>Filas por página:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                     {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
@@ -554,11 +554,11 @@ const Roles = () => {
                                 </span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
-                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
                             </div>
                         </div>
                     </>
@@ -590,7 +590,7 @@ const Roles = () => {
             <ConfirmDialog
                 isOpen={confirmOpen}
                 title="Desactivar rol"
-                message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar el rol "${itemToDelete.nombre}"? PodrÃ¡s reactivarlo mÃ¡s tarde.` : ''}
+                message={itemToDelete ? `¿Estás seguro de desactivar el rol "${itemToDelete.nombre}"? Podrás reactivarlo más tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -600,7 +600,7 @@ const Roles = () => {
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
                 title="Desactivar roles"
-                message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} rol(es)? PodrÃ¡s reactivarlos mÃ¡s tarde.`}
+                message={`¿Estás seguro de desactivar ${selectedIds.size} rol(es)? Podrás reactivarlos más tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todos"

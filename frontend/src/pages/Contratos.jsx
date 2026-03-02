@@ -22,11 +22,11 @@ import ConfirmDialog from '../components/ConfirmDialog';
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
 const TIPOS_CONTRATO_LABELS = {
-    tiempo_indeterminado: 'Tiempo Indeterminado', periodo_prueba: 'PerÃ­odo de Prueba',
+    tiempo_indeterminado: 'Tiempo Indeterminado', periodo_prueba: 'Período de Prueba',
     plazo_fijo: 'Plazo Fijo', eventual: 'Eventual', teletrabajo: 'Teletrabajo',
-    locacion_servicios: 'LocaciÃ³n de Servicios', monotributista: 'Monotributista',
+    locacion_servicios: 'Locación de Servicios', monotributista: 'Monotributista',
     responsable_inscripto: 'Responsable Inscripto', honorarios: 'Honorarios',
-    contrato_obra: 'Contrato de Obra', pasantia_educativa: 'PasantÃ­a Educativa',
+    contrato_obra: 'Contrato de Obra', pasantia_educativa: 'Pasantía Educativa',
     beca: 'Beca', ad_honorem: 'Ad honorem',
 };
 
@@ -276,8 +276,8 @@ const Contratos = () => {
                     <p className="page-subtitle">Gestiona los contratos laborales de los empleados</p>
                 </div>
             </div>
-            {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}<button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button></div>}
-            {success && <div className="alert alert-success" style={{ marginBottom: '1rem' }}>{success}<button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button></div>}
+            {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}<button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button></div>}
+            {success && <div className="alert alert-success" style={{ marginBottom: '1rem' }}>{success}<button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button></div>}
             <div className="card">
                 <div className="card-header">
                     <div className="header-left">
@@ -333,10 +333,10 @@ const Contratos = () => {
                             </select>
                         </div>
                         <div className="filter-group">
-                            <input type="number" className="filter-input" placeholder="Salario mÃ­n." value={salarioMinInput} onChange={e => setSalarioMinInput(e.target.value)} style={{ width: '200px' }} min="0" />
+                            <input type="number" className="filter-input" placeholder="Salario mín." value={salarioMinInput} onChange={e => setSalarioMinInput(e.target.value)} style={{ width: '200px' }} min="0" />
                         </div>
                         <div className="filter-group">
-                            <input type="number" className="filter-input" placeholder="Salario mÃ¡x." value={salarioMaxInput} onChange={e => setSalarioMaxInput(e.target.value)} style={{ width: '200px' }} min="0" />
+                            <input type="number" className="filter-input" placeholder="Salario máx." value={salarioMaxInput} onChange={e => setSalarioMaxInput(e.target.value)} style={{ width: '200px' }} min="0" />
                         </div>
                         <div className="filter-group">
                             <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }} style={{ width: '200px' }}>
@@ -445,16 +445,16 @@ const Contratos = () => {
                         </div>
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por pÃ¡gina:</span>
+                                <span>Filas por página:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">{ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select>
                                 <span className="pagination-total">{((page - 1) * limit) + 1}-{Math.min(page * limit, total)} de {total}</span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
-                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
                             </div>
                         </div>
                     </>
@@ -464,8 +464,8 @@ const Contratos = () => {
             {showDetail && selectedItem && (
                 <ContratoDetail contrato={selectedItem} onClose={() => { setShowDetail(false); setSelectedItem(null); }} onEdit={(c) => { setShowDetail(false); setSelectedItem(null); setEditingItem(c); setModoMultiple(false); setShowWizard(true); }} />
             )}
-            <ConfirmDialog isOpen={confirmOpen} title="Desactivar contrato" message="Â¿EstÃ¡s seguro de desactivar este contrato? PodrÃ¡s reactivarlo mÃ¡s tarde." onConfirm={handleConfirmDelete} onCancel={() => { setConfirmOpen(false); setItemToDelete(null); }} confirmText="Desactivar" variant="danger" />
-            <ConfirmDialog isOpen={confirmBulkOpen} title="Desactivar contratos" message={`Â¿Desactivar ${selectedIds.size} contrato(s)? PodrÃ¡s reactivarlos mÃ¡s tarde.`} onConfirm={handleConfirmBulkDelete} onCancel={() => setConfirmBulkOpen(false)} confirmText="Desactivar todos" variant="danger" />
+            <ConfirmDialog isOpen={confirmOpen} title="Desactivar contrato" message="¿Estás seguro de desactivar este contrato? Podrás reactivarlo más tarde." onConfirm={handleConfirmDelete} onCancel={() => { setConfirmOpen(false); setItemToDelete(null); }} confirmText="Desactivar" variant="danger" />
+            <ConfirmDialog isOpen={confirmBulkOpen} title="Desactivar contratos" message={`¿Desactivar ${selectedIds.size} contrato(s)? Podrás reactivarlos más tarde.`} onConfirm={handleConfirmBulkDelete} onCancel={() => setConfirmBulkOpen(false)} confirmText="Desactivar todos" variant="danger" />
         </div>
     );
 };

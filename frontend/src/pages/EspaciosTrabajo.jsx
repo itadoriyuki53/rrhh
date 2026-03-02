@@ -82,7 +82,7 @@ const EspaciosTrabajo = () => {
 
 
 
-    // Load filter data â€” solo usuarios no-empleados (admins/staff que pueden ser propietarios)
+    // Load filter data — solo usuarios no-empleados (admins/staff que pueden ser propietarios)
     useEffect(() => {
         const load = async () => {
             try {
@@ -114,7 +114,7 @@ const EspaciosTrabajo = () => {
     }));
     const selectStyles = buildSelectStyles(isDark);
 
-    // Debounce Search (nombre y descripciÃ³n)
+    // Debounce Search (nombre y descripción)
     useEffect(() => {
         const timer = setTimeout(() => {
             setFilterNombre(searchInput);
@@ -294,7 +294,7 @@ const EspaciosTrabajo = () => {
         }));
     };
 
-    // Si no es admin, el filtro de propietario es obligatorio y no cuenta como "activo" para mostrar el botÃ³n limpiar
+    // Si no es admin, el filtro de propietario es obligatorio y no cuenta como "activo" para mostrar el botón limpiar
     const isNotAdmin = currentUser && !currentUser.esAdministrador;
     const hasActiveFilters = filterNombre || filterActivo !== 'true' || filterDescripcion || (!isNotAdmin && filterPropietario) || filterFechaCreacion;
     const allSelected = items.length > 0 && selectedIds.size === items.length;
@@ -314,7 +314,7 @@ const EspaciosTrabajo = () => {
                 <div className="page-header">
                     <div>
                         <h1 className="page-title">Espacios de Trabajo</h1>
-                        <p className="page-subtitle">Gestiona los espacios de trabajo de la organizaciÃ³n</p>
+                        <p className="page-subtitle">Gestiona los espacios de trabajo de la organización</p>
                     </div>
                 </div>
 
@@ -322,13 +322,13 @@ const EspaciosTrabajo = () => {
                 {error && (
                     <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                         {error}
-                        <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                        <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                     </div>
                 )}
                 {success && (
                     <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                         {success}
-                        <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                        <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                     </div>
                 )}
 
@@ -378,10 +378,10 @@ const EspaciosTrabajo = () => {
                                 <input type="text" className="filter-input" placeholder="Buscar por nombre..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} style={{ width: '200px' }} />
                             </div>
                             <div className="filter-group">
-                                <input type="text" className="filter-input" placeholder="DescripciÃ³n" value={descripcionInput} onChange={(e) => setDescripcionInput(e.target.value)} style={{ width: '200px' }} />
+                                <input type="text" className="filter-input" placeholder="Descripción" value={descripcionInput} onChange={(e) => setDescripcionInput(e.target.value)} style={{ width: '200px' }} />
                             </div>
                             <div className="filter-group">
-                                <input type="date" className="filter-input" placeholder="Fecha CreaciÃ³n" value={filterFechaCreacion} onChange={(e) => { setFilterFechaCreacion(e.target.value); setPage(1); }} style={{ width: '200px' }} />
+                                <input type="date" className="filter-input" placeholder="Fecha Creación" value={filterFechaCreacion} onChange={(e) => { setFilterFechaCreacion(e.target.value); setPage(1); }} style={{ width: '200px' }} />
                             </div>
                             <div className="filter-group">
                                 <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }} style={{ width: '200px' }}>
@@ -403,9 +403,9 @@ const EspaciosTrabajo = () => {
                                 {showColumnSelector && (
                                     <div className="column-selector-dropdown">
                                         {Object.entries({
-                                            descripcion: 'DescripciÃ³n',
+                                            descripcion: 'Descripción',
                                             propietario: 'Propietario',
-                                            creacion: 'Fecha de CreaciÃ³n',
+                                            creacion: 'Fecha de Creación',
                                         }).map(([key, label]) => (
                                             <label key={key} className="column-option">
                                                 <input
@@ -451,9 +451,9 @@ const EspaciosTrabajo = () => {
                                                 <input type="checkbox" checked={allSelected} ref={input => { if (input) input.indeterminate = someSelected; }} onChange={handleSelectAll} />
                                             </th>
                                             <th>Nombre</th>
-                                            {visibleColumns.descripcion && <th>DescripciÃ³n</th>}
+                                            {visibleColumns.descripcion && <th>Descripción</th>}
                                             {visibleColumns.propietario && <th>Propietario</th>}
-                                            {visibleColumns.creacion && <th>Fecha de CreaciÃ³n</th>}
+                                            {visibleColumns.creacion && <th>Fecha de Creación</th>}
                                             <th>Acciones</th>
                                         </tr>
                                     </thead>
@@ -514,7 +514,7 @@ const EspaciosTrabajo = () => {
                             {/* Pagination */}
                             <div className="pagination-bar">
                                 <div className="pagination-info">
-                                    <span>Filas por pÃ¡gina:</span>
+                                    <span>Filas por página:</span>
                                     <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                         {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                     </select>
@@ -523,11 +523,11 @@ const EspaciosTrabajo = () => {
                                     </span>
                                 </div>
                                 <div className="pagination-controls">
-                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
-                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
-                                    <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
-                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
-                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
+                                    <span className="pagination-page">Página {page} de {totalPages || 1}</span>
+                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
                                 </div>
                             </div>
                         </>
@@ -548,7 +548,7 @@ const EspaciosTrabajo = () => {
                 <ConfirmDialog
                     isOpen={true}
                     title="Desactivar espacio de trabajo"
-                    message={`Â¿EstÃ¡ seguro de que desea desactivar el espacio "${itemToDelete?.nombre}"?`}
+                    message={`¿Está seguro de que desea desactivar el espacio "${itemToDelete?.nombre}"?`}
                     onConfirm={handleConfirmDelete}
                     onCancel={handleCancelDelete}
                     confirmText="Desactivar"
@@ -559,7 +559,7 @@ const EspaciosTrabajo = () => {
                 <ConfirmDialog
                     isOpen={true}
                     title="Desactivar espacios de trabajo"
-                    message={`Â¿EstÃ¡ seguro de que desea desactivar ${selectedIds.size} espacio(s) de trabajo?`}
+                    message={`¿Está seguro de que desea desactivar ${selectedIds.size} espacio(s) de trabajo?`}
                     onConfirm={handleConfirmBulkDelete}
                     onCancel={() => setConfirmBulkOpen(false)}
                     confirmText="Desactivar todos"

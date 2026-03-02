@@ -1,5 +1,5 @@
 ﻿/**
- * @fileoverview Servicios CRUD para el mÃ³dulo de Empleados.
+ * @fileoverview Servicios CRUD para el módulo de Empleados.
  * Incluye operaciones individuales y masivas (bulk).
  * @module services/empleadoService
  */
@@ -7,9 +7,9 @@
 import { httpClient, buildQueryString, API_URL } from './httpClient';
 
 /**
- * Obtiene la lista paginada de empleados segÃºn filtros opcionales.
+ * Obtiene la lista paginada de empleados según filtros opcionales.
  *
- * @param {Object} [filters={}] - Filtros de bÃºsqueda (search, activo, page, limit, etc.).
+ * @param {Object} [filters={}] - Filtros de búsqueda (search, activo, page, limit, etc.).
  * @returns {Promise<{ data: Object[], total: number, page: number }>} Lista de empleados.
  */
 export const getEmpleados = async (filters = {}) => {
@@ -35,7 +35,7 @@ export const getEmpleadoById = async (id) => {
  *
  * @param {Object} data - Datos del nuevo empleado.
  * @returns {Promise<Object>} Empleado creado.
- * @throws {Error} Si los datos no pasan la validaciÃ³n del servidor.
+ * @throws {Error} Si los datos no pasan la validación del servidor.
  */
 export const createEmpleado = async (data) => {
     const response = await httpClient(`${API_URL}/empleados`, {
@@ -65,10 +65,10 @@ export const updateEmpleado = async (id, data) => {
 };
 
 /**
- * Realiza una baja lÃ³gica (soft delete) de un empleado.
+ * Realiza una baja lógica (soft delete) de un empleado.
  *
  * @param {number} id - ID del empleado a desactivar.
- * @returns {Promise<Object>} ConfirmaciÃ³n de la operaciÃ³n.
+ * @returns {Promise<Object>} Confirmación de la operación.
  */
 export const deleteEmpleado = async (id) => {
     const response = await httpClient(`${API_URL}/empleados/${id}`, { method: 'DELETE' });
@@ -78,10 +78,10 @@ export const deleteEmpleado = async (id) => {
 };
 
 /**
- * Reactiva un empleado dado de baja lÃ³gicamente.
+ * Reactiva un empleado dado de baja lógicamente.
  *
  * @param {number} id - ID del empleado a reactivar.
- * @returns {Promise<Object>} ConfirmaciÃ³n de la operaciÃ³n.
+ * @returns {Promise<Object>} Confirmación de la operación.
  */
 export const reactivateEmpleado = async (id) => {
     const response = await httpClient(`${API_URL}/empleados/${id}/reactivate`, { method: 'PATCH' });
@@ -91,7 +91,7 @@ export const reactivateEmpleado = async (id) => {
 };
 
 /**
- * Elimina mÃºltiples empleados en una sola operaciÃ³n (bulk delete).
+ * Elimina múltiples empleados en una sola operación (bulk delete).
  *
  * @param {number[]} ids - Array de IDs de los empleados a eliminar.
  * @returns {Promise<Object>} Resultado con cantidad de registros afectados.

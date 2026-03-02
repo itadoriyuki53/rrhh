@@ -1,7 +1,7 @@
 ﻿/**
- * @fileoverview Custom hooks de React para lÃ³gica reutilizable entre pÃ¡ginas y componentes.
- * Encapsula comportamientos comunes: observaciÃ³n del tema, debounce de filtros
- * y resoluciÃ³n de permisos por mÃ³dulo.
+ * @fileoverview Custom hooks de React para lógica reutilizable entre páginas y componentes.
+ * Encapsula comportamientos comunes: observación del tema, debounce de filtros
+ * y resolución de permisos por módulo.
  * @module helpers/hooks
  */
 
@@ -11,10 +11,10 @@ import { useState, useEffect, useRef } from 'react';
 
 /**
  * Observa la clase `dark` en `<html>` y retorna un booleano reactivo.
- * Usado en pÃ¡ginas que renderizan componentes de terceros (react-select) que
+ * Usado en páginas que renderizan componentes de terceros (react-select) que
  * necesitan saber el tema actual para aplicar sus propios estilos.
  *
- * @returns {boolean} `true` si el tema oscuro estÃ¡ activo.
+ * @returns {boolean} `true` si el tema oscuro está activo.
  * @example
  * const isDark = useIsDark();
  * const selectStyles = buildSelectStyles(isDark);
@@ -41,8 +41,8 @@ export const useIsDark = () => {
 // ===== DEBOUNCE =====
 
 /**
- * Retrasa la actualizaciÃ³n de un valor hasta que el usuario deja de escribir.
- * Evita disparar peticiones al servidor en cada pulsaciÃ³n de tecla.
+ * Retrasa la actualización de un valor hasta que el usuario deja de escribir.
+ * Evita disparar peticiones al servidor en cada pulsación de tecla.
  *
  * @template T
  * @param {T} value - Valor a "debouncear".
@@ -64,16 +64,16 @@ export const useDebounce = (value, delay = 300) => {
     return debouncedValue;
 };
 
-// ===== PERMISOS DE MÃ“DULO =====
+// ===== PERMISOS DE MÓDULO =====
 
 /**
- * Resuelve los permisos CRUD del usuario autenticado para un mÃ³dulo especÃ­fico.
+ * Resuelve los permisos CRUD del usuario autenticado para un módulo específico.
  * Un administrador siempre tiene todos los permisos.
  * Un empleado no-admin solo tiene los permisos que su rol le otorgue.
- * Un usuario no-empleado (owner) tambiÃ©n tiene todos los permisos.
+ * Un usuario no-empleado (owner) también tiene todos los permisos.
  *
- * @param {Object|null} user - Objeto de usuario del contexto de autenticaciÃ³n.
- * @param {string} modulo - Nombre del mÃ³dulo a verificar (ej: 'empleados', 'contratos').
+ * @param {Object|null} user - Objeto de usuario del contexto de autenticación.
+ * @param {string} modulo - Nombre del módulo a verificar (ej: 'empleados', 'contratos').
  * @returns {{ canRead: boolean, canCreate: boolean, canEdit: boolean, canDelete: boolean }}
  * @example
  * const { canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'empleados');
@@ -83,7 +83,7 @@ export const useModulePermissions = (user, modulo) => {
     const permisos = user?.rol?.permisos || [];
 
     /**
-     * Verifica si el usuario tiene un permiso especÃ­fico para el mÃ³dulo.
+     * Verifica si el usuario tiene un permiso específico para el módulo.
      * @param {string} accion - 'leer' | 'crear' | 'actualizar' | 'eliminar'
      * @returns {boolean}
      */
@@ -105,9 +105,9 @@ export const useModulePermissions = (user, modulo) => {
 
 /**
  * Detecta clicks fuera de un elemento referenciado y ejecuta un callback.
- * Ãštil para cerrar dropdowns y menÃºs contextuales.
+ * Útil para cerrar dropdowns y menús contextuales.
  *
- * @param {Function} callback - FunciÃ³n a ejecutar cuando se hace click fuera.
+ * @param {Function} callback - Función a ejecutar cuando se hace click fuera.
  * @returns {React.RefObject} Ref para asignar al elemento a observar.
  * @example
  * const dropdownRef = useClickOutside(() => setOpen(false));

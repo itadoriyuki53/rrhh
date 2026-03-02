@@ -1,9 +1,9 @@
 ﻿/**
- * @fileoverview Punto de entrada de la aplicaciÃ³n React.
- * Monta el Ã¡rbol de proveedores de contexto y el enrutador antes de renderizar `<App />`.
+ * @fileoverview Punto de entrada de la aplicación React.
+ * Monta el árbol de proveedores de contexto y el enrutador antes de renderizar `<App />`.
  *
- * JerarquÃ­a de proveedores (exterior â†’ interior):
- *   StrictMode â†’ ThemeProvider â†’ BrowserRouter â†’ AuthProvider (dentro de App) â†’ App
+ * Jerarquía de proveedores (exterior → interior):
+ *   StrictMode → ThemeProvider → BrowserRouter → AuthProvider (dentro de App) → App
  *
  * - `ThemeProvider` debe estar fuera de `BrowserRouter` ya que no depende del router.
  * - `AuthProvider` vive dentro de `App` porque necesita acceso al router (para redirigir).

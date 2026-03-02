@@ -32,7 +32,7 @@ const Dashboard = () => {
     const location = useLocation();
     const { user } = useAuth();
 
-    // Permisos del mÃ³dulo solicitudes
+    // Permisos del módulo solicitudes
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
     const canReadSolicitudes = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'solicitudes' && p.accion === 'leer');
@@ -81,7 +81,7 @@ const Dashboard = () => {
                 limit: 50,
             });
             // Filtrar pendientes en el cliente
-            // estado vacÃ­o ("") se trata como 'pendiente' para datos legacy
+            // estado vacío ("") se trata como 'pendiente' para datos legacy
             const pendientes = (result.data || []).filter(sol => {
                 const typeData = sol.licencia || sol.vacaciones || sol.horasExtras || sol.renuncia;
                 const estadoNorm = typeData?.estado || 'pendiente';
@@ -138,8 +138,8 @@ const Dashboard = () => {
     const handleDesactivar = (solicitud) => {
         setConfirmDialog({
             isOpen: true,
-            title: 'Â¿Desactivar solicitud?',
-            message: `Â¿EstÃ¡ seguro que desea desactivar la solicitud? Esta acciÃ³n no se puede deshacer.`,
+            title: '¿Desactivar solicitud?',
+            message: `¿Está seguro que desea desactivar la solicitud? Esta acción no se puede deshacer.`,
             variant: 'danger',
             confirmText: 'Desactivar',
             onConfirm: async () => {
@@ -166,8 +166,8 @@ const Dashboard = () => {
     const handleAceptar = async (solicitud) => {
         setConfirmDialog({
             isOpen: true,
-            title: 'Â¿Aceptar solicitud?',
-            message: `Â¿EstÃ¡ seguro que desea aceptar la solicitud? Esta acciÃ³n no se puede deshacer.`,
+            title: '¿Aceptar solicitud?',
+            message: `¿Está seguro que desea aceptar la solicitud? Esta acción no se puede deshacer.`,
             variant: 'success',
             confirmText: 'Aceptar',
             onConfirm: async () => {
@@ -232,7 +232,7 @@ const Dashboard = () => {
             {showWelcomeAlert && (
                 <Alert
                     type="success"
-                    message="Â¡Bienvenido! Has iniciado sesiÃ³n correctamente."
+                    message="¡Bienvenido! Has iniciado sesión correctamente."
                     onClose={() => setShowWelcomeAlert(false)}
                     duration={3000}
                 />
@@ -253,7 +253,7 @@ const Dashboard = () => {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Dashboard</h1>
-                    <p className="page-subtitle">Resumen de actividad y prÃ³ximos eventos</p>
+                    <p className="page-subtitle">Resumen de actividad y próximos eventos</p>
                 </div>
             </div>
 
@@ -261,26 +261,26 @@ const Dashboard = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                 </div>
             )}
 
             {/* Dashboard Grid */}
             <div className="dashboard-main-grid">
-                {/* PrÃ³ximos Eventos */}
+                {/* Próximos Eventos */}
                 <div className="card">
                     <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20, color: 'var(--primary-color)' }}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                             </svg>
-                            <h3 className="card-title">PrÃ³ximos Eventos</h3>
+                            <h3 className="card-title">Próximos Eventos</h3>
                         </div>
                     </div>
 
@@ -289,7 +289,7 @@ const Dashboard = () => {
                             <div className="loading" style={{ padding: '2rem' }}><div className="spinner"></div></div>
                         ) : feriados.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
-                                <p>No hay feriados prÃ³ximos</p>
+                                <p>No hay feriados próximos</p>
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -432,7 +432,7 @@ const Dashboard = () => {
                                             </div>
                                             {/* Second row: Type, date and badge */}
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                                <span>{TIPO_LABELS[solicitud.tipoSolicitud]} â€¢ {formatDate(solicitud.createdAt)}</span>
+                                                <span>{TIPO_LABELS[solicitud.tipoSolicitud]} • {formatDate(solicitud.createdAt)}</span>
                                                 <span style={{
                                                     display: 'inline-block',
                                                     padding: '0.15rem 0.5rem',

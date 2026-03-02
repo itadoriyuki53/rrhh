@@ -8,6 +8,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const session = require('express-session');
 const sequelize = require('./config/database');
 
@@ -67,6 +68,9 @@ app.use(session({
         sameSite: 'lax',
     },
 }));
+
+// Servir documentación técnica estática desde la raíz
+app.use('/docs', express.static(path.join(__dirname, '../../docs')));
 
 // ──────────────────────────────────────────────────────────────────────────────
 // RUTAS DE LA API

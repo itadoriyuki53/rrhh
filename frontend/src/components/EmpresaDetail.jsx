@@ -73,7 +73,7 @@ const Icons = {
 const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
     if (!empresa) return null;
 
-    // Permisos del mÃ³dulo empresas
+    // Permisos del módulo empresas
     const { user } = useAuth();
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
@@ -87,7 +87,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
         return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
-    // Calculate relative time (hace X minutos/horas/dÃ­as)
+    // Calculate relative time (hace X minutos/horas/días)
     const getRelativeTime = (dateString) => {
         if (!dateString) return 'fecha desconocida';
         const date = new Date(dateString);
@@ -100,7 +100,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
         if (diffMinutes < 1) return 'menos de un minuto';
         if (diffMinutes < 60) return `${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
         if (diffHours < 24) return `${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-        return `${diffDays} dÃ­a${diffDays !== 1 ? 's' : ''}`;
+        return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
     };
 
     // Calculate totals
@@ -254,9 +254,9 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
 
                     {/* Registro de Actividad Section */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Ãšltimos cambios hace ${getRelativeTime(empresa.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(empresa.updatedAt)}`} />
                         <div className="activity-log-grid">
-                            {/* Fecha de CreaciÃ³n */}
+                            {/* Fecha de Creación */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -269,7 +269,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Fecha de CreaciÃ³n
+                                        Fecha de Creación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(empresa.createdAt)}
@@ -304,7 +304,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                                     </span>
                                 </div>
                             </div>
-                            {/* Ãšltima ModificaciÃ³n */}
+                            {/* Última Modificación */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -316,7 +316,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Ãšltima ModificaciÃ³n
+                                        Última Modificación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(empresa.updatedAt)}
@@ -330,7 +330,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                     <div className="detail-grid-2col">
                         {/* Column 1: Resumen */}
                         <div>
-                            <SectionHeader title="Resumen" subtitle={`Ãšltimos cambios hace ${getRelativeTime(empresa.updatedAt)}`} />
+                            <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(empresa.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -340,8 +340,8 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                                 <Field icon={Icons.building} label="Nombre" value={empresa.nombre} />
                                 <Field icon={Icons.industry} label="Industria" value={empresa.industria} />
                                 <Field icon={Icons.mail} label="Email" value={empresa.email} />
-                                <Field icon={Icons.phone} label="TelÃ©fono" value={empresa.telefono} />
-                                <Field icon={Icons.location} label="DirecciÃ³n" value={empresa.direccion} />
+                                <Field icon={Icons.phone} label="Teléfono" value={empresa.telefono} />
+                                <Field icon={Icons.location} label="Dirección" value={empresa.direccion} />
                             </div>
                         </div>
 
@@ -358,7 +358,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                                 borderRadius: '0.5rem',
                                 overflow: 'hidden'
                             }}>
-                                <CounterCard value={totalAreas} label="Ãreas" color={primaryColor} />
+                                <CounterCard value={totalAreas} label="Áreas" color={primaryColor} />
                                 <CounterCard value={totalDepartamentos} label="Departamentos" color="#22c55e" />
                                 <CounterCard value={totalPuestos} label="Puestos" color="#3b82f6" />
                                 <CounterCard value={totalEmpleados} label="Empleados" color="#8b5cf6" isLast />

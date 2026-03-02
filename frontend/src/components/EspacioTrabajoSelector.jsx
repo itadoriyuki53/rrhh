@@ -52,7 +52,7 @@ const EspacioTrabajoSelector = ({
     }, [user]);
 
     useEffect(() => {
-        // Si el usuario es empleado y no se ha auto-asignado, asignar su espacio automÃ¡ticamente
+        // Si el usuario es empleado y no se ha auto-asignado, asignar su espacio automáticamente
         const espacioId = user?.empleado?.espacioTrabajoId || user?.espacioTrabajoId;
 
         if (user?.esEmpleado && espacioId && !autoAssigned && !value) {
@@ -110,7 +110,7 @@ const EspacioTrabajoSelector = ({
                     readOnly
                 />
                 <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-                    Asignado automÃ¡ticamente segÃºn tu perfil de empleado
+                    Asignado automáticamente según tu perfil de empleado
                 </p>
             </div>
         );
@@ -162,7 +162,7 @@ const EspacioTrabajoSelector = ({
 
             {!user?.esEmpleado && canChange && (
                 <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-                    Selecciona el espacio de trabajo al que pertenecerÃ¡ este registro
+                    Selecciona el espacio de trabajo al que pertenecerá este registro
                 </p>
             )}
         </div>
