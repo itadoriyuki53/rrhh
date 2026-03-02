@@ -1,5 +1,8 @@
 /**
- * Semilla de datos iniciales para la base de datos
+ * @fileoverview Script de inicialización de datos (Seeder).
+ * Provee datos de prueba y configuraciones iniciales para el sistema, 
+ * incluyendo usuarios, empresas, contratos y solicitudes.
+ * @module seeders/seed
  */
 
 const {
@@ -26,10 +29,18 @@ const {
     ParametroLaboral,
 } = require('../models');
 
+/**
+ * Verifica si ya existen datos en la tabla de usuarios.
+ * @returns {Promise<boolean>}
+ */
 const hasData = async () => (await Usuario.count()) > 0;
 
 /**
- * Helper: crear empleado con usuario, contrato, puesto y último contrato seleccionado
+ * Helper: Crea una estructura completa de empleado dentro del seeder.
+ * Incluye Usuario, Empleado, Contrato y asignación de Puesto.
+ * 
+ * @param {Object} data - Datos del empleado
+ * @returns {Promise<Object>} Objeto con las instancias creadas
  */
 const crearEmpleado = async ({
     nombre, apellido, email, dni, cuil, fechaNacimiento, genero, estadoCivil,

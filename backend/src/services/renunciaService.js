@@ -1,4 +1,12 @@
+/**
+ * @fileoverview Servicio de validación y lógica de negocio para renuncias.
+ * Maneja la validación de pre-condiciones (ausencias activas), el cálculo de
+ * fecha de baja efectiva y la validación para aprobación/procesamiento.
+ * @module services/renunciaService
+ */
+
 const { Solicitud, Renuncia, Vacaciones, Licencia } = require('../models');
+
 const { Op } = require('sequelize');
 
 /**

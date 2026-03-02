@@ -1,16 +1,42 @@
-const { Solicitud, Licencia, Vacaciones, HorasExtras, Renuncia, Contrato, Empleado, Puesto, Departamento, Area, Empresa, RegistroSalud, Usuario, EspacioTrabajo, Rol, Permiso } = require('../models');
+/**
+ * @fileoverview Controller de Solicitudes.
+ * Maneja las operaciones CRUD para solicitudes de recursos humanos,
+ * incluyendo vacaciones, licencias, horas extras y renuncias.
+ * Utiliza servicios de validación específicos por tipo y helpers
+ * de permisos y workspace para la separación de responsabilidades.
+ * @module controllers/solicitudController
+ */
+
+const {
+    Solicitud, Licencia, Vacaciones, HorasExtras, Renuncia,
+    Contrato, Empleado, Puesto, Departamento, Area, Empresa,
+    RegistroSalud, Usuario, EspacioTrabajo
+} = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
-const { esDiaHabil, parseLocalDate } = require('../utils/fechas');
-const { calcularDiasCorrespondientesVacaciones, getDiasDisponiblesVacaciones, getDiasSolicitadosVacaciones } = require('../services/vacacionesService');
 
-// Servicios de validación
+// Helpers
+const { resolverScopeContratos, RESPUESTA_VACIA_PAGINADA } = require('../helpers/workspace.helper');
+const { parsearPaginacion } = require('../helpers/paginacion.helper');
+const { badRequest, forbidden, notFound, serverError, manejarErrorSequelize } = require('../helpers/respuestas.helper');
+const { tienePermiso } = require('../helpers/permisos.helper');
+
+// Servicios de validación por tipo de solicitud
 const vacacionesService = require('../services/vacacionesService');
 const licenciaService = require('../services/licenciaService');
 const horasExtrasService = require('../services/horasExtrasService');
 const renunciaService = require('../services/renunciaService');
-const { generarLiquidacionFinal } = require('../services/prueba_liq');
+const { generarLiquidacionFinal } = require('../services/liquidacionGeneradorService');
 
+// ──────────────────────────────────────────────────────────────────────────────
+// CONSTANTES
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Tipos de contrato que habilitan todos los tipos de solicitud.
+ * Los contratos que no están en esta lista solo pueden crear licencias/inasistencias.
+ * @constant {string[]}
+ */
 const TIPOS_RELACION_DEPENDENCIA = [
     'tiempo_indeterminado',
     'periodo_prueba',
@@ -19,38 +45,14 @@ const TIPOS_RELACION_DEPENDENCIA = [
     'teletrabajo'
 ];
 
-// Helper: verifica si el usuario en sesión tiene un permiso específico en el módulo solicitudes
-const tienePermiso = async (session, accion) => {
-    if (session.esAdministrador) return true;
-    const usuarioId = session.usuarioId || session.empleadoId;
-    const empleado = await Empleado.findOne({ where: { usuarioId } });
+// ──────────────────────────────────────────────────────────────────────────────
+// INCLUDES DE SEQUELIZE (reutilizables)
+// ──────────────────────────────────────────────────────────────────────────────
 
-    // No es empleado (propietario/externo) → pasa siempre
-    if (!empleado) return true;
-
-    // Es empleado sin contrato seleccionado → pasa (sin restricción configurada)
-    if (!empleado.ultimoContratoSeleccionadoId) return true;
-
-    const contrato = await Contrato.findByPk(empleado.ultimoContratoSeleccionadoId, {
-        include: [{ model: Rol, as: 'rol', include: [{ model: Permiso, as: 'permisos', through: { attributes: [] } }] }]
-    });
-
-    // Sin rol asignado al contrato → pasa
-    if (!contrato?.rol) return true;
-
-    const permisosDelModulo = (contrato.rol.permisos || []).filter(
-        p => p.modulo === 'solicitudes'
-    );
-
-    // El módulo no tiene permisos configurados en este rol → pasa
-    if (permisosDelModulo.length === 0) return true;
-
-    // Verificar si tiene la acción especifica
-    return permisosDelModulo.some(p => p.accion === accion);
-};
-
-
-// Include relations for contract info
+/**
+ * Include estándar para cargar el contrato con empleado, usuario y empresa.
+ * @constant {object}
+ */
 const includeContrato = {
     model: Contrato,
     as: 'contrato',
@@ -91,7 +93,10 @@ const includeContrato = {
     ]
 };
 
-// Include relations for each type
+/**
+ * Includes para cargar las entidades hija de cada tipo de solicitud.
+ * @constant {object[]}
+ */
 const includeTypes = [
     { model: Licencia, as: 'licencia', include: [{ model: RegistroSalud, as: 'registroSalud' }] },
     { model: Vacaciones, as: 'vacaciones' },
@@ -99,158 +104,119 @@ const includeTypes = [
     { model: Renuncia, as: 'renuncia' },
 ];
 
-// Get all solicitudes with filters and pagination
+/**
+ * Condición SQL CASE para ordenar solicitudes por estado (pendientes primero).
+ * @constant {import('sequelize').Literal}
+ */
+const ordenPorEstado = sequelize.literal(`CASE 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`, '') IN ('pendiente', '') THEN 1 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'aceptada' THEN 2 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'aprobada' THEN 3 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'justificada' THEN 4 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'procesada' THEN 5 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'injustificada' THEN 6 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'rechazada' THEN 7 
+    ELSE 8 END`);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// HELPERS PRIVADOS
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Construye la condición WHERE para filtrar por estado en una solicitud
+ * (que puede estar en cualquiera de las 4 tablas tipo).
+ *
+ * @param {string} estado - Estado a filtrar
+ * @returns {object} Condición Sequelize Op.and con Op.or para cada tabla tipo
+ */
+const buildEstadoCondicion = (estado) => {
+    const estadoVal = estado === 'pendiente'
+        ? { [Op.or]: ['pendiente', ''] }
+        : estado;
+
+    return {
+        [Op.or]: [
+            { '$licencia.estado$': estadoVal },
+            { '$vacaciones.estado$': estadoVal },
+            { '$horasExtras.estado$': estadoVal },
+            { '$renuncia.estado$': estadoVal },
+        ]
+    };
+};
+
+/**
+ * Verifica si existe una solicitud pendiente para un contrato dado.
+ * Usado para validar que no se creen solicitudes duplicadas.
+ *
+ * @param {number} contratoId - ID del contrato a verificar
+ * @param {number|null} [excluirId=null] - ID de solicitud a excluir (para edición)
+ * @returns {Promise<boolean>} `true` si existe una solicitud pendiente
+ */
+const hayPendiente = async (contratoId, excluirId = null) => {
+    const where = {
+        contratoId,
+        activo: true,
+        [Op.and]: [{
+            [Op.or]: [
+                { '$licencia.estado$': { [Op.or]: ['pendiente', ''] } },
+                { '$vacaciones.estado$': { [Op.or]: ['pendiente', ''] } },
+                { '$horasExtras.estado$': { [Op.or]: ['pendiente', ''] } },
+                { '$renuncia.estado$': { [Op.or]: ['pendiente', ''] } }
+            ]
+        }]
+    };
+
+    if (excluirId) where.id = { [Op.ne]: excluirId };
+
+    const found = await Solicitud.findOne({ where, include: includeTypes });
+    return !!found;
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CONTROLLERS
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Obtiene todas las solicitudes con filtros opcionales y paginación.
+ * Aplica scope de acceso según el tipo de usuario en sesión.
+ *
+ * @param {import('express').Request} req - Request con query params:
+ *   `contratoId`, `empleadoId`, `espacioTrabajoId`, `tipoSolicitud`, `estado`, `activo`, `page`, `limit`
+ * @param {import('express').Response} res - Response con lista paginada de solicitudes
+ * @returns {Promise<void>}
+ */
 const getAll = async (req, res) => {
     try {
-        const { contratoId, empleadoId, espacioTrabajoId, tipoSolicitud, estado, activo, page = 1, limit = 10 } = req.query;
+        const { tipoSolicitud, estado, activo, page: pageQ, limit: limitQ, ...filtros } = req.query;
+        const { page, limit, offset } = parsearPaginacion(req.query);
+
         const where = {};
 
         // Filtro de activo
-        if (activo === 'false') {
-            where.activo = false;
-        } else if (activo === 'all') {
-            // No filtrar
-        } else {
-            where.activo = true;
-        }
+        if (activo === 'false') where.activo = false;
+        else if (activo !== 'all') where.activo = true;
 
         if (tipoSolicitud) where.tipoSolicitud = tipoSolicitud;
 
-        // Filtro por estado usando notación $association.column$ de Sequelize (genera JOINs)
+        // Filtro por estado (en tablas hija)
         if (estado) {
-            const estadoVal = estado === 'pendiente'
-                ? { [Op.or]: ['pendiente', ''] } // '' = legacy dato sin estado
-                : estado;
             where[Op.and] = where[Op.and] || [];
-            where[Op.and].push({
-                [Op.or]: [
-                    { '$licencia.estado$': estadoVal },
-                    { '$vacaciones.estado$': estadoVal },
-                    { '$horasExtras.estado$': estadoVal },
-                    { '$renuncia.estado$': estadoVal },
-                ]
-            });
+            where[Op.and].push(buildEstadoCondicion(estado));
         }
 
-        // --- Filtrado por Espacio de Trabajo y Permisos ---
-        // Las solicitudes pertenecen a contratos, resolver: empleado → contratos → where.contratoId
-        const usuarioSesionId = req.session.usuarioId || req.session.empleadoId;
-        const esAdmin = req.session.esAdministrador;
+        // Resolver scope de contratos accesibles
+        const scope = await resolverScopeContratos(req.session, filtros, 'solicitudes');
+        if (scope.respuestaVacia) return res.json(RESPUESTA_VACIA_PAGINADA);
 
-        if (!esAdmin) {
-            const empleadoSesion = await Empleado.findOne({ where: { usuarioId: usuarioSesionId } });
-
-            if (empleadoSesion) {
-                // ES EMPLEADO — verificar si tiene permisos de gestión (puede ver todos del workspace)
-                const tienePermisoVerTodos = await tienePermiso(req.session, 'crear') ||
-                    await tienePermiso(req.session, 'actualizar') ||
-                    await tienePermiso(req.session, 'eliminar');
-
-                if (tienePermisoVerTodos) {
-                    // Puede ver las solicitudes de todos los empleados de su workspace
-                    const empleadosWorkspace = await Empleado.findAll({
-                        where: { espacioTrabajoId: empleadoSesion.espacioTrabajoId },
-                        attributes: ['id']
-                    });
-                    const idsEmpleadosWs = empleadosWorkspace.map(e => e.id);
-
-                    let whereContrato = { empleadoId: { [Op.in]: idsEmpleadosWs } };
-                    if (empleadoId) {
-                        if (!idsEmpleadosWs.includes(parseInt(empleadoId))) {
-                            return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                        }
-                        whereContrato = { empleadoId };
-                    }
-                    if (espacioTrabajoId && parseInt(espacioTrabajoId) !== empleadoSesion.espacioTrabajoId) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    const contratosPermitidos = await Contrato.findAll({ where: whereContrato, attributes: ['id'] });
-                    where.contratoId = { [Op.in]: contratosPermitidos.map(c => c.id) };
-
-                } else {
-                    // Solo ve sus propias solicitudes
-                    if (empleadoId && parseInt(empleadoId) !== empleadoSesion.id) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    const contratosPropio = await Contrato.findAll({
-                        where: { empleadoId: empleadoSesion.id },
-                        attributes: ['id']
-                    });
-                    where.contratoId = { [Op.in]: contratosPropio.map(c => c.id) };
-                }
-
-            } else {
-                // ES PROPIETARIO (no empleado) → ve solicitudes de empleados de sus espacios
-                const espaciosPropios = await EspacioTrabajo.findAll({
-                    where: { propietarioId: usuarioSesionId },
-                    attributes: ['id']
-                });
-                const espaciosIds = espaciosPropios.map(e => e.id);
-
-                let targetEspacios = espaciosIds;
-                if (espacioTrabajoId) {
-                    if (!espaciosIds.includes(parseInt(espacioTrabajoId))) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    targetEspacios = [parseInt(espacioTrabajoId)];
-                }
-
-                const empleadosDeWorkspaces = await Empleado.findAll({
-                    where: { espacioTrabajoId: { [Op.in]: targetEspacios } },
-                    attributes: ['id']
-                });
-                const idsPermitidos = empleadosDeWorkspaces.map(e => e.id);
-
-                let whereContrato = { empleadoId: { [Op.in]: idsPermitidos } };
-                if (empleadoId) {
-                    if (!idsPermitidos.includes(parseInt(empleadoId))) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    whereContrato = { empleadoId };
-                }
-                const contratosPermitidos = await Contrato.findAll({ where: whereContrato, attributes: ['id'] });
-                const idsContratos = contratosPermitidos.map(c => c.id);
-                where.contratoId = idsContratos.length > 0 ? { [Op.in]: idsContratos } : -1;
-            }
-
-        } else {
-            // ADMIN GLOBAL — filtros opcionales
-            if (contratoId) {
-                where.contratoId = parseInt(contratoId);
-            } else if (empleadoId || espacioTrabajoId) {
-                let whereContratoAdmin = {};
-                if (empleadoId) whereContratoAdmin.empleadoId = empleadoId;
-                if (espacioTrabajoId) {
-                    const empleadosWs = await Empleado.findAll({ where: { espacioTrabajoId }, attributes: ['id'] });
-                    const idsWs = empleadosWs.map(e => e.id);
-                    if (empleadoId && !idsWs.includes(parseInt(empleadoId))) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    if (!empleadoId) whereContratoAdmin.empleadoId = { [Op.in]: idsWs };
-                }
-                const contratosAdmin = await Contrato.findAll({ where: whereContratoAdmin, attributes: ['id'] });
-                where.contratoId = { [Op.in]: contratosAdmin.map(c => c.id) };
-            }
+        if (scope.contratoIds !== null) {
+            where.contratoId = { [Op.in]: scope.contratoIds };
         }
 
-        const offset = (parseInt(page) - 1) * parseInt(limit);
-
-        let result = await Solicitud.findAndCountAll({
+        const result = await Solicitud.findAndCountAll({
             where,
             include: [includeContrato, ...includeTypes],
-            order: [
-                [sequelize.literal(`CASE 
-                    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`, '') IN ('pendiente', '') THEN 1 
-                    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'aceptada' THEN 2 
-                    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'aprobada' THEN 3 
-                    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'justificada' THEN 4 
-                    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'procesada' THEN 5 
-                    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'injustificada' THEN 6 
-                    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'rechazada' THEN 7 
-                    ELSE 8 END`), 'ASC'],
-                ['createdAt', 'DESC']
-            ],
-            limit: parseInt(limit),
+            order: [[ordenPorEstado, 'ASC'], ['createdAt', 'DESC']],
+            limit,
             offset,
             subQuery: false,
             distinct: true,
@@ -260,242 +226,135 @@ const getAll = async (req, res) => {
             data: result.rows,
             pagination: {
                 total: result.count,
-                page: parseInt(page),
-                limit: parseInt(limit),
-                totalPages: Math.ceil(result.count / parseInt(limit)),
+                page,
+                limit,
+                totalPages: Math.ceil(result.count / limit),
             },
         });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
+    } catch (err) {
+        console.error('[solicitudController.getAll]', err);
+        serverError(res, err);
     }
 };
 
-// Get solicitud by ID
+/**
+ * Obtiene una solicitud por ID.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con la solicitud o 404
+ * @returns {Promise<void>}
+ */
 const getById = async (req, res) => {
     try {
         const solicitud = await Solicitud.findByPk(req.params.id, {
             include: [includeContrato, ...includeTypes],
         });
 
-        if (!solicitud) {
-            return res.status(404).json({ error: 'Solicitud no encontrada' });
-        }
-
+        if (!solicitud) return notFound(res, 'Solicitud');
         res.json(solicitud);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    } catch (err) {
+        serverError(res, err);
     }
 };
 
-// Create solicitud
+/**
+ * Crea una nueva solicitud con su entidad hija (licencia, vacaciones, etc.).
+ * Aplica validaciones de negocio por tipo y genera acciones secundarias
+ * (liquidación automática al procesar renuncia, etc.).
+ *
+ * @param {import('express').Request} req - Request con body:
+ *   `contratoId`, `tipoSolicitud`, y los campos del tipo de solicitud
+ * @param {import('express').Response} res - Response 201 con la solicitud creada
+ * @returns {Promise<void>}
+ */
 const create = async (req, res) => {
     const transaction = await sequelize.transaction();
 
     try {
         // Verificar permiso de creación
-        if (!(await tienePermiso(req.session, 'crear'))) {
+        if (!(await tienePermiso(req.session, 'solicitudes', 'crear'))) {
             await transaction.rollback();
-            return res.status(403).json({ error: 'No tiene permiso para crear solicitudes' });
+            return forbidden(res, 'No tiene permiso para crear solicitudes');
         }
 
         const { contratoId, tipoSolicitud, ...typeData } = req.body;
 
-        // Validate contract exists and is active
+        // Validar existencia y estado del contrato
         const contrato = await Contrato.findByPk(contratoId);
         if (!contrato) {
             await transaction.rollback();
-            return res.status(400).json({ error: 'El contrato no existe' });
+            return badRequest(res, 'El contrato no existe');
         }
         if (!contrato.activo) {
             await transaction.rollback();
-            return res.status(400).json({ error: 'El contrato no está activo' });
+            return badRequest(res, 'El contrato no está activo');
         }
 
         // Validar tipo de contrato vs tipo de solicitud
         const esRelacionDependencia = TIPOS_RELACION_DEPENDENCIA.includes(contrato.tipoContrato);
         if (!esRelacionDependencia && tipoSolicitud !== 'licencia') {
             await transaction.rollback();
-            return res.status(400).json({ error: 'Este tipo de contrato solo permite solicitudes de Licencia / Inasistencia' });
+            return badRequest(res, 'Este tipo de contrato solo permite solicitudes de Licencia / Inasistencia');
         }
 
-        // Validate no pending solicitudes for this contract
-        const solicitudesPendientes = await Solicitud.findOne({
-            where: {
-                contratoId: contratoId,
-                activo: true,
-                [Op.and]: [{
-                    [Op.or]: [
-                        { '$licencia.estado$': { [Op.or]: ['pendiente', ''] } },
-                        { '$vacaciones.estado$': { [Op.or]: ['pendiente', ''] } },
-                        { '$horasExtras.estado$': { [Op.or]: ['pendiente', ''] } },
-                        { '$renuncia.estado$': { [Op.or]: ['pendiente', ''] } }
-                    ]
-                }]
-            },
-            include: includeTypes
-        });
-        if (solicitudesPendientes) {
-            return res.status(400).json({ error: 'No podés crear la solicitud porque ya existe una pendiente para este contrato. Por favor, esperá a que se resuelva la solicitud actual.' });
+        // Validar que no exista una solicitud pendiente para el mismo contrato
+        if (await hayPendiente(contratoId)) {
+            await transaction.rollback();
+            return badRequest(res, 'No podés crear la solicitud porque ya existe una pendiente para este contrato. Por favor, esperá a que se resuelva la solicitud actual.');
         }
 
-        // Type-specific validations using services
-        if (tipoSolicitud === 'vacaciones') {
-            const validacion = await vacacionesService.validarVacaciones(contratoId, typeData);
+        // Validaciones de negocio específicas por tipo
+        const validaciones = {
+            vacaciones: () => vacacionesService.validarVacaciones(contratoId, typeData),
+            licencia: () => licenciaService.validarLicencia(contratoId, typeData),
+            horas_extras: () => horasExtrasService.validarHorasExtras(contratoId, typeData),
+            renuncia: () => renunciaService.validarRenuncia(contratoId),
+        };
+
+        if (validaciones[tipoSolicitud]) {
+            const validacion = await validaciones[tipoSolicitud]();
             if (!validacion.valido) {
                 await transaction.rollback();
-                return res.status(400).json({ error: validacion.error });
+                return badRequest(res, validacion.error);
             }
         }
 
-        if (tipoSolicitud === 'licencia') {
-            const validacion = await licenciaService.validarLicencia(contratoId, typeData);
-            if (!validacion.valido) {
-                await transaction.rollback();
-                return res.status(400).json({ error: validacion.error });
-            }
-        }
+        // Crear registro base de solicitud
+        const solicitud = await Solicitud.create({ contratoId, tipoSolicitud }, { transaction });
 
-        if (tipoSolicitud === 'horas_extras') {
-            const validacion = await horasExtrasService.validarHorasExtras(contratoId, typeData);
-            if (!validacion.valido) {
-                await transaction.rollback();
-                return res.status(400).json({ error: validacion.error });
-            }
-        }
-
-        if (tipoSolicitud === 'renuncia') {
-            const validacion = await renunciaService.validarRenuncia(contratoId);
-            if (!validacion.valido) {
-                await transaction.rollback();
-                return res.status(400).json({ error: validacion.error });
-            }
-            // Auto-set fechaBajaEfectiva from service
-            //typeData.fechaBajaEfectiva = validacion.fechaBajaEfectiva;
-        }
-
-        // Create base solicitud
-        const solicitud = await Solicitud.create({
-            contratoId,
-            tipoSolicitud,
-        }, { transaction });
-
-        // Create type-specific record
-        let typeRecord;
-        switch (tipoSolicitud) {
-            case 'licencia':
-                // Validar registro de salud si está presente
-                if (typeData.registroSaludId) {
-                    const rs = await RegistroSalud.findByPk(typeData.registroSaludId);
-                    if (!rs || rs.empleadoId !== contrato.empleadoId) {
-                        await transaction.rollback();
-                        return res.status(400).json({ error: 'El registro de salud seleccionado no pertenece al empleado del contrato.' });
-                    }
-                }
-
-                typeRecord = await Licencia.create({
-                    solicitudId: solicitud.id,
-                    ...typeData,
-                }, { transaction });
-
-                // Acciones si se crea ya justificada
-                if (typeData.estado === 'justificada') {
-                    const diasLicencia = typeRecord.diasSolicitud || 0;
-                    if (diasLicencia > 0) {
-                        await licenciaService.onAprobacion(contratoId, diasLicencia, transaction);
-                    }
-                }
-                break;
-            case 'vacaciones':
-                // Si se crea ya aprobada, establecer notificadoEl
-                if (typeData.estado === 'aprobada' && !typeData.notificadoEl) {
-                    typeData.notificadoEl = new Date().toISOString().split('T')[0];
-                }
-
-                typeRecord = await Vacaciones.create({
-                    solicitudId: solicitud.id,
-                    ...typeData,
-                }, { transaction });
-
-                // Acciones si se crea ya aprobada
-                if (typeData.estado === 'aprobada') {
-                    const diasVacaciones = typeRecord.diasSolicitud || 0;
-                    if (diasVacaciones > 0) {
-                        await vacacionesService.onAprobacion(contratoId, diasVacaciones, transaction);
-                    }
-                }
-                break;
-            case 'horas_extras':
-                typeRecord = await HorasExtras.create({
-                    solicitudId: solicitud.id,
-                    ...typeData,
-                }, { transaction });
-                break;
-            case 'renuncia':
-                // Si se crea ya aceptada
-                if (typeData.estado === 'aceptada' && !typeData.fechaBajaEfectiva) {
-                    typeData.fechaBajaEfectiva = renunciaService.calcularFechaBajaEfectiva();
-                }
-
-                // Si se crea ya procesada
-                if (typeData.estado === 'procesada') {
-                    typeData.fechaBajaEfectiva = typeData.fechaBajaEfectiva || new Date().toISOString().split('T')[0];
-                }
-
-                typeRecord = await Renuncia.create({
-                    solicitudId: solicitud.id,
-                    ...typeData,
-                }, { transaction });
-
-                // Acciones si se crea ya procesada
-                if (typeData.estado === 'procesada') {
-                    await Contrato.update({
-                        fechaFin: typeData.fechaBajaEfectiva,
-                    }, {
-                        where: { id: contratoId },
-                        transaction,
-                        individualHooks: true,
-                    });
-
-                    try {
-                        await generarLiquidacionFinal(contratoId, typeData.fechaBajaEfectiva, transaction);
-                    } catch (liqError) {
-                        console.error('Error al generar liquidación automática por renuncia (create):', liqError);
-                    }
-                }
-                break;
-            default:
-                await transaction.rollback();
-                return res.status(400).json({ error: 'Tipo de solicitud inválido' });
-        }
+        // Crear entidad hija según tipo
+        await crearEntidadHija(tipoSolicitud, solicitud.id, contratoId, typeData, contrato, transaction);
 
         await transaction.commit();
 
-        // Get full record with relations
         const fullSolicitud = await Solicitud.findByPk(solicitud.id, {
             include: [includeContrato, ...includeTypes],
         });
 
         res.status(201).json(fullSolicitud);
-    } catch (error) {
+    } catch (err) {
         await transaction.rollback();
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
+        console.error('[solicitudController.create]', err);
+        manejarErrorSequelize(res, err);
     }
 };
 
-// Update solicitud
+/**
+ * Actualiza una solicitud existente.
+ * Aplica validaciones de solapamiento y lógica de negocio en cambios de estado.
+ *
+ * @param {import('express').Request} req - Request con `params.id` y body con campos a actualizar
+ * @param {import('express').Response} res - Response con la solicitud actualizada
+ * @returns {Promise<void>}
+ */
 const update = async (req, res) => {
     const transaction = await sequelize.transaction();
 
     try {
         // Verificar permiso de edición
-        if (!(await tienePermiso(req.session, 'actualizar'))) {
+        if (!(await tienePermiso(req.session, 'solicitudes', 'actualizar'))) {
             await transaction.rollback();
-            return res.status(403).json({ error: 'No tiene permiso para editar solicitudes' });
+            return forbidden(res, 'No tiene permiso para editar solicitudes');
         }
 
         const { tipoSolicitud, ...typeData } = req.body;
@@ -505,206 +364,53 @@ const update = async (req, res) => {
 
         if (!solicitud) {
             await transaction.rollback();
-            return res.status(404).json({ error: 'Solicitud no encontrada' });
+            return notFound(res, 'Solicitud');
         }
 
-        // Get current state
+        // Determinar estado actual de la solicitud
         const typeRecord = solicitud.licencia || solicitud.vacaciones || solicitud.horasExtras || solicitud.renuncia;
         const currentState = typeRecord?.estado;
 
-        // Bloquear edición si no está en un estado editable (pendiente para todos, o aceptada para renuncia)
-        const editableStates = (solicitud.tipoSolicitud === 'renuncia') ? ['pendiente', 'aceptada'] : ['pendiente'];
+        // Estados que permiten edición de datos (no solo cambio de estado)
+        const editableStates = solicitud.tipoSolicitud === 'renuncia'
+            ? ['pendiente', 'aceptada']
+            : ['pendiente'];
 
+        // Si no está en estado editable, solo permitir cambio de estado
         if (!editableStates.includes(currentState)) {
-            // Solo permitir cambio de estado
-            const allowedFields = ['estado'];
-            const changes = Object.keys(typeData).filter(k => {
-                if (allowedFields.includes(k)) return false;
-
-                // Si el campo tiene un valor diferente al actual, es un cambio
-                let newVal = typeData[k];
-                let oldVal = typeRecord[k];
-
-                if (newVal === '' || newVal === undefined) newVal = null;
-                if (oldVal === '' || oldVal === undefined) oldVal = null;
-
-                if (newVal != oldVal) {
-                    // Verificación especial para fechas
-                    if (typeof newVal === 'string' && typeof oldVal === 'string' &&
-                        newVal.includes('-') && oldVal.includes('-')) {
-                        return newVal.split('T')[0] !== oldVal.split('T')[0];
-                    }
-                    return true;
-                }
-                return false;
-            });
-
-            if (changes.length > 0) {
+            const cambiosNoPermitidos = detectarCambiosNoPermitidos(typeData, typeRecord);
+            if (cambiosNoPermitidos.length > 0) {
                 await transaction.rollback();
-                return res.status(400).json({ error: 'No podés editar los datos de la solicitud porque no está pendiente. Solo podés cambiar su estado.' });
+                return badRequest(res, 'No podés editar los datos de la solicitud porque no está pendiente. Solo podés cambiar su estado.');
             }
-
-            // Si no hay cambios en campos restringidos, los eliminamos para solo actualizar el estado y evitar efectos secundarios
+            // Limpiar campos que no sean 'estado' para evitar efectos secundarios
             Object.keys(typeData).forEach(k => {
-                if (!allowedFields.includes(k)) delete typeData[k];
+                if (k !== 'estado') delete typeData[k];
             });
         }
 
-        // Validate overlaps when editing dates (only if in editable state)
+        // Validar solapamientos al editar fechas en estado editable
         if (editableStates.includes(currentState)) {
-            if (solicitud.tipoSolicitud === 'vacaciones' && (typeData.fechaInicio || typeData.fechaFin)) {
-                const datosValidar = {
-                    fechaInicio: typeData.fechaInicio || solicitud.vacaciones.fechaInicio,
-                    fechaFin: typeData.fechaFin || solicitud.vacaciones.fechaFin
-                };
-                const validacion = await vacacionesService.validarVacaciones(solicitud.contratoId, datosValidar, solicitud.id);
-                if (!validacion.valido) {
-                    await transaction.rollback();
-                    return res.status(400).json({ error: validacion.error });
-                }
-            }
-
-            if (solicitud.tipoSolicitud === 'licencia' && (typeData.fechaInicio || typeData.fechaFin)) {
-                const datosValidar = {
-                    fechaInicio: typeData.fechaInicio || solicitud.licencia.fechaInicio,
-                    fechaFin: typeData.fechaFin || solicitud.licencia.fechaFin
-                };
-                const validacion = await licenciaService.validarLicencia(solicitud.contratoId, datosValidar, solicitud.id);
-                if (!validacion.valido) {
-                    await transaction.rollback();
-                    return res.status(400).json({ error: validacion.error });
-                }
-            }
-
-            if (solicitud.tipoSolicitud === 'horas_extras' && (typeData.fecha || typeData.horaInicio || typeData.horaFin)) {
-                const datosValidar = {
-                    fecha: typeData.fecha || solicitud.horasExtras.fecha,
-                    horaInicio: typeData.horaInicio || solicitud.horasExtras.horaInicio,
-                    horaFin: typeData.horaFin || solicitud.horasExtras.horaFin
-                };
-                const validacion = await horasExtrasService.validarHorasExtras(solicitud.contratoId, datosValidar, solicitud.id);
-                if (!validacion.valido) {
-                    await transaction.rollback();
-                    return res.status(400).json({ error: validacion.error });
-                }
+            const errorSolapamiento = await validarSolapamientoEdicion(solicitud, typeData);
+            if (errorSolapamiento) {
+                await transaction.rollback();
+                return badRequest(res, errorSolapamiento);
             }
         }
 
-        // Validate resignation approval/processing
+        // Validar aprobación de renuncia
         if (solicitud.tipoSolicitud === 'renuncia' && typeData.estado) {
-            const nuevoEstado = typeData.estado;
-            const estadosQueRequierenValidacion = ['aceptada', 'procesada'];
-
-            if (estadosQueRequierenValidacion.includes(nuevoEstado) && currentState !== nuevoEstado) {
+            if (['aceptada', 'procesada'].includes(typeData.estado) && currentState !== typeData.estado) {
                 const validacion = await renunciaService.validarAprobacion(solicitud.contratoId);
                 if (!validacion.valido) {
                     await transaction.rollback();
-                    return res.status(400).json({ error: validacion.error });
+                    return badRequest(res, validacion.error);
                 }
             }
         }
 
-        // Update type-specific record
-        switch (solicitud.tipoSolicitud) {
-            case 'licencia':
-                // Validar registro de salud si cambia
-                if (typeData.registroSaludId && typeData.registroSaludId !== solicitud.licencia?.registroSaludId) {
-                    const rs = await RegistroSalud.findByPk(typeData.registroSaludId);
-                    if (!rs || rs.empleadoId !== solicitud.contrato?.empleadoId) {
-                        await transaction.rollback();
-                        return res.status(400).json({ error: 'El registro de salud seleccionado no pertenece al empleado del contrato.' });
-                    }
-                }
-
-                const prevEstadoLic = solicitud.licencia?.estado;
-
-                // Si cambia a 'justificada', sumar días a fechaBajaEfectiva de renuncia activa
-                if (typeData.estado === 'justificada' && prevEstadoLic !== 'justificada') {
-                    const licenciaData = solicitud.licencia;
-                    const diasLicencia = licenciaData?.diasSolicitados || 0;
-
-                    if (diasLicencia > 0) {
-                        await licenciaService.onAprobacion(solicitud.contratoId, diasLicencia, transaction);
-                    }
-                }
-
-                // Limpiar registroSaludId si el motivo no es de salud
-                const MOTIVOS_SALUD_VAL = ['accidente_trabajo_art', 'enfermedad_inculpable'];
-                const nuevoMotivo = typeData.motivoLegal || solicitud.licencia.motivoLegal;
-                if (!MOTIVOS_SALUD_VAL.includes(nuevoMotivo)) {
-                    typeData.registroSaludId = null;
-                }
-
-                await Licencia.update(typeData, {
-                    where: { solicitudId: solicitud.id },
-                    transaction,
-                });
-                break;
-            case 'vacaciones':
-                const prevEstadoVac = solicitud.vacaciones?.estado;
-
-                // Si cambia a 'aprobada', establecer notificadoEl a hoy
-                if (typeData.estado === 'aprobada' && prevEstadoVac !== 'aprobada') {
-                    typeData.notificadoEl = new Date().toISOString().split('T')[0];
-
-                    // Si hay renuncia aceptada, sumar días de vacaciones a fechaBajaEfectiva
-                    const vacacionesData = solicitud.vacaciones;
-                    const diasVacaciones = vacacionesData?.diasSolicitud || 0;
-
-                    if (diasVacaciones > 0) {
-                        await vacacionesService.onAprobacion(solicitud.contratoId, diasVacaciones, transaction);
-                    }
-                }
-
-                await Vacaciones.update(typeData, {
-                    where: { solicitudId: solicitud.id },
-                    transaction,
-                });
-                break;
-            case 'horas_extras':
-                await HorasExtras.update(typeData, {
-                    where: { solicitudId: solicitud.id },
-                    transaction,
-                });
-                break;
-            case 'renuncia':
-                const prevEstado = solicitud.renuncia?.estado;
-
-                if (typeData.estado === 'aceptada' && prevEstado !== 'aceptada') {
-                    typeData.fechaBajaEfectiva = renunciaService.calcularFechaBajaEfectiva();
-                }
-
-                // Si cambia a 'procesada', establecer fechaBajaEfectiva a hoy automáticamente
-                if (typeData.estado === 'procesada' && prevEstado !== 'procesada') {
-                    const today = new Date().toISOString().split('T')[0];
-                    typeData.fechaBajaEfectiva = today;
-                }
-
-                await Renuncia.update(typeData, {
-                    where: { solicitudId: solicitud.id },
-                    transaction,
-                });
-
-                // If changing to 'procesada', update contract fechaFin (NOT deactivate)
-                if (typeData.estado === 'procesada' && prevEstado !== 'procesada') {
-                    await Contrato.update({
-                        fechaFin: typeData.fechaBajaEfectiva,
-                    }, {
-                        where: { id: solicitud.contratoId },
-                        transaction,
-                        individualHooks: true,
-                    });
-
-                    // Generar liquidación automática hasta hoy
-                    try {
-                        await generarLiquidacionFinal(solicitud.contratoId, typeData.fechaBajaEfectiva, transaction);
-                    } catch (liqError) {
-                        console.error('Error al generar liquidación automática por renuncia:', liqError);
-                        // No fallamos la operación principal por esto
-                    }
-                }
-                break;
-        }
+        // Actualizar entidad hija según tipo
+        await actualizarEntidadHija(solicitud, typeData, transaction);
 
         await transaction.commit();
 
@@ -713,65 +419,51 @@ const update = async (req, res) => {
         });
 
         res.json(updatedSolicitud);
-    } catch (error) {
+    } catch (err) {
         await transaction.rollback();
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
+        console.error('[solicitudController.update]', err);
+        manejarErrorSequelize(res, err);
     }
 };
 
-// Delete solicitud (soft delete)
+/**
+ * Desactiva (soft delete) una solicitud.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con mensaje de confirmación
+ * @returns {Promise<void>}
+ */
 const remove = async (req, res) => {
     try {
-        // Verificar permiso de eliminación
-        if (!(await tienePermiso(req.session, 'eliminar'))) {
-            return res.status(403).json({ error: 'No tiene permiso para desactivar solicitudes' });
+        if (!(await tienePermiso(req.session, 'solicitudes', 'eliminar'))) {
+            return forbidden(res, 'No tiene permiso para desactivar solicitudes');
         }
 
         const solicitud = await Solicitud.findByPk(req.params.id);
-
-        if (!solicitud) {
-            return res.status(404).json({ error: 'Solicitud no encontrada' });
-        }
+        if (!solicitud) return notFound(res, 'Solicitud');
 
         await solicitud.update({ activo: false });
         res.json({ message: 'Solicitud desactivada correctamente' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    } catch (err) {
+        serverError(res, err);
     }
 };
 
-// Reactivate solicitud
+/**
+ * Reactiva una solicitud previamente desactivada.
+ * Valida que no exista otra solicitud pendiente para el mismo contrato.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con la solicitud reactivada
+ * @returns {Promise<void>}
+ */
 const reactivate = async (req, res) => {
     try {
         const solicitud = await Solicitud.findByPk(req.params.id);
+        if (!solicitud) return notFound(res, 'Solicitud');
 
-        if (!solicitud) {
-            return res.status(404).json({ error: 'Solicitud no encontrada' });
-        }
-
-        const solicitudesPendientes = await Solicitud.findOne({
-            where: {
-                contratoId: solicitud.contratoId,
-                activo: true,
-                id: { [Op.ne]: solicitud.id },
-                [Op.and]: [{
-                    [Op.or]: [
-                        { '$licencia.estado$': { [Op.or]: ['pendiente', ''] } },
-                        { '$vacaciones.estado$': { [Op.or]: ['pendiente', ''] } },
-                        { '$horasExtras.estado$': { [Op.or]: ['pendiente', ''] } },
-                        { '$renuncia.estado$': { [Op.or]: ['pendiente', ''] } }
-                    ]
-                }]
-            },
-            include: includeTypes
-        });
-
-        if (solicitudesPendientes) {
-            return res.status(400).json({ error: 'No podés reactivar la solicitud porque ya existe una pendiente para este contrato. Por favor, esperá a que se resuelva la solicitud actual.' });
+        if (await hayPendiente(solicitud.contratoId, solicitud.id)) {
+            return badRequest(res, 'No podés reactivar la solicitud porque ya existe una pendiente para este contrato. Por favor, esperá a que se resuelva la solicitud actual.');
         }
 
         await solicitud.update({ activo: true });
@@ -781,35 +473,330 @@ const reactivate = async (req, res) => {
         });
 
         res.json(fullSolicitud);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    } catch (err) {
+        serverError(res, err);
     }
 };
 
-// Bulk delete
+/**
+ * Desactiva múltiples solicitudes en una sola operación (bulk soft delete).
+ *
+ * @param {import('express').Request} req - Request con body `{ ids: number[] }`
+ * @param {import('express').Response} res - Response con mensaje de confirmación
+ * @returns {Promise<void>}
+ */
 const bulkRemove = async (req, res) => {
     try {
-        // Verificar permiso de eliminación
-        if (!(await tienePermiso(req.session, 'eliminar'))) {
-            return res.status(403).json({ error: 'No tiene permiso para desactivar solicitudes en lote' });
+        if (!(await tienePermiso(req.session, 'solicitudes', 'eliminar'))) {
+            return forbidden(res, 'No tiene permiso para desactivar solicitudes en lote');
         }
 
         const { ids } = req.body;
-
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({ error: 'Se requiere un array de IDs' });
+            return badRequest(res, 'Se requiere un array de IDs');
         }
 
-        await Solicitud.update(
-            { activo: false },
-            { where: { id: ids } }
-        );
-
+        await Solicitud.update({ activo: false }, { where: { id: ids } });
         res.json({ message: `${ids.length} solicitud(es) desactivada(s) correctamente` });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    } catch (err) {
+        serverError(res, err);
     }
 };
+
+// ──────────────────────────────────────────────────────────────────────────────
+// FUNCIONES PRIVADAS DE APOYO
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Crea la entidad hija correspondiente a un tipo de solicitud.
+ * Ejecuta acciones secundarias cuando el estado inicial no es 'pendiente'.
+ *
+ * @param {string} tipoSolicitud - Tipo de solicitud ('licencia', 'vacaciones', etc.)
+ * @param {number} solicitudId - ID de la solicitud padre
+ * @param {number} contratoId - ID del contrato
+ * @param {object} typeData - Datos específicos del tipo
+ * @param {object} contrato - Instancia del contrato
+ * @param {object} transaction - Transacción de Sequelize
+ * @returns {Promise<void>}
+ * @throws {Error} Si el tipo de solicitud es inválido
+ */
+const crearEntidadHija = async (tipoSolicitud, solicitudId, contratoId, typeData, contrato, transaction) => {
+    switch (tipoSolicitud) {
+        case 'licencia': {
+            // Validar que el registro de salud pertenezca al empleado
+            if (typeData.registroSaludId) {
+                const rs = await RegistroSalud.findByPk(typeData.registroSaludId);
+                if (!rs || rs.empleadoId !== contrato.empleadoId) {
+                    throw new Error('El registro de salud seleccionado no pertenece al empleado del contrato.');
+                }
+            }
+
+            const licencia = await Licencia.create({ solicitudId, ...typeData }, { transaction });
+
+            // Acción secundaria: si se crea ya justificada, sumar días a baja por renuncia
+            if (typeData.estado === 'justificada' && licencia.diasSolicitud > 0) {
+                await licenciaService.onAprobacion(contratoId, licencia.diasSolicitud, transaction);
+            }
+            break;
+        }
+
+        case 'vacaciones': {
+            // Si se crea aprobada, registrar fecha de notificación
+            if (typeData.estado === 'aprobada' && !typeData.notificadoEl) {
+                typeData.notificadoEl = new Date().toISOString().split('T')[0];
+            }
+
+            const vacaciones = await Vacaciones.create({ solicitudId, ...typeData }, { transaction });
+
+            if (typeData.estado === 'aprobada' && vacaciones.diasSolicitud > 0) {
+                await vacacionesService.onAprobacion(contratoId, vacaciones.diasSolicitud, transaction);
+            }
+            break;
+        }
+
+        case 'horas_extras': {
+            await HorasExtras.create({ solicitudId, ...typeData }, { transaction });
+            break;
+        }
+
+        case 'renuncia': {
+            // Calcular fecha de baja efectiva si aplica
+            if (typeData.estado === 'aceptada' && !typeData.fechaBajaEfectiva) {
+                typeData.fechaBajaEfectiva = renunciaService.calcularFechaBajaEfectiva();
+            }
+            if (typeData.estado === 'procesada') {
+                typeData.fechaBajaEfectiva = typeData.fechaBajaEfectiva || new Date().toISOString().split('T')[0];
+            }
+
+            await Renuncia.create({ solicitudId, ...typeData }, { transaction });
+
+            // Acción secundaria: actualizar contrato y generar liquidación final
+            if (typeData.estado === 'procesada') {
+                await Contrato.update(
+                    { fechaFin: typeData.fechaBajaEfectiva },
+                    { where: { id: contratoId }, transaction, individualHooks: true }
+                );
+
+                try {
+                    await generarLiquidacionFinal(contratoId, typeData.fechaBajaEfectiva, transaction);
+                } catch (liqError) {
+                    console.error('[solicitudController] Error al generar liquidación por renuncia (create):', liqError);
+                }
+            }
+            break;
+        }
+
+        default:
+            throw new Error('Tipo de solicitud inválido');
+    }
+};
+
+/**
+ * Actualiza la entidad hija de una solicitud existente.
+ * Ejecuta acciones secundarias en cambios de estado relevantes.
+ *
+ * @param {object} solicitud - Instancia de Solicitud con entidades relacionadas cargadas
+ * @param {object} typeData - Datos a actualizar
+ * @param {object} transaction - Transacción de Sequelize
+ * @returns {Promise<void>}
+ */
+const actualizarEntidadHija = async (solicitud, typeData, transaction) => {
+    switch (solicitud.tipoSolicitud) {
+        case 'licencia': {
+            // Validar cambio de registro de salud
+            if (typeData.registroSaludId && typeData.registroSaludId !== solicitud.licencia?.registroSaludId) {
+                const rs = await RegistroSalud.findByPk(typeData.registroSaludId);
+                if (!rs || rs.empleadoId !== solicitud.contrato?.empleadoId) {
+                    throw new Error('El registro de salud seleccionado no pertenece al empleado del contrato.');
+                }
+            }
+
+            // Acción secundaria: al justificar, sumar días a renuncia activa
+            const prevEstado = solicitud.licencia?.estado;
+            if (typeData.estado === 'justificada' && prevEstado !== 'justificada') {
+                const dias = solicitud.licencia?.diasSolicitados || 0;
+                if (dias > 0) {
+                    await licenciaService.onAprobacion(solicitud.contratoId, dias, transaction);
+                }
+            }
+
+            // Limpiar registroSaludId si el motivo no es de salud
+            const MOTIVOS_SALUD = ['accidente_trabajo_art', 'enfermedad_inculpable'];
+            const nuevoMotivo = typeData.motivoLegal || solicitud.licencia.motivoLegal;
+            if (!MOTIVOS_SALUD.includes(nuevoMotivo)) {
+                typeData.registroSaludId = null;
+            }
+
+            await Licencia.update(typeData, { where: { solicitudId: solicitud.id }, transaction });
+            break;
+        }
+
+        case 'vacaciones': {
+            const prevEstado = solicitud.vacaciones?.estado;
+
+            if (typeData.estado === 'aprobada' && prevEstado !== 'aprobada') {
+                typeData.notificadoEl = new Date().toISOString().split('T')[0];
+                const dias = solicitud.vacaciones?.diasSolicitud || 0;
+                if (dias > 0) {
+                    await vacacionesService.onAprobacion(solicitud.contratoId, dias, transaction);
+                }
+            }
+
+            await Vacaciones.update(typeData, { where: { solicitudId: solicitud.id }, transaction });
+            break;
+        }
+
+        case 'horas_extras': {
+            await HorasExtras.update(typeData, { where: { solicitudId: solicitud.id }, transaction });
+            break;
+        }
+
+        case 'renuncia': {
+            const prevEstado = solicitud.renuncia?.estado;
+
+            if (typeData.estado === 'aceptada' && prevEstado !== 'aceptada') {
+                typeData.fechaBajaEfectiva = renunciaService.calcularFechaBajaEfectiva();
+            }
+
+            if (typeData.estado === 'procesada' && prevEstado !== 'procesada') {
+                typeData.fechaBajaEfectiva = new Date().toISOString().split('T')[0];
+            }
+
+            await Renuncia.update(typeData, { where: { solicitudId: solicitud.id }, transaction });
+
+            // Acción secundaria: procesar renuncia → actualizar contrato y liquid. final
+            if (typeData.estado === 'procesada' && prevEstado !== 'procesada') {
+                await Contrato.update(
+                    { fechaFin: typeData.fechaBajaEfectiva },
+                    { where: { id: solicitud.contratoId }, transaction, individualHooks: true }
+                );
+
+                try {
+                    await generarLiquidacionFinal(solicitud.contratoId, typeData.fechaBajaEfectiva, transaction);
+                } catch (liqError) {
+                    console.error('[solicitudController] Error al generar liquidación por renuncia (update):', liqError);
+                }
+            }
+            break;
+        }
+    }
+};
+
+/**
+ * Detecta si hay cambios en campos no permitidos al editar una solicitud
+ * que no está en estado editable.
+ *
+ * @param {object} typeData - Nuevos datos del request
+ * @param {object} typeRecord - Datos actuales de la entidad hija
+ * @returns {string[]} Array de campos modificados no permitidos
+ */
+const detectarCambiosNoPermitidos = (typeData, typeRecord) => {
+    const allowedFields = ['estado'];
+    return Object.keys(typeData).filter(k => {
+        if (allowedFields.includes(k)) return false;
+
+        let newVal = typeData[k];
+        let oldVal = typeRecord[k];
+
+        if (newVal === '' || newVal === undefined) newVal = null;
+        if (oldVal === '' || oldVal === undefined) oldVal = null;
+
+        if (newVal != oldVal) {
+            if (typeof newVal === 'string' && typeof oldVal === 'string' &&
+                newVal.includes('-') && oldVal.includes('-')) {
+                return newVal.split('T')[0] !== oldVal.split('T')[0];
+            }
+            return true;
+        }
+        return false;
+    });
+};
+
+/**
+ * Valida solapamientos de fechas/horas al editar una solicitud.
+ *
+ * @param {object} solicitud - Instancia de solicitud con relaciones cargadas
+ * @param {object} typeData - Datos a actualizar
+ * @returns {Promise<string|null>} Mensaje de error si hay solapamiento, o `null` si es válido
+ */
+const validarSolapamientoEdicion = async (solicitud, typeData) => {
+    if (solicitud.tipoSolicitud === 'vacaciones' && (typeData.fechaInicio || typeData.fechaFin)) {
+        const datos = {
+            fechaInicio: typeData.fechaInicio || solicitud.vacaciones.fechaInicio,
+            fechaFin: typeData.fechaFin || solicitud.vacaciones.fechaFin,
+        };
+        const validacion = await vacacionesService.validarVacaciones(solicitud.contratoId, datos, solicitud.id);
+        if (!validacion.valido) return validacion.error;
+    }
+
+    if (solicitud.tipoSolicitud === 'licencia' && (typeData.fechaInicio || typeData.fechaFin)) {
+        const datos = {
+            fechaInicio: typeData.fechaInicio || solicitud.licencia.fechaInicio,
+            fechaFin: typeData.fechaFin || solicitud.licencia.fechaFin,
+        };
+        const validacion = await licenciaService.validarLicencia(solicitud.contratoId, datos, solicitud.id);
+        if (!validacion.valido) return validacion.error;
+    }
+
+    if (solicitud.tipoSolicitud === 'horas_extras' && (typeData.fecha || typeData.horaInicio || typeData.horaFin)) {
+        const datos = {
+            fecha: typeData.fecha || solicitud.horasExtras.fecha,
+            horaInicio: typeData.horaInicio || solicitud.horasExtras.horaInicio,
+            horaFin: typeData.horaFin || solicitud.horasExtras.horaFin,
+        };
+        const validacion = await horasExtrasService.validarHorasExtras(solicitud.contratoId, datos, solicitud.id);
+        if (!validacion.valido) return validacion.error;
+    }
+
+    return null;
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ENDPOINTS DE VACACIONES (utilidades)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Retorna los días disponibles de vacaciones para un contrato en un período.
+ *
+ * @param {import('express').Request} req - Request con `params.contratoId` y `query.periodo`
+ * @param {import('express').Response} res - Response con `{ diasCorrespondientes, diasTomados, diasDisponibles }`
+ * @returns {Promise<void>}
+ */
+const getDiasDisponiblesVacaciones = async (req, res) => {
+    try {
+        const { contratoId } = req.params;
+        const { periodo } = req.query;
+        const datos = await vacacionesService.calcularDiasDisponibles(contratoId, periodo);
+        const contrato = await Contrato.findByPk(contratoId);
+        res.json({ ...datos, antiguedad: contrato?.fechaInicio });
+    } catch (err) {
+        serverError(res, err);
+    }
+};
+
+/**
+ * Calcula los días hábiles entre dos fechas y la fecha de regreso.
+ *
+ * @param {import('express').Request} req - Request con `query.fechaInicio` y `query.fechaFin`
+ * @param {import('express').Response} res - Response con `{ diasSolicitud, fechaRegreso }`
+ * @returns {Promise<void>}
+ */
+const getDiasSolicitadosVacaciones = async (req, res) => {
+    try {
+        const { fechaInicio, fechaFin } = req.query;
+        if (!fechaInicio || !fechaFin) {
+            return badRequest(res, 'Faltan parámetros: fechaInicio y fechaFin');
+        }
+        const resultado = vacacionesService.calcularDiasSolicitados(fechaInicio, fechaFin);
+        res.json(resultado);
+    } catch (err) {
+        serverError(res, err);
+    }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// EXPORTS
+// ──────────────────────────────────────────────────────────────────────────────
 
 module.exports = {
     getAll,

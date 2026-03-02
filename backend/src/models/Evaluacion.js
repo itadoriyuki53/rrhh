@@ -1,6 +1,13 @@
+/**
+ * @fileoverview Modelo de Evaluación.
+ * Almacena el feedback de desempeño de un contrato, incluyendo puntajes,
+ * escalas de medición y observaciones. Permite múltiples evaluadores.
+ * @module models/Evaluacion
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
+const { parseLocalDate, esDiaHabil } = require('../helpers/fechas.helper');
 
 // Períodos de evaluación
 const PERIODOS = [

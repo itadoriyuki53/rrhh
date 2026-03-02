@@ -1,6 +1,13 @@
+/**
+ * @fileoverview Modelo de Registro de Salud.
+ * Administra los exámenes médicos (pre-ocupacionales, periódicos, etc.) de los empleados,
+ * controlando su vigencia, resultados y documentos respaldatorios.
+ * @module models/RegistroSalud
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
+const { parseLocalDate, esDiaHabil } = require('../helpers/fechas.helper');
 
 // Tipos de examen médico
 const TIPOS_EXAMEN = [

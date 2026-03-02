@@ -1,7 +1,14 @@
+/**
+ * @fileoverview Modelo de Usuario.
+ * Representa la cuenta de acceso al sistema, gestionando credenciales (encriptadas con bcrypt),
+ * estados de actividad y roles globales (Administrador/Empleado).
+ * @module models/Usuario
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const bcrypt = require('bcrypt');
-const { parseLocalDate } = require('../utils/fechas');
+const { parseLocalDate } = require('../helpers/fechas.helper');
 
 const Usuario = sequelize.define('Usuario', {
     id: {

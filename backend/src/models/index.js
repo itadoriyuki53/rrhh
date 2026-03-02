@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Punto de centralización y exportación de todos los modelos de Sequelize.
+ * Define la estructura relacional del sistema, incluyendo asociaciones 1:1, 1:N y M:N.
+ * @module models/index
+ */
+
 const sequelize = require('../config/database');
 const Usuario = require('./Usuario');
 const Empleado = require('./Empleado');

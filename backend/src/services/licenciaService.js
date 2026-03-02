@@ -1,6 +1,14 @@
+/**
+ * @fileoverview Servicio de validación y lógica de negocio para licencias.
+ * Maneja la validación de solapamientos, verificación de licencias no aprobadas
+ * y acciones post-justificación (impacto en fecha de baja por renuncia).
+ * @module services/licenciaService
+ */
+
 const { Solicitud, Licencia, Vacaciones, HorasExtras, Renuncia } = require('../models');
+
 const { Op } = require('sequelize');
-const { condicionSolapamientoFechas, condicionFechaEnRango, calcularDiasEntre } = require('../utils/solapamiento');
+const { condicionSolapamientoFechas, condicionFechaEnRango, calcularDiasEntre } = require('../helpers/solapamiento.helper');
 
 /**
  * Obtiene licencias que NO cuentan como días trabajados

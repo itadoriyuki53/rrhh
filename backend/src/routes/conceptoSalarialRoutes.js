@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Rutas para la gestión de conceptos salariales (Haberes/Deducciones).
+ * Permite definir los componentes que integran las liquidaciones de sueldo.
+ * @module routes/conceptoSalarialRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const conceptoSalarialController = require('../controllers/conceptoSalarialController');

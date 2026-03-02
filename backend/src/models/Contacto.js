@@ -1,6 +1,13 @@
+/**
+ * @fileoverview Modelo de Contacto.
+ * Gestiona los vínculos familiares y contactos de emergencia asociados a un empleado.
+ * Incluye parentesco, datos de contacto y estatus de emergencia.
+ * @module models/Contacto
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const { parseLocalDate } = require('../utils/fechas');
+const { parseLocalDate } = require('../helpers/fechas.helper');
 
 const Contacto = sequelize.define('Contacto', {
     id: {

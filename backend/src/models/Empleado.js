@@ -1,6 +1,13 @@
+/**
+ * @fileoverview Modelo de Empleado.
+ * Almacena la ficha personal, datos de contacto, documentos de identidad (DNI/CUIL)
+ * y geolocalización legal del personal. Se vincula 1:1 con un Usuario de acceso.
+ * @module models/Empleado
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const { parseLocalDate } = require('../utils/fechas');
+const { parseLocalDate } = require('../helpers/fechas.helper');
 
 const Empleado = sequelize.define('Empleado', {
     id: {

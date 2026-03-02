@@ -1,6 +1,14 @@
+/**
+ * @fileoverview Servicio de validación y lógica de negocio para horas extras.
+ * Maneja la validación de solapamientos de horas dentro del mismo día y
+ * conflictos con vacaciones y licencias aprobadas.
+ * @module services/horasExtrasService
+ */
+
 const { Solicitud, HorasExtras, Vacaciones, Licencia } = require('../models');
+
 const { Op } = require('sequelize');
-const { condicionSolapamientoHoras, condicionFechaEnRango } = require('../utils/solapamiento');
+const { condicionSolapamientoHoras, condicionFechaEnRango } = require('../helpers/solapamiento.helper');
 
 /**
  * Valida creación/edición de horas extras

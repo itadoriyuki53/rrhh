@@ -1,6 +1,13 @@
+/**
+ * @fileoverview Modelo de Vacaciones.
+ * Gestiona el período de descanso anual remunerado.
+ * Se vincula a una Solicitud y controla el período fiscal correspondiente.
+ * @module models/Vacaciones
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
+const { parseLocalDate, esDiaHabil } = require('../helpers/fechas.helper');
 
 // Estados de vacaciones
 const ESTADOS_VACACIONES = [

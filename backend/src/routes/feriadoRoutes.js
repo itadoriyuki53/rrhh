@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Rutas para consulta de feriados nacionales.
+ * Provee la lista de feriados fijos y móviles configurados en el sistema.
+ * @module routes/feriadoRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const feriadosData = require('../data/feriados.json');

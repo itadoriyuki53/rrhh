@@ -500,7 +500,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                 </div>
             </div>
 
-            <div className="form-grid-stacked">
+            <div className="form-grid-stacked-3">
                 <div className="form-group">
                     <label className="form-label">Tipo de Documento *</label>
                     <select

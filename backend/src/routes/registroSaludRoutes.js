@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Rutas para la gestión de registros de salud y exámenes médicos.
+ * @module routes/registroSaludRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const registroSaludController = require('../controllers/registroSaludController');

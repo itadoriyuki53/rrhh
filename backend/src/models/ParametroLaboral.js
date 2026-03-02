@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Modelo de Parámetro Laboral.
+ * Almacena configuraciones variables del sistema (ej: tope de inasistencias para presentismo).
+ * Permite personalizar el comportamiento de los cálculos por Espacio de Trabajo.
+ * @module models/ParametroLaboral
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

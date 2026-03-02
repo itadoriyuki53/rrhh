@@ -1,9 +1,20 @@
+/**
+ * @fileoverview Servicio de cálculo de conceptos salariales.
+ * Contiene la lógica matemática y de negocio para calcular cada ítem de una liquidación:
+ * básico, antigüedad, presentismo, horas extras, SAC, vacaciones y retenciones.
+ * @module services/liquidacionService
+ */
+
 const { Contrato, Licencia, Vacaciones, HorasExtras, ConceptoSalarial, ParametroLaboral, Solicitud } = require('../models');
-const { parseLocalDate } = require('../utils/fechas');
+const { parseLocalDate } = require('../helpers/fechas.helper');
 const { Op } = require('sequelize');
 
 /**
- * Determinar si un tipo de contrato es de relación de dependencia
+ * Determina si un tipo de contrato pertenece al régimen de relación de dependencia
+ * según la normativa laboral vigente y la configuración del sistema.
+ * 
+ * @param {string} tipoContrato - El identificador del tipo de contrato.
+ * @returns {boolean} True si es relación de dependencia.
  */
 const esRelacionDependencia = (tipoContrato) => {
     const tiposRelacion = [
@@ -17,7 +28,11 @@ const esRelacionDependencia = (tipoContrato) => {
 };
 
 /**
- * Helper to ensure a value is a valid number, returns 0 if not
+ * Asegura que un valor sea un número válido y finito.
+ * Si el valor no es numérico (NaN o Infinity), retorna 0.
+ * 
+ * @param {any} value - El valor a validar.
+ * @returns {number} El número procesado o 0.
  */
 const safeNumber = (value) => {
     const num = parseFloat(value);
@@ -26,10 +41,17 @@ const safeNumber = (value) => {
 
 
 /**
- * Obtener días HÁBILES dentro de un período específico
+ * Obtiene la cantidad de días HÁBILES que coinciden entre un ítem (licencia/vacación) 
+ * y el período de liquidación solicitado.
+ * 
+ * @param {string} fechaInicio - Inicio del período de liquidación (YYYY-MM-DD).
+ * @param {string} fechaFin - Fin del período de liquidación (YYYY-MM-DD).
+ * @param {string} fechaInicioItem - Inicio del ítem a contrastar.
+ * @param {string} fechaFinItem - Fin del ítem a contrastar.
+ * @returns {number} Cantidad de días hábiles de intersección.
  */
 const getDiasDelPeriodo = (fechaInicio, fechaFin, fechaInicioItem, fechaFinItem) => {
-    const { esDiaHabil } = require('../utils/fechas');
+    const { esDiaHabil } = require('../helpers/fechas.helper');
 
     const inicio = parseLocalDate(fechaInicio);
     const fin = parseLocalDate(fechaFin);
@@ -68,7 +90,11 @@ const getDiasDelPeriodo = (fechaInicio, fechaFin, fechaInicioItem, fechaFinItem)
 };
 
 /**
- * Calcular días de un semestre (~180)
+ * Calcula la cantidad de días que integran un semestre específico.
+ * Utilizado para el cálculo proporcional del SAC.
+ * 
+ * @param {string} fechaInicio - Fecha dentro del semestre a evaluar.
+ * @returns {number} 181 para el primer semestre, 184 para el segundo.
  */
 const getDiasSemestre = (fechaInicio) => {
     const fecha = parseLocalDate(fechaInicio);
@@ -85,7 +111,13 @@ const getDiasSemestre = (fechaInicio) => {
 };
 
 /**
- * Calcular días trabajados (excluyendo licencias/inasistencias injustificadas)
+ * Calcula la cantidad de días efectivamente trabajados en un período.
+ * Resta las inasistencias injustificadas del total de días corridos.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {string} fechaInicio - Inicio del período.
+ * @param {string} fechaFin - Fin del período.
+ * @returns {Promise<number>} Días trabajados.
  */
 const getDiasTrabajados = async (contrato, fechaInicio, fechaFin) => {
     const inicio = parseLocalDate(fechaInicio);
@@ -118,16 +150,23 @@ const getDiasTrabajados = async (contrato, fechaInicio, fechaFin) => {
 };
 
 /**
- * Calcular salario básico
+ * Retorna el salario básico figurante en el contrato.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @returns {number} Monto básico.
  */
 const calcularBasico = (contrato) => {
     return parseFloat(contrato.salario) || 0;
 };
 
 /**
- * Calcular antigüedad
- * - 1% por año completo sobre el básico
- * - 0.083% por mes si no completa un año
+ * Calcula el adicional por antigüedad.
+ * Regla: 1% por cada año completo cumplido sobre el básico.
+ * Si no completa el año, se aplica un proporcional mensual de 0.083%.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {string} fechaInicio - Fecha de referencia para el cálculo.
+ * @returns {number} Monto de antigüedad.
  */
 const calcularAntiguedad = (contrato, fechaInicio) => {
     const basico = calcularBasico(contrato);
@@ -149,9 +188,16 @@ const calcularAntiguedad = (contrato, fechaInicio) => {
 };
 
 /**
- * Calcular presentismo
- * (Básico + Antigüedad) / 12
- * Solo si no supera el límite de ausencias injustificadas
+ * Calcula el adicional por presentismo.
+ * Regla: (Básico + Antigüedad) / 12.
+ * Se pierde si el empleado supera el límite de inasistencias injustificadas configurado.
+ * 
+ * @param {number} basico - Salario básico calculado.
+ * @param {number} antiguedad - Monto de antigüedad calculado.
+ * @param {object} contrato - Instancia del contrato.
+ * @param {string} fechaInicio - Inicio del período.
+ * @param {string} fechaFin - Fin del período.
+ * @returns {Promise<number>} Monto de presentismo.
  */
 const calcularPresentismo = async (basico, antiguedad, contrato, fechaInicio, fechaFin) => {
     // Obtener límite de ausencias desde parámetros laborales
@@ -207,9 +253,14 @@ const calcularPresentismo = async (basico, antiguedad, contrato, fechaInicio, fe
 };
 
 /**
- * Calcular horas extras
- * Jornal horario = (Básico + Antigüedad + Presentismo) / 192
- * Aplicar 50% o 100% según cada solicitud
+ * Calcula el monto total de horas extras aprobadas en el período.
+ * El jornal horario base incluye Básico + Antigüedad + Presentismo.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {number} bruto - Bruto base (Basico + Ant + Pres).
+ * @param {string} fechaInicio - Inicio del período.
+ * @param {string} fechaFin - Fin del período.
+ * @returns {Promise<number>} Total de horas extras.
  */
 const calcularHorasExtras = async (contrato, bruto, fechaInicio, fechaFin) => {
     // Obtener horas extras aprobadas del período
@@ -247,8 +298,14 @@ const calcularHorasExtras = async (contrato, bruto, fechaInicio, fechaFin) => {
 };
 
 /**
- * Calcular vacaciones
- * (Básico + Antigüedad + Presentismo) × días de vacaciones / 25
+ * Calcula el monto correspondiente a días de vacaciones gozadas dentro del período.
+ * Utiliza el divisor 25 según normativa legal (Argentina).
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {number} bruto - Bruto base para el cálculo de vacaciones.
+ * @param {string} fechaInicio - Inicio del período de liquidación.
+ * @param {string} fechaFin - Fin del período de liquidación.
+ * @returns {Promise<number>} Monto por vacaciones.
  */
 const calcularVacaciones = async (contrato, bruto, fechaInicio, fechaFin) => {
     // Obtener vacaciones aprobadas
@@ -288,10 +345,15 @@ const calcularVacaciones = async (contrato, bruto, fechaInicio, fechaFin) => {
 };
 
 /**
- * Calcular SAC (Sueldo Anual Complementario)
- * SAC = (Básico + Antigüedad + Presentismo) / 2
- * Se paga en junio y diciembre
- * Si el contrato inició a mitad del semestre, calcular proporcional
+ * Calcula el Sueldo Anual Complementario (SAC / Aguinaldo).
+ * Se liquida en junio (1er semestre) y diciembre (2do semestre).
+ * Si el contrato inició luego del comienzo del semestre, se calcula proporcional a días trabajados.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {number} bruto - Mejor sueldo bruto base del período.
+ * @param {string} fechaInicio - Inicio del período de liquidación.
+ * @param {string} fechaFin - Fin del período de liquidación.
+ * @returns {Promise<number>} Monto del SAC.
  */
 const calcularSAC = async (contrato, bruto, fechaInicio, fechaFin) => {
     const inicio = parseLocalDate(fechaInicio);
@@ -328,8 +390,14 @@ const calcularSAC = async (contrato, bruto, fechaInicio, fechaFin) => {
 };
 
 /**
- * Calcular inasistencias injustificadas (descuento)
- * (Básico + Antigüedad + Presentismo) / 30 × cantidad de inasistencias
+ * Calcula el monto a descontar por inasistencias injustificadas del período.
+ * Basado en el bruto base y divisor 30 para el día jornal.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {number} bruto - Bruto base para el cálculo del descuento.
+ * @param {string} fechaInicio - Inicio del período.
+ * @param {string} fechaFin - Fin del período.
+ * @returns {Promise<number>} Monto a descontar.
  */
 const calcularInasistencias = async (contrato, bruto, fechaInicio, fechaFin) => {
     // Obtener licencias injustificadas (sin goce de sueldo)
@@ -357,7 +425,13 @@ const calcularInasistencias = async (contrato, bruto, fechaInicio, fechaFin) => 
 };
 
 /**
- * Calcular retenciones desde conceptos salariales en DB
+ * Calcula las retenciones obligatorias (jubilación, ley 19032, obra social) 
+ * basándose en los conceptos configurados como 'deduccion' en la base de datos.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {number} totalBruto - Monto bruto total sobre el cual aplicar porcentajes.
+ * @param {string} tipoContrato - Tipo de contrato para filtrar deducciones específicas.
+ * @returns {Promise<object>} Objeto con totalRetenciones y detalleRetenciones.
  */
 const calcularRetenciones = async (contrato, totalBruto, tipoContrato) => {
     let whereClause = {
@@ -412,7 +486,12 @@ const calcularRetenciones = async (contrato, totalBruto, tipoContrato) => {
 };
 
 /**
- * Calcular remunerativos adicionales desde conceptos salariales en DB
+ * Calcula adicionales remunerativos específicos del espacio de trabajo 
+ * configurados como 'remunerativo' en la base de datos.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {number} totalMontoBase - Base de cálculo para adicionales porcentuales.
+ * @returns {Promise<object>} Objeto con totalAdicionales y detalleRemunerativo.
  */
 const calcularRemunerativosAdicionales = async (contrato, totalMontoBase) => {
     let whereClause = {
@@ -461,6 +540,14 @@ const calcularRemunerativosAdicionales = async (contrato, totalMontoBase) => {
     return { totalAdicionales, detalleRemunerativo };
 };
 
+/**
+ * Determina la cantidad de días de vacaciones que corresponden por ley 
+ * según la antigüedad del empleado a la fecha de liquidación.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {string} fechaFinLiquidacion - Fecha de corte para evaluar antigüedad.
+ * @returns {Promise<number>} Días de vacaciones correspondientes (14, 21, 28, 35).
+ */
 const calcularDiasCorrespondientes = async (contrato, fechaFinLiquidacion) => {
     const diasEfectivos = await getDiasTrabajados(contrato, contrato.fechaInicio, fechaFinLiquidacion);
 
@@ -490,9 +577,14 @@ const calcularDiasCorrespondientes = async (contrato, fechaFinLiquidacion) => {
 }
 
 /**
- * Calcular vacaciones no gozadas
- * Solo después del 30 de abril
- * Período: 1 mayo año anterior al 30 abril año actual
+ * Calcula la indemnización por vacaciones no gozadas.
+ * Solo se liquida en el mes de mayo para el período que venció el 30 de abril.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {number} bruto - Bruto base para el cálculo proporcional.
+ * @param {string} fechaInicio - Inicio del período.
+ * @param {string} fechaFin - Fin del período.
+ * @returns {Promise<number>} Monto por vacaciones no gozadas.
  */
 const calcularVacacionesNoGozadas = async (contrato, bruto, fechaInicio, fechaFin) => {
     const fecha = parseLocalDate(fechaInicio);
@@ -556,7 +648,13 @@ const calcularVacacionesNoGozadas = async (contrato, bruto, fechaInicio, fechaFi
 };
 
 /**
- * Calcular liquidación para contratos de relación de dependencia
+ * Orquestador principal para el cálculo de liquidaciones en REGIMEN LABORAL.
+ * Suma todos los conceptos remunerativos y resta retenciones.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {string} fechaInicio - Inicio del período.
+ * @param {string} fechaFin - Fin del período.
+ * @returns {Promise<object>} Objeto detallado con todos los conceptos calculados.
  */
 const calcularRemunerativos = async (contrato, fechaInicio, fechaFin) => {
 
@@ -599,7 +697,13 @@ const calcularRemunerativos = async (contrato, fechaInicio, fechaFin) => {
 };
 
 /**
- * Calcular liquidación para contratos no laborales / educativos
+ * Orquestador para el cálculo de liquidaciones en REGIMEN NO LABORAL (Pasantías/Educativos).
+ * No incluye conceptos de antigüedad, SAC o vacaciones, pero sí obra social.
+ * 
+ * @param {object} contrato - Instancia del contrato.
+ * @param {string} fechaInicio - Inicio del período.
+ * @param {string} fechaFin - Fin del período.
+ * @returns {Promise<object>} Objeto con conceptos simplificados para pasantías.
  */
 const calcularNoLaborales = async (contrato, fechaInicio, fechaFin) => {
     const basico = calcularBasico(contrato);
@@ -656,7 +760,13 @@ const calcularNoLaborales = async (contrato, fechaInicio, fechaFin) => {
 };
 
 /**
- * Calcular liquidación para un contrato (entrada principal)
+ * Punto de entrada principal para el cálculo de una liquidación.
+ * Deriva el cálculo según el tipo de contrato del empleado.
+ * 
+ * @param {object} contrato - Instancia del contrato cargada con el empleado.
+ * @param {string} fechaInicio - Fecha de inicio del período (YYYY-MM-DD).
+ * @param {string} fechaFin - Fecha de fin del período (YYYY-MM-DD).
+ * @returns {Promise<object>} Datos completos de la liquidación calculada.
  */
 const calcularLiquidacionContrato = async (contrato, fechaInicio, fechaFin) => {
     if (esRelacionDependencia(contrato.tipoContrato)) {

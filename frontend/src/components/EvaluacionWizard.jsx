@@ -558,7 +558,7 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
     const renderStep3 = () => (
         <div style={{ display: 'grid', gap: '1.5rem' }}>
             {/* Puntaje y Escala */}
-            <div className="form-grid-stacked">
+            <div className="form-grid-stacked-3">
                 <div className="form-group">
                     <label className="form-label">Puntaje *</label>
                     <input
@@ -569,13 +569,14 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
                         onBlur={() => handleBlur('puntaje')}
                         min="0"
                         max="100"
+                        placeholder="0-100"
                     />
                     <FieldError message={touched.puntaje && fieldErrors.puntaje} />
                 </div>
                 <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         Escala *
-                        <TooltipIcon content={TOOLTIP_ESCALA} isOpen={activeTooltip === 'escala'} onToggle={() => toggleTooltip('escala')} />
+                        <TooltipIcon content={TOOLTIP_ESCALA} isOpen={activeTooltip === 'escala'} onToggle={() => setActiveTooltip(activeTooltip === 'escala' ? null : 'escala')} />
                     </label>
                     <TooltipContent content={TOOLTIP_ESCALA} isOpen={activeTooltip === 'escala'} />
                     <select
@@ -589,17 +590,20 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
                     </select>
                     <FieldError message={touched.escala && fieldErrors.escala} />
                 </div>
-                <div className="form-group" style={{ display: 'flex', alignItems: 'center', paddingTop: '1.75rem' }}>
-                    <input
-                        type="checkbox"
-                        id="reconocido"
-                        checked={formData.reconocidoPorEmpleado}
-                        onChange={(e) => handleChange('reconocidoPorEmpleado', e.target.checked)}
-                        style={{ width: '18px', height: '18px', cursor: 'pointer', marginRight: '0.5rem' }}
-                    />
-                    <label htmlFor="reconocido" style={{ cursor: 'pointer', fontSize: '0.875rem' }}>
-                        Reconocido por empleado
-                    </label>
+                <div className="form-group">
+                    <label className="form-label">Reconocimiento</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0' }}>
+                        <input
+                            type="checkbox"
+                            id="reconocido"
+                            checked={formData.reconocidoPorEmpleado}
+                            onChange={(e) => handleChange('reconocidoPorEmpleado', e.target.checked)}
+                            style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                        />
+                        <label htmlFor="reconocido" style={{ cursor: 'pointer', fontSize: '0.95rem', userSelect: 'none' }}>
+                            Reconocido por el empleado
+                        </label>
+                    </div>
                 </div>
             </div>
 

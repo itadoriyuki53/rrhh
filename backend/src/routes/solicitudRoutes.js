@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Rutas del módulo de Solicitudes.
+ * Define los endpoints REST para la gestión de solicitudes (vacaciones,
+ * licencias, horas extras, renuncias). Aplica autenticación y control
+ * de acceso granular por permisos.
+ * @module routes/solicitudRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const solicitudController = require('../controllers/solicitudController');
@@ -19,6 +27,8 @@ router.post('/', requirePermiso('solicitudes', 'crear'), solicitudController.cre
 
 // PUT - requiere permiso 'actualizar' en 'solicitudes' (si es empleado)
 router.put('/:id', requirePermiso('solicitudes', 'actualizar'), solicitudController.update);
+
+// PATCH - requiere permiso 'actualizar' en 'solicitudes' (si es empleado)
 router.patch('/:id/reactivate', requirePermiso('solicitudes', 'actualizar'), solicitudController.reactivate);
 
 // DELETE - requiere permiso 'eliminar' en 'solicitudes' (si es empleado)

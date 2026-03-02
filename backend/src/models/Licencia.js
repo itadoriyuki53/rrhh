@@ -1,6 +1,13 @@
+/**
+ * @fileoverview Modelo de Licencia.
+ * Representa ausencias justificadas o injustificadas (Inasistencias).
+ * Se vincula a una Solicitud y opcionalmente a un RegistroSalud para justificación médica.
+ * @module models/Licencia
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
+const { parseLocalDate, esDiaHabil } = require('../helpers/fechas.helper');
 
 // Motivos legales de licencia/inasistencia
 const MOTIVOS_LEGALES = [

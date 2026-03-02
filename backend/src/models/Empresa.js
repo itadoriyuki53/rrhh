@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Modelo de Empresa.
+ * Representa las razones sociales o sucursales físicas que operan dentro de un Espacio de Trabajo.
+ * Es la base de la estructura organizacional.
+ * @module models/Empresa
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

@@ -177,11 +177,24 @@
     gap: var(--space-5);
 }
 
-/* Grid stacked - campos uno debajo del otro */
+/* Grid stacked - adaptativo (columnas en PC, apilado en móvil) */
 .form-grid-stacked {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1.25rem;
+}
+
+/* Grid específico para 3 campos (fuerza 3 columnas en PC para evitar campos 'dispares') */
+.form-grid-stacked-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+}
+
+@media (max-width: 900px) {
+    .form-grid-stacked-3 {
+        grid-template-columns: 1fr;
+    }
 }
 
 .form-group {

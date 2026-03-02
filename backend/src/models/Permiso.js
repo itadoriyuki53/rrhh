@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Modelo de Permiso.
+ * Define acciones atómicas (leer, crear, actualizar, eliminar, exportar)
+ * sobre los diferentes módulos funcionales de la plataforma.
+ * @module models/Permiso
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

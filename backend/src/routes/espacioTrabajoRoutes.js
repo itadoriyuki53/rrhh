@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Rutas para la gestión administrativa de Espacios de Trabajo.
+ * Estas rutas son exclusivas para usuarios con rol de administración o propietarios.
+ * @module routes/espacioTrabajoRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const espacioTrabajoController = require('../controllers/espacioTrabajoController');

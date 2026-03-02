@@ -1,38 +1,29 @@
+/**
+ * @fileoverview Controller de Evaluaciones de Desempeño.
+ * Gestiona el proceso de evaluación de los empleados por parte de sus superiores o pares.
+ * Soporta la creación masiva de evaluaciones por periodo y la gestión de feedback/puntuación.
+ * @module controllers/evaluacionController
+ */
+
 const { Evaluacion, Contrato, Empleado, Puesto, Empresa, Departamento, Area, Usuario, EspacioTrabajo, Rol, Permiso } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
-// Helper: verifica si el usuario en sesión tiene un permiso específico en el módulo evaluaciones
-const tienePermiso = async (session, accion) => {
-    if (session.esAdministrador) return true;
-    const usuarioId = session.usuarioId || session.empleadoId;
-    const empleado = await Empleado.findOne({ where: { usuarioId } });
+// Helpers
+const { parsearPaginacion, construirRespuestaPaginada } = require('../helpers/paginacion.helper');
+const { badRequest, notFound, serverError, manejarErrorSequelize, ok, forbidden } = require('../helpers/respuestas.helper');
+const { tienePermiso, respuestaPermisoDenegado } = require('../helpers/permisos.helper');
+const { resolverScopeContratos } = require('../helpers/workspace.helper');
 
-    // No es empleado (propietario/externo) → pasa siempre
-    if (!empleado) return true;
 
-    // Es empleado sin contrato seleccionado → pasa (sin restricción configurada)
-    if (!empleado.ultimoContratoSeleccionadoId) return true;
 
-    const contrato = await Contrato.findByPk(empleado.ultimoContratoSeleccionadoId, {
-        include: [{ model: Rol, as: 'rol', include: [{ model: Permiso, as: 'permisos', through: { attributes: [] } }] }]
-    });
-
-    // Sin rol asignado al contrato → pasa
-    if (!contrato?.rol) return true;
-
-    const permisosDelModulo = (contrato.rol.permisos || []).filter(
-        p => p.modulo === 'evaluaciones'
-    );
-
-    // El módulo no tiene permisos configurados en este rol → pasa
-    if (permisosDelModulo.length === 0) return true;
-
-    // Verificar si tiene la acción especifica
-    return permisosDelModulo.some(p => p.accion === accion);
-};
-
-// Includes para obtener detalle completo del contrato (empleado + puesto + empresa)
+/**
+ * Generador de configuración de inclusión para cargar detalles completos de un contrato.
+ * Utilizado para cargar tanto al evaluado como a los evaluadores.
+ *
+ * @param {string} alias - Alias de la relación en el modelo Evaluacion
+ * @returns {object} Configuración de inclusión para Sequelize
+ */
 const includeContratoDetalle = (alias) => ({
     model: Contrato,
     as: alias,
@@ -73,136 +64,51 @@ const includeContratoDetalle = (alias) => ({
     ]
 });
 
-// Obtener todas las evaluaciones con paginación y filtros
+/**
+ * Obtiene todas las evaluaciones con filtros avanzados y paginación.
+ * Implementa lógica de visibilidad según el rol del usuario (Admin ve todo, Empleado ve las suyas).
+ *
+ * @param {import('express').Request} req - Request con query params de filtrado
+ * @param {import('express').Response} res - Response con lista paginada de evaluaciones
+ * @returns {Promise<void>}
+ */
 const getAll = async (req, res) => {
     try {
-        const { page = 1, limit = 10, activo, periodo, tipoEvaluacion, estado, escala, puntajeMin, puntajeMax, espacioTrabajoId, evaluadoId } = req.query;
+        const { activo, periodo, tipoEvaluacion, estado, escala, puntajeMin, puntajeMax, espacioTrabajoId, evaluadoId } = req.query;
+        const { page, limit, offset } = parsearPaginacion(req.query);
+
+        // Resolver Scope de Contratos (quién puede ver a quién)
+        const scope = await resolverScopeContratos(req.session, { empleadoId: evaluadoId, espacioTrabajoId }, 'evaluaciones');
+        if (scope.respuestaVacia) {
+            return res.json(construirRespuestaPaginada({ count: 0, rows: [] }, page, limit));
+        }
+
         const where = {};
 
-        // Filtros directos
+        // Filtro de activo
         if (activo === 'false') {
             where.activo = false;
-        } else if (activo === 'all') {
-            // No filtrar
-        } else {
+        } else if (activo !== 'all') {
             where.activo = true;
         }
+
         if (periodo) where.periodo = periodo;
         if (tipoEvaluacion) where.tipoEvaluacion = tipoEvaluacion;
         if (estado) where.estado = estado;
         if (escala) where.escala = escala;
+
         if (puntajeMin || puntajeMax) {
             where.puntaje = {};
             if (puntajeMin) where.puntaje[Op.gte] = parseFloat(puntajeMin);
             if (puntajeMax) where.puntaje[Op.lte] = parseFloat(puntajeMax);
         }
 
-        // --- Filtrado por Espacio de Trabajo y Permisos ---
-        // Las evaluaciones se filtran resolviendo primero los empleados permitidos
-        // y luego los contratos de esos empleados → contratoEvaluadoId
-        const usuarioSesionId = req.session.usuarioId || req.session.empleadoId;
-        const esAdmin = req.session.esAdministrador;
-
-        if (!esAdmin) {
-            const empleadoSesion = await Empleado.findOne({ where: { usuarioId: usuarioSesionId } });
-
-            if (empleadoSesion) {
-                // ES EMPLEADO — verificar permisos de escritura (equivale a "puede ver todos del workspace")
-                const tienePermisoVerTodos = await tienePermiso(req.session, 'crear') ||
-                    await tienePermiso(req.session, 'actualizar') ||
-                    await tienePermiso(req.session, 'eliminar');
-
-                if (tienePermisoVerTodos) {
-                    // Puede ver todo el workspace
-                    const empleadosWorkspace = await Empleado.findAll({
-                        where: { espacioTrabajoId: empleadoSesion.espacioTrabajoId },
-                        attributes: ['id']
-                    });
-                    const idsEmpleadosWs = empleadosWorkspace.map(e => e.id);
-
-                    // Resolver contratos de esos empleados
-                    let whereEmpleadoContrato = { empleadoId: { [Op.in]: idsEmpleadosWs } };
-                    if (evaluadoId) {
-                        if (!idsEmpleadosWs.includes(parseInt(evaluadoId))) {
-                            return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                        }
-                        whereEmpleadoContrato = { empleadoId: evaluadoId };
-                    }
-                    if (espacioTrabajoId && parseInt(espacioTrabajoId) !== empleadoSesion.espacioTrabajoId) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    const contratosPermitidos = await Contrato.findAll({ where: whereEmpleadoContrato, attributes: ['id'] });
-                    const idsContratosWs = contratosPermitidos.map(c => c.id);
-                    where.contratoEvaluadoId = { [Op.in]: idsContratosWs };
-
-                } else {
-                    // Solo ve sus propios registros (solo evaluaciones donde él es el evaluado)
-                    if (evaluadoId && parseInt(evaluadoId) !== empleadoSesion.id) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    const contratosPropio = await Contrato.findAll({
-                        where: { empleadoId: empleadoSesion.id },
-                        attributes: ['id']
-                    });
-                    const idsPropios = contratosPropio.map(c => c.id);
-                    where.contratoEvaluadoId = { [Op.in]: idsPropios };
-                }
-
-            } else {
-                // ES PROPIETARIO (no empleado) → ve los empleados de sus espacios de trabajo
-                const espaciosPropios = await EspacioTrabajo.findAll({
-                    where: { propietarioId: usuarioSesionId },
-                    attributes: ['id']
-                });
-                const espaciosIds = espaciosPropios.map(e => e.id);
-
-                let targetEspacios = espaciosIds;
-                if (espacioTrabajoId) {
-                    if (!espaciosIds.includes(parseInt(espacioTrabajoId))) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    targetEspacios = [parseInt(espacioTrabajoId)];
-                }
-
-                const empleadosDeWorkspaces = await Empleado.findAll({
-                    where: { espacioTrabajoId: { [Op.in]: targetEspacios } },
-                    attributes: ['id']
-                });
-                const idsPermitidos = empleadosDeWorkspaces.map(e => e.id);
-
-                let whereContratoPermitido = { empleadoId: { [Op.in]: idsPermitidos } };
-                if (evaluadoId) {
-                    if (!idsPermitidos.includes(parseInt(evaluadoId))) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    whereContratoPermitido = { empleadoId: evaluadoId };
-                }
-                const contratosPermitidos = await Contrato.findAll({ where: whereContratoPermitido, attributes: ['id'] });
-                const idsContratos = contratosPermitidos.map(c => c.id);
-                where.contratoEvaluadoId = idsContratos.length > 0 ? { [Op.in]: idsContratos } : -1;
-            }
-
-        } else {
-            // ADMIN GLOBAL — filtros opcionales
-            if (evaluadoId || espacioTrabajoId) {
-                let whereContratoAdmin = {};
-                if (evaluadoId) whereContratoAdmin.empleadoId = evaluadoId;
-                if (espacioTrabajoId) {
-                    const empleadosWs = await Empleado.findAll({ where: { espacioTrabajoId }, attributes: ['id'] });
-                    const idsWs = empleadosWs.map(e => e.id);
-                    if (evaluadoId && !idsWs.includes(parseInt(evaluadoId))) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    if (!evaluadoId) whereContratoAdmin.empleadoId = { [Op.in]: idsWs };
-                }
-                const contratosAdmin = await Contrato.findAll({ where: whereContratoAdmin, attributes: ['id'] });
-                where.contratoEvaluadoId = { [Op.in]: contratosAdmin.map(c => c.id) };
-            }
+        // Aplicar IDs de contratos del evaluado resueltos por el scope
+        if (scope.contratoIds) {
+            where.contratoEvaluadoId = { [Op.in]: scope.contratoIds };
         }
 
-        const offset = (parseInt(page) - 1) * parseInt(limit);
-
-        const { count, rows } = await Evaluacion.findAndCountAll({
+        const result = await Evaluacion.findAndCountAll({
             where,
             include: [
                 includeContratoDetalle('contratoEvaluado'),
@@ -217,28 +123,25 @@ const getAll = async (req, res) => {
                     ELSE 5 END`), 'ASC'],
                 ['fecha', 'DESC']
             ],
-            limit: parseInt(limit),
+            limit,
             offset,
             distinct: true,
         });
 
-        res.json({
-            data: rows,
-            pagination: {
-                total: count,
-                page: parseInt(page),
-                limit: parseInt(limit),
-                totalPages: Math.ceil(count / parseInt(limit)),
-            },
-        });
+        res.json(construirRespuestaPaginada(result, page, limit));
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
+        console.error('Error en evaluacionController.getAll:', error);
+        return serverError(res, error);
     }
 };
 
-
-// Obtener evaluación por ID
+/**
+ * Obtiene una evaluación por su ID único.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con la evaluación o 404
+ * @returns {Promise<void>}
+ */
 const getById = async (req, res) => {
     try {
         const evaluacion = await Evaluacion.findByPk(req.params.id, {
@@ -249,58 +152,56 @@ const getById = async (req, res) => {
         });
 
         if (!evaluacion) {
-            return res.status(404).json({ error: 'Evaluación no encontrada' });
+            return notFound(res, 'Evaluación');
         }
 
         res.json(evaluacion);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Crear evaluación (soporte para batch creation)
+/**
+ * Crea nuevas evaluaciones de desempeño. 
+ * Soporta la creación masiva para múltiples contratos evaluados simultáneamente bajo un mismo periodo.
+ * Valida consistencia de espacio de trabajo entre evaluado y evaluadores.
+ *
+ * @param {import('express').Request} req - Request con lista de `contratosEvaluadosIds` y `evaluadoresIds`
+ * @param {import('express').Response} res - Response confirmando la cantidad de evaluaciones creadas
+ * @returns {Promise<void>}
+ */
 const create = async (req, res) => {
     const transaction = await sequelize.transaction();
     try {
         // Verificar permiso de creación
-        if (!(await tienePermiso(req.session, 'crear'))) {
+        if (!(await tienePermiso(req.session, 'evaluaciones', 'crear'))) {
             await transaction.rollback();
-            return res.status(403).json({ error: 'No tiene permiso para crear evaluaciones' });
+            return respuestaPermisoDenegado(res, 'evaluaciones', 'crear');
         }
         const {
-            periodo,
-            tipoEvaluacion,
-            fecha,
-            evaluadoresIds, // Array de IDs de contratos evaluadores
-            contratosEvaluadosIds, // Array de IDs de contratos a evaluar
-            estado,
-            puntaje,
-            escala,
-            feedback,
-            reconocidoPorEmpleado,
-            fechaReconocimiento,
-            notas
+            periodo, tipoEvaluacion, fecha, evaluadoresIds, contratosEvaluadosIds,
+            estado, puntaje, escala, feedback, reconocidoPorEmpleado, fechaReconocimiento, notas
         } = req.body;
 
         // Validaciones básicas
         if (!contratosEvaluadosIds || !Array.isArray(contratosEvaluadosIds) || contratosEvaluadosIds.length === 0) {
             await transaction.rollback();
-            return res.status(400).json({ error: 'Debe seleccionar al menos un contrato a evaluar' });
+            return badRequest(res, 'Debe seleccionar al menos un contrato a evaluar');
         }
 
         if (!evaluadoresIds || !Array.isArray(evaluadoresIds) || evaluadoresIds.length === 0) {
             await transaction.rollback();
-            return res.status(400).json({ error: 'Debe seleccionar al menos un evaluador' });
+            return badRequest(res, 'Debe seleccionar al menos un evaluador');
         }
 
-        // Validar intersección: un contrato no puede ser evaluador y evaluado a la vez
+        // Validar intersección: un contrato no puede sea evaluador y evaluado a la vez
         const intersection = contratosEvaluadosIds.filter(id => evaluadoresIds.includes(id));
         if (intersection.length > 0) {
             await transaction.rollback();
-            return res.status(400).json({ error: 'Un contrato no puede ser evaluador y evaluado simultáneamente' });
+            return badRequest(res, 'Un contrato no puede ser evaluador y evaluado simultáneamente');
         }
 
-        // Validar existencia de evaluadores y consistencia de espacio
+        // Validar evaluadores
         const evaluadores = await Contrato.findAll({
             where: { id: evaluadoresIds },
             include: [{ model: Empleado, as: 'empleado', attributes: ['espacioTrabajoId'] }]
@@ -308,134 +209,78 @@ const create = async (req, res) => {
 
         if (evaluadores.length !== evaluadoresIds.length) {
             await transaction.rollback();
-            return res.status(400).json({ error: 'Uno o más evaluadores no existen' });
+            return badRequest(res, 'Uno o más evaluadores no existen');
         }
 
-        // Obtener el espacio de trabajo del primer evaluador como referencia
         const espacioIdReferencia = evaluadores[0].empleado.espacioTrabajoId;
-
-        // Validar que todos los evaluadores sean del mismo espacio
-        for (const ev of evaluadores) {
-            if (ev.empleado.espacioTrabajoId !== espacioIdReferencia) {
-                await transaction.rollback();
-                return res.status(400).json({ error: 'Todos los evaluadores deben pertenecer al mismo espacio de trabajo' });
-            }
-        }
 
         // Crear evaluaciones en lote
         const evaluacionesCreadas = [];
-
         for (const contratoEvaluadoId of contratosEvaluadosIds) {
-            // Validar existencia del contrato evaluado y su espacio
             const contratoEvaluado = await Contrato.findByPk(contratoEvaluadoId, {
                 include: [{ model: Empleado, as: 'empleado', attributes: ['espacioTrabajoId'] }]
             });
 
-            if (!contratoEvaluado) {
-                throw new Error(`Contrato a evaluar ID ${contratoEvaluadoId} no encontrado`);
-            }
-
+            if (!contratoEvaluado) throw new Error(`Contrato evaluado ${contratoEvaluadoId} no encontrado`);
             if (contratoEvaluado.empleado.espacioTrabajoId !== espacioIdReferencia) {
-                throw new Error(`El contrato a evaluar ${contratoEvaluadoId} no pertenece al mismo espacio de trabajo que los evaluadores`);
+                throw new Error(`Inconsistencia de espacio de trabajo para el contrato ${contratoEvaluadoId}`);
             }
 
             const nuevaEvaluacion = await Evaluacion.create({
-                periodo,
-                tipoEvaluacion,
-                fecha,
-                contratoEvaluadoId,
-                estado: estado || 'pendiente',
-                puntaje,
-                escala,
-                feedback,
+                periodo, tipoEvaluacion, fecha, contratoEvaluadoId,
+                estado: estado || 'pendiente', puntaje, escala, feedback,
                 reconocidoPorEmpleado: reconocidoPorEmpleado || false,
                 fechaReconocimiento: reconocidoPorEmpleado ? (fechaReconocimiento || new Date().toISOString().split('T')[0]) : null,
                 notas: notas || null,
             }, { transaction });
 
-            // Asociar evaluadores
             await nuevaEvaluacion.setEvaluadores(evaluadoresIds, { transaction });
             evaluacionesCreadas.push(nuevaEvaluacion);
         }
 
         await transaction.commit();
-
-        res.status(201).json({
-            message: `${evaluacionesCreadas.length} evaluación(es) creada(s) correctamente`,
-            count: evaluacionesCreadas.length
-        });
+        res.status(201).json({ message: `${evaluacionesCreadas.length} evaluación(es) creada(s) correctamente` });
 
     } catch (error) {
         await transaction.rollback();
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Actualizar evaluación
+/**
+ * Actualiza los datos de una evaluación existente.
+ * Permite cambiar el estado (Pendiente -> Finalizada -> Firmada), evaluadores y feedback.
+ *
+ * @param {import('express').Request} req - Request con ID y datos a actualizar
+ * @param {import('express').Response} res - Response con la evaluación actualizada
+ * @returns {Promise<void>}
+ */
 const update = async (req, res) => {
     const transaction = await sequelize.transaction();
     try {
-        // Verificar permiso de edición
-        if (!(await tienePermiso(req.session, 'actualizar'))) {
+        if (!(await tienePermiso(req.session, 'evaluaciones', 'actualizar'))) {
             await transaction.rollback();
-            return res.status(403).json({ error: 'No tiene permiso para editar evaluaciones' });
+            return respuestaPermisoDenegado(res, 'evaluaciones', 'actualizar');
         }
         const { id } = req.params;
         const {
-            periodo,
-            tipoEvaluacion,
-            fecha,
-            evaluadoresIds, // Array de IDs
-            contratoEvaluadoId, // Single ID (update es individual)
-            estado,
-            puntaje,
-            escala,
-            feedback,
-            reconocidoPorEmpleado,
-            fechaReconocimiento,
-            notas
+            periodo, tipoEvaluacion, fecha, evaluadoresIds, contratoEvaluadoId,
+            estado, puntaje, escala, feedback, reconocidoPorEmpleado, fechaReconocimiento, notas
         } = req.body;
 
         const evaluacion = await Evaluacion.findByPk(id);
         if (!evaluacion) {
             await transaction.rollback();
-            return res.status(404).json({ error: 'Evaluación no encontrada' });
+            return notFound(res, 'Evaluación');
         }
 
-        // Validar contrato evaluado si cambia y su consistencia con evaluadores actuales
         const targetEvaluadoId = contratoEvaluadoId || evaluacion.contratoEvaluadoId;
         const contratoEvaluado = await Contrato.findByPk(targetEvaluadoId, {
             include: [{ model: Empleado, as: 'empleado', attributes: ['espacioTrabajoId'] }]
         });
         if (!contratoEvaluado) {
             await transaction.rollback();
-            return res.status(404).json({ error: 'Contrato a evaluar no encontrado' });
-        }
-
-        const espacioId = contratoEvaluado.empleado.espacioTrabajoId;
-
-        // Validar evaluadores (si se proporcionan o los actuales)
-        const idsAValidar = evaluadoresIds || (await evaluacion.getEvaluadores()).map(e => e.id);
-        const evaluadores = await Contrato.findAll({
-            where: { id: idsAValidar },
-            include: [{ model: Empleado, as: 'empleado', attributes: ['espacioTrabajoId'] }]
-        });
-
-        for (const ev of evaluadores) {
-            if (ev.empleado.espacioTrabajoId !== espacioId) {
-                await transaction.rollback();
-                return res.status(400).json({ error: 'Todos los participantes (evaluado y evaluadores) deben pertenecer al mismo espacio de trabajo' });
-            }
-        }
-
-        // Si cambian evaluadores, validar intersección con el evaluado actual (o nuevo)
-        if (evaluadoresIds && evaluadoresIds.includes(targetEvaluadoId)) {
-            await transaction.rollback();
-            return res.status(400).json({ error: 'El contrato evaluado no puede ser su propio evaluador' });
+            return badRequest(res, 'Contrato a evaluar no encontrado');
         }
 
         // Lógica de fecha reconocimiento
@@ -443,120 +288,101 @@ const update = async (req, res) => {
         let newFechaReconocimiento = evaluacion.fechaReconocimiento;
 
         if (updatedReconocido && !evaluacion.fechaReconocimiento) {
-            // Si se marca y no tenía fecha, poner hoy o la que venga
             newFechaReconocimiento = fechaReconocimiento || new Date().toISOString().split('T')[0];
         } else if (!updatedReconocido) {
-            // Si se desmarca, limpiar fecha
             newFechaReconocimiento = null;
         } else if (fechaReconocimiento !== undefined) {
-            // Si se pasa fecha explícita (e.g. edición), usarla
             newFechaReconocimiento = fechaReconocimiento;
         }
 
         await evaluacion.update({
-            periodo,
-            tipoEvaluacion,
-            fecha,
-            contratoEvaluadoId: contratoEvaluadoId || evaluacion.contratoEvaluadoId,
-            estado,
-            puntaje,
-            escala,
-            feedback,
+            periodo, tipoEvaluacion, fecha, contratoEvaluadoId: targetEvaluadoId,
+            estado, puntaje, escala, feedback,
             reconocidoPorEmpleado: updatedReconocido,
             fechaReconocimiento: newFechaReconocimiento,
             notas: notas !== undefined ? notas : evaluacion.notas,
         }, { transaction });
 
-        // Actualizar evaluadores si se proporcionan
         if (evaluadoresIds) {
             await evaluacion.setEvaluadores(evaluadoresIds, { transaction });
         }
 
         await transaction.commit();
-
         const evaluacionActualizada = await Evaluacion.findByPk(id, {
-            include: [
-                includeContratoDetalle('contratoEvaluado'),
-                includeContratoDetalle('evaluadores')
-            ]
+            include: [includeContratoDetalle('contratoEvaluado'), includeContratoDetalle('evaluadores')]
         });
-
         res.json(evaluacionActualizada);
     } catch (error) {
         await transaction.rollback();
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Eliminar evaluación (eliminación lógica)
+/**
+ * Desactiva una evaluación (eliminación lógica).
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
+ */
 const remove = async (req, res) => {
     try {
-        // Verificar permiso de eliminación
-        if (!(await tienePermiso(req.session, 'eliminar'))) {
-            return res.status(403).json({ error: 'No tiene permiso para desactivar evaluaciones' });
+        if (!(await tienePermiso(req.session, 'evaluaciones', 'eliminar'))) {
+            return respuestaPermisoDenegado(res, 'evaluaciones', 'eliminar');
         }
         const evaluacion = await Evaluacion.findByPk(req.params.id);
-
-        if (!evaluacion) {
-            return res.status(404).json({ error: 'Evaluación no encontrada' });
-        }
+        if (!evaluacion) return notFound(res, 'Evaluación');
 
         await evaluacion.update({ activo: false });
         res.json({ message: 'Evaluación desactivada correctamente' });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Eliminar evaluaciones en lote (eliminación lógica)
+/**
+ * Desactiva múltiples evaluaciones en lote.
+ *
+ * @param {import('express').Request} req - Request con array de `ids` en el body
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
+ */
 const bulkRemove = async (req, res) => {
     try {
-        // Verificar permiso de eliminación
-        if (!(await tienePermiso(req.session, 'eliminar'))) {
-            return res.status(403).json({ error: 'No tiene permiso para desactivar evaluaciones en lote' });
+        if (!(await tienePermiso(req.session, 'evaluaciones', 'eliminar'))) {
+            return respuestaPermisoDenegado(res, 'evaluaciones', 'eliminar');
         }
         const { ids } = req.body;
-
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({ error: 'Se requiere un array de IDs' });
+            return badRequest(res, 'Se requiere un array de IDs');
         }
 
-        await Evaluacion.update(
-            { activo: false },
-            { where: { id: { [Op.in]: ids } } }
-        );
-
-        res.json({ message: `${ids.length} evaluación(es) desactivada(s) correctamente` });
+        await Evaluacion.update({ activo: false }, { where: { id: { [Op.in]: ids } } });
+        res.json({ message: `${ids.length} evaluación(es) desactivada(s)` });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Reactivar evaluación
+/**
+ * Reactiva una evaluación previamente desactivada.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
+ */
 const reactivate = async (req, res) => {
     try {
         const evaluacion = await Evaluacion.findByPk(req.params.id);
-
-        if (!evaluacion) {
-            return res.status(404).json({ error: 'Evaluación no encontrada' });
-        }
+        if (!evaluacion) return notFound(res, 'Evaluación');
 
         await evaluacion.update({ activo: true });
-
         const evaluacionReactivada = await Evaluacion.findByPk(req.params.id, {
-            include: [
-                includeContratoDetalle('contratoEvaluado'),
-                includeContratoDetalle('evaluadores')
-            ]
+            include: [includeContratoDetalle('contratoEvaluado'), includeContratoDetalle('evaluadores')]
         });
-
         res.json(evaluacionReactivada);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 

@@ -1,9 +1,25 @@
+/**
+ * @fileoverview Controller de Autenticación.
+ * Maneja el inicio de sesión, registro público de usuarios, gestión de sesiones,
+ * cambio de contraseñas y actualización de perfil del usuario actual.
+ * @module controllers/authController
+ */
+
 const { Usuario, Empleado, Contrato, Rol, Permiso } = require('../models');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcrypt');
 
+// Helpers
+const { badRequest, unauthorized, forbidden, notFound, serverError, manejarErrorSequelize, ok, created } = require('../helpers/respuestas.helper');
+
 /**
- * Login de usuario
+ * Inicia sesión de un usuario.
+ * Valida credenciales, crea la sesión en Express y carga los datos
+ * de empleado, espacio de trabajo y permisos asociados al contrato seleccionado.
+ *
+ * @param {import('express').Request} req - Request con `email`, `contrasena` y `recordarme`
+ * @param {import('express').Response} res - Response con datos del usuario y sesión
+ * @returns {Promise<void>}
  */
 const login = async (req, res) => {
     try {
@@ -11,9 +27,7 @@ const login = async (req, res) => {
 
         // Validación básica
         if (!email || !contrasena) {
-            return res.status(400).json({
-                error: 'Email y contraseña son requeridos'
-            });
+            return badRequest(res, 'Email y contraseña son requeridos');
         }
 
         // Buscar usuario por email
@@ -22,17 +36,13 @@ const login = async (req, res) => {
         });
 
         if (!usuario) {
-            return res.status(401).json({
-                error: 'Credenciales inválidas'
-            });
+            return unauthorized(res, 'Credenciales inválidas');
         }
 
         // Verificar contraseña
         const isMatch = await bcrypt.compare(contrasena, usuario.contrasena);
         if (!isMatch) {
-            return res.status(401).json({
-                error: 'Credenciales inválidas'
-            });
+            return unauthorized(res, 'Credenciales inválidas');
         }
 
         // Crear sesión
@@ -119,10 +129,10 @@ const login = async (req, res) => {
         req.session.save((err) => {
             if (err) {
                 console.error('Error al guardar sesión:', err);
-                return res.status(500).json({ error: 'Error al iniciar sesión' });
+                return serverError(res, new Error('Error al iniciar sesión'));
             }
 
-            res.json({
+            return ok(res, {
                 message: 'Inicio de sesión exitoso',
                 usuario: userData
             });
@@ -130,26 +140,35 @@ const login = async (req, res) => {
 
     } catch (error) {
         console.error('Error en login:', error);
-        res.status(500).json({ error: 'Error al procesar la solicitud' });
+        return serverError(res, error);
     }
 };
 
 /**
- * Logout de usuario
+ * Cierra la sesión del usuario actual.
+ * Destruye la sesión de Express y limpia la cookie del cliente.
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @returns {void}
  */
 const logout = (req, res) => {
     req.session.destroy((err) => {
         if (err) {
             console.error('Error al cerrar sesión:', err);
-            return res.status(500).json({ error: 'Error al cerrar sesión' });
+            return serverError(res, new Error('Error al cerrar sesión'));
         }
         res.clearCookie('connect.sid');
-        res.json({ message: 'Sesión cerrada exitosamente' });
+        return ok(res, { message: 'Sesión cerrada exitosamente' });
     });
 };
 
 /**
- * Registro público de usuario (esEmpleado = false)
+ * Registra un nuevo usuario de forma pública.
+ * Por defecto se registra como no empleado y no administrador.
+ * Incluye validaciones de complejidad de contraseña y unicidad de email.
+ *
+ * @type {Array<import('express').RequestHandler>}
  */
 const register = [
     // Validaciones
@@ -167,9 +186,7 @@ const register = [
             // Validar errores
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                return res.status(400).json({
-                    error: errors.array()[0].msg
-                });
+                return badRequest(res, errors.array()[0].msg);
             }
 
             const usuarioData = {
@@ -185,7 +202,7 @@ const register = [
             // Crear usuario
             const nuevoUsuario = await Usuario.create(usuarioData);
 
-            return res.status(201).json({
+            return created(res, {
                 message: 'Registro exitoso',
                 usuario: {
                     id: nuevoUsuario.id,
@@ -202,33 +219,26 @@ const register = [
 
         } catch (error) {
             console.error('Error en registro:', error);
-
-            if (error.name === 'SequelizeUniqueConstraintError') {
-                return res.status(400).json({
-                    error: 'El email ya está registrado'
-                });
-            }
-
-            if (error.name === 'SequelizeValidationError') {
-                return res.status(400).json({
-                    error: error.errors[0].message
-                });
-            }
-
-            res.status(500).json({ error: 'Error al procesar el registro' });
+            return manejarErrorSequelize(res, error);
         }
     }
 ];
 
 /**
- * Obtener usuario actual en sesión
+ * Obtiene la información del usuario actualmente autenticado.
+ * Enriquece los datos del usuario con información de empleado, 
+ * espacio de trabajo y permisos del rol asociado al contrato seleccionado.
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
  */
 const getCurrentUser = async (req, res) => {
     try {
         const usuarioId = req.session.usuarioId || req.session.empleadoId;
 
         if (!usuarioId) {
-            return res.status(401).json({ error: 'No autorizado' });
+            return unauthorized(res);
         }
 
         const usuario = await Usuario.findByPk(usuarioId, {
@@ -236,7 +246,7 @@ const getCurrentUser = async (req, res) => {
         });
 
         if (!usuario) {
-            return res.status(404).json({ error: 'Usuario no encontrado' });
+            return notFound(res, 'Usuario');
         }
 
         const result = usuario.get({ plain: true });
@@ -301,16 +311,20 @@ const getCurrentUser = async (req, res) => {
             });
         }
 
-        res.json(result);
+        return ok(res, result);
 
     } catch (error) {
         console.error('Error al obtener usuario:', error);
-        res.status(500).json({ error: 'Error al obtener información del usuario' });
+        return serverError(res, error);
     }
 };
 
 /**
- * Cambiar contraseña
+ * Actualiza la contraseña del usuario.
+ * Permite a los administradores cambiar cualquier contraseña sin validar la actual.
+ * Los usuarios normales deben proporcionar su contraseña actual para cambiarla.
+ *
+ * @type {Array<import('express').RequestHandler>}
  */
 const updatePassword = [
     body('nuevaContrasena')
@@ -323,9 +337,7 @@ const updatePassword = [
         try {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
-                return res.status(400).json({
-                    error: errors.array()[0].msg
-                });
+                return badRequest(res, errors.array()[0].msg);
             }
 
             const { usuarioId, contrasenaActual, nuevaContrasena } = req.body;
@@ -336,58 +348,57 @@ const updatePassword = [
 
             // Verificar permisos
             if (targetId !== usuarioIdSesion && !esAdmin) {
-                return res.status(403).json({
-                    error: 'No tiene permisos para cambiar esta contraseña'
-                });
+                return forbidden(res, 'No tiene permisos para cambiar esta contraseña');
             }
 
             const usuario = await Usuario.findByPk(targetId);
             if (!usuario) {
-                return res.status(404).json({ error: 'Usuario no encontrado' });
+                return notFound(res, 'Usuario');
             }
 
             // Si no es admin y está cambiando su propia contraseña, verificar la actual
             if (!esAdmin && targetId === usuarioIdSesion) {
                 if (!contrasenaActual) {
-                    return res.status(400).json({
-                        error: 'Debe proporcionar la contraseña actual'
-                    });
+                    return badRequest(res, 'Debe proporcionar la contraseña actual');
                 }
 
                 const isMatch = await bcrypt.compare(contrasenaActual, usuario.contrasena);
                 if (!isMatch) {
-                    return res.status(401).json({
-                        error: 'Contraseña actual incorrecta'
-                    });
+                    return unauthorized(res, 'Contraseña actual incorrecta');
                 }
             }
 
             usuario.contrasena = nuevaContrasena;
             await usuario.save(); // Hook hashea
 
-            res.json({ message: 'Contraseña actualizada exitosamente' });
+            return ok(res, { message: 'Contraseña actualizada exitosamente' });
 
         } catch (error) {
             console.error('Error al actualizar contraseña:', error);
-            res.status(500).json({ error: 'Error al actualizar contraseña' });
+            return serverError(res, error);
         }
     }
 ];
 
 /**
- * Actualizar contrato seleccionado
+ * Actualiza el contrato seleccionado actualmente por el empleado.
+ * Valida que el contrato pertenezca efectivamente al empleado en sesión.
+ *
+ * @param {import('express').Request} req - Request con `contratoId`
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
  */
 const updateSelectedContract = async (req, res) => {
     try {
         const { contratoId } = req.body;
         const usuarioSesionId = req.session.usuarioId || req.session.empleadoId;
 
-        if (!usuarioSesionId) return res.status(401).json({ error: 'No autorizado' });
+        if (!usuarioSesionId) return unauthorized(res);
 
         const emp = await Empleado.findOne({ where: { usuarioId: usuarioSesionId } });
 
         if (!emp) {
-            return res.status(404).json({ error: 'Empleado no encontrado' });
+            return notFound(res, 'Empleado');
         }
 
         if (contratoId) {
@@ -400,54 +411,59 @@ const updateSelectedContract = async (req, res) => {
             });
 
             if (!contrato) {
-                return res.status(403).json({ error: 'Contrato no válido o no pertenece al empleado' });
+                return forbidden(res, 'Contrato no válido o no pertenece al empleado');
             }
 
             await emp.update({ ultimoContratoSeleccionadoId: contratoId });
         }
 
-        res.json({ success: true, contratoId });
+        return ok(res, { success: true, contratoId });
 
     } catch (error) {
         console.error('Error updating selected contract:', error);
-        res.status(500).json({ error: 'Error interno al actualizar contrato seleccionado' });
+        return serverError(res, error);
     }
 };
 
 /**
- * Actualizar perfil del usuario actual (nombre, apellido, email)
+ * Actualiza la información básica del perfil del usuario autenticado (nombre, apellido, email).
+ * Valida que el nuevo email no esté en uso por otro usuario.
+ *
+ * @param {import('express').Request} req - Request con `nombre`, `apellido`, `email`
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
  */
 const updateMe = async (req, res) => {
     try {
         const usuarioId = req.session.usuarioId || req.session.empleadoId;
-        if (!usuarioId) return res.status(401).json({ error: 'No autorizado' });
+        if (!usuarioId) return unauthorized(res);
 
         const { nombre, apellido, email } = req.body;
 
-        if (!nombre?.trim()) return res.status(400).json({ error: 'El nombre es requerido' });
-        if (!apellido?.trim()) return res.status(400).json({ error: 'El apellido es requerido' });
-        if (!email?.trim()) return res.status(400).json({ error: 'El email es requerido' });
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Email inválido' });
+        if (!nombre?.trim()) return badRequest(res, 'El nombre es requerido');
+        if (!apellido?.trim()) return badRequest(res, 'El apellido es requerido');
+        if (!email?.trim()) return badRequest(res, 'El email es requerido');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return badRequest(res, 'Email inválido');
 
         const usuario = await Usuario.findByPk(usuarioId);
-        if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+        if (!usuario) return notFound(res, 'Usuario');
 
         // Verificar email único (ignorando el propio)
         if (email.toLowerCase() !== usuario.email.toLowerCase()) {
             const existing = await Usuario.findOne({ where: { email } });
-            if (existing) return res.status(400).json({ error: 'El email ya está registrado por otro usuario' });
+            if (existing) return badRequest(res, 'El email ya está registrado por otro usuario');
         }
 
         await usuario.update({ nombre: nombre.trim(), apellido: apellido.trim(), email: email.trim() });
 
-        res.json({
+        return ok(res, {
             message: 'Perfil actualizado correctamente', usuario: {
                 id: usuario.id, nombre: usuario.nombre, apellido: usuario.apellido, email: usuario.email
             }
         });
     } catch (error) {
         console.error('Error al actualizar perfil:', error);
-        res.status(500).json({ error: 'Error al actualizar el perfil' });
+        return serverError(res, error);
     }
 };
 

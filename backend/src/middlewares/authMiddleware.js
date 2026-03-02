@@ -1,6 +1,23 @@
+/**
+ * @fileoverview Middlewares de autenticación y autorización.
+ * Provee middlewares de Express para:
+ * - Verificar que el usuario esté autenticado (sesión activa).
+ * - Verificar roles de administrador.
+ * - Verificar permisos granulares por módulo y acción.
+ * @module middlewares/authMiddleware
+ */
+
 const { Empleado, Contrato, Rol, Permiso } = require('../models');
 
-// Middleware de autenticación
+/**
+ * Verifica que el usuario tenga una sesión activa.
+ * Retorna 401 si no hay sesión iniciada.
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ * @returns {void}
+ */
 const isAuthenticated = (req, res, next) => {
     if (req.session && req.session.empleadoId) {
         return next();
@@ -10,7 +27,15 @@ const isAuthenticated = (req, res, next) => {
     });
 };
 
-// Middleware de autorización - solo administradores
+/**
+ * Verifica que el usuario sea administrador global.
+ * Retorna 403 si no tiene el flag `esAdministrador` en sesión.
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ * @returns {void}
+ */
 const isAdmin = (req, res, next) => {
     if (req.session && req.session.esAdministrador) {
         return next();
@@ -20,14 +45,21 @@ const isAdmin = (req, res, next) => {
     });
 };
 
-// Middleware para verificar que no es empleado
+/**
+ * Verifica que el usuario pueda editar el empleado indicado en `req.params.id`.
+ * Permite el acceso si es admin global, o si está editando su propio perfil.
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ * @returns {void}
+ */
 const canEditEmployee = (req, res, next) => {
     const empleadoIdTarget = parseInt(req.params.id);
     const empleadoIdSesion = req.session.empleadoId;
     const esAdmin = req.session.esAdministrador;
 
     if (esAdmin) return next();
-
     if (empleadoIdTarget === empleadoIdSesion) return next();
 
     return res.status(403).json({
@@ -35,10 +67,17 @@ const canEditEmployee = (req, res, next) => {
     });
 };
 
-// Middleware para verificar que no es empleado
+/**
+ * Verifica que el usuario NO sea un empleado (es propietario o externo).
+ * Retorna 403 si el flag `esEmpleado` está activo en sesión.
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ * @returns {void}
+ */
 const isNotEmployee = (req, res, next) => {
     const esEmpleado = req.session.esEmpleado;
-
     if (!esEmpleado) return next();
 
     return res.status(403).json({
@@ -47,22 +86,24 @@ const isNotEmployee = (req, res, next) => {
 };
 
 /**
- * Middleware de permisos por módulo.
- * - Admin global → pasa siempre.
- * - No empleado (propietario/externo) → pasa siempre.
- * - Empleado sin contrato seleccionado → pasa (sin restricción configurada).
- * - Empleado sin permisos en su rol para este módulo → pasa (no configurado = sin restricción).
- * - Empleado con permisos para el módulo pero SIN la acción solicitada → 403.
+ * Middleware de permisos por módulo y acción.
  *
- * @param {string} modulo  Nombre del módulo, ej: 'empleados'
- * @param {string} accion  'ver' | 'crear' | 'editar' | 'eliminar'
+ * Reglas de acceso:
+ * - Admin global → siempre pasa.
+ * - No empleado (propietario/externo) → siempre pasa.
+ * - Empleado sin contrato seleccionado → pasa (sin restricción configurada).
+ * - Empleado con rol pero sin permisos para el módulo → pasa (no configurado).
+ * - Empleado con permisos para el módulo pero sin la acción solicitada → **403**.
+ *
+ * @param {string} modulo - Nombre del módulo (ej: 'empleados', 'solicitudes')
+ * @param {string} accion - Acción a verificar ('leer', 'crear', 'actualizar', 'eliminar')
+ * @returns {import('express').RequestHandler} Middleware async de Express
  */
 const requirePermiso = (modulo, accion) => async (req, res, next) => {
     try {
         if (req.session.esAdministrador) return next();
 
         const usuarioId = req.session.usuarioId || req.session.empleadoId;
-
         const empleado = await Empleado.findOne({ where: { usuarioId } });
 
         // No es empleado (propietario/externo) → puede pasar
@@ -89,7 +130,7 @@ const requirePermiso = (modulo, accion) => async (req, res, next) => {
         // El módulo no tiene permisos configurados en este rol → pasa
         if (permisosDelModulo.length === 0) return next();
 
-        // El módulo SÍ tiene permisos configurados: verificar que incluya la acción
+        // El módulo SÍ tiene permisos: verificar que incluya la acción solicitada
         const tiene = permisosDelModulo.some(p => p.accion === accion);
 
         if (!tiene) {
@@ -100,7 +141,7 @@ const requirePermiso = (modulo, accion) => async (req, res, next) => {
 
         return next();
     } catch (err) {
-        console.error('requirePermiso error:', err);
+        console.error('[requirePermiso] Error:', err);
         return res.status(500).json({ error: err.message });
     }
 };

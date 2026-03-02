@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Modelo de Área.
+ * Organiza la estructura jerárquica de una Empresa en divisiones funcionales (ej: Administración, Producción).
+ * @module models/Area
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

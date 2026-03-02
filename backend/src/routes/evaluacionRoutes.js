@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Rutas para la gestión de evaluaciones de desempeño.
+ * Administra el proceso de feedback entre evaluadores y evaluados.
+ * @module routes/evaluacionRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const evaluacionController = require('../controllers/evaluacionController');

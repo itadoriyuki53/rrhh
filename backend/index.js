@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Punto de entrada de la aplicación.
+ * Carga variables de entorno, sincroniza la base de datos,
+ * ejecuta la semilla de datos (seeder) e inicia el servidor Express.
+ * @module index
+ */
+
 require('dotenv').config();
 const app = require('./src/app');
 const { sequelize } = require('./src/models');
@@ -5,7 +12,11 @@ const { runSeed } = require('./src/seeders/seed');
 
 const PORT = process.env.PORT || 3000;
 
-// Sincronizar base de datos y iniciar servidor
+/**
+ * Función de arranque del servidor.
+ * Realiza la sincronización de modelos con la base de datos y activa la escucha de peticiones.
+ * @returns {Promise<void>}
+ */
 const startServer = async () => {
     try {
         // Sincronizar base de datos (alter: true mantiene los datos existentes)

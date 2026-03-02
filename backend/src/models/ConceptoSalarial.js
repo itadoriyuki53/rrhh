@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Modelo de Concepto Salarial.
+ * Define los componentes (Haberes/Deducciones) que integran un recibo de sueldo.
+ * Pueden ser porcentuales o de monto fijo, globales o por espacio de trabajo.
+ * @module models/ConceptoSalarial
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

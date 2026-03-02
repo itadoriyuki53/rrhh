@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Rutas para la gestión de empresas y su estructura organizacional.
+ * Gestiona empresas, áreas, departamentos y puestos de trabajo.
+ * @module routes/empresaRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const empresaController = require('../controllers/empresaController');

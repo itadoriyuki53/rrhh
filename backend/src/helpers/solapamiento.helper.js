@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Helper para la detección de solapamientos temporales.
+ * Contiene funciones para verificar intersecciones entre rangos de fechas y horas,
+ * facilitando la validación de licencias, vacaciones y horas extras.
+ * @module helpers/solapamiento.helper
+ */
+
 const { Op } = require('sequelize');
 
 /**

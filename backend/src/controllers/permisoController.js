@@ -1,7 +1,23 @@
+/**
+ * @fileoverview Controller de Permisos.
+ * Gestiona el catálogo maestro de permisos del sistema (Matriz Modulo x Acción).
+ * Incluye lógica de inicialización para asegurar que todos los módulos tengan sus permisos base definidos.
+ * @module controllers/permisoController
+ */
+
 const { Permiso, Rol } = require('../models');
+const { Op } = require('sequelize');
+
+// Helpers
+const { serverError, ok } = require('../helpers/respuestas.helper');
 
 /**
- * Obtener todos los permisos
+ * Obtiene todos los permisos registrados en el sistema.
+ * Ordenados alfabéticamente por módulo y luego por acción.
+ *
+ * @param {import('express').Request} req - Request
+ * @param {import('express').Response} res - Response con lista plana de permisos
+ * @returns {Promise<void>}
  */
 const getAll = async (req, res) => {
     try {
@@ -11,13 +27,17 @@ const getAll = async (req, res) => {
 
         res.json(permisos);
     } catch (error) {
-        console.error('Error al obtener permisos:', error);
-        res.status(500).json({ error: 'Error al obtener permisos' });
+        return serverError(res, error);
     }
 };
 
 /**
- * Obtener permisos agrupados por módulo
+ * Obtiene los permisos agrupados jerárquicamente por módulo.
+ * Estructura ideal para renderizar paneles de configuración de roles en el frontend.
+ *
+ * @param {import('express').Request} req - Request
+ * @param {import('express').Response} res - Response con objeto agrupador: `{ modulo: Permiso[] }`
+ * @returns {Promise<void>}
  */
 const getGroupedByModule = async (req, res) => {
     try {
@@ -36,20 +56,18 @@ const getGroupedByModule = async (req, res) => {
 
         res.json(grouped);
     } catch (error) {
-        console.error('Error al obtener permisos agrupados:', error);
-        res.status(500).json({ error: 'Error al obtener permisos agrupados' });
+        return serverError(res, error);
     }
 };
 
 /**
- * Inicializar permisos del sistema
- * Este endpoint crea todos los permisos necesarios para cada módulo
- */
-const { Op } = require('sequelize');
-
-/**
- * Inicializar permisos del sistema
- * Este endpoint crea todos los permisos necesarios para cada módulo
+ * Inicializa y sincroniza los permisos del sistema según la matriz de módulos definida.
+ * Este endpoint es auto-curativo: crea los permisos faltantes y elimina los obsoletos
+ * o aquellos que violan reglas de seguridad (p.ej. permisos de escritura en Reportes).
+ *
+ * @param {import('express').Request} req - Request
+ * @param {import('express').Response} res - Response con resumen de la inicialización
+ * @returns {Promise<void>}
  */
 const initializePermisos = async (req, res) => {
     try {
@@ -73,15 +91,15 @@ const initializePermisos = async (req, res) => {
             { key: 'eliminar', label: 'Eliminar' },
         ];
 
-        // 1. Eliminar permisos prohibidos u obsoletos
+        // 1. Limpieza de permisos obsoletos o prohibidos por diseño
         await Permiso.destroy({
             where: {
                 [Op.or]: [
-                    // Liquidaciones: Solo leer y actualizar (borrar crear y eliminar)
+                    // Liquidaciones: Solo lectura y actualización permitidas
                     { modulo: 'liquidaciones', accion: { [Op.in]: ['crear', 'eliminar'] } },
-                    // Conceptos Salariales: Eliminar módulo completo
+                    // Módulos desaparecidos o integrados
                     { modulo: 'conceptos_salariales' },
-                    // Reportes: Solo permitir leer (borrar todo lo que NO sea leer)
+                    // Reportes: Solo lectura permitida
                     { modulo: 'reportes', accion: { [Op.ne]: 'leer' } }
                 ]
             }
@@ -91,15 +109,9 @@ const initializePermisos = async (req, res) => {
 
         for (const modulo of modulos) {
             for (const accion of acciones) {
-                // Restricción para Liquidaciones: Solo permitir leer y actualizar
-                if (modulo.key === 'liquidaciones' && (accion.key === 'crear' || accion.key === 'eliminar')) {
-                    continue;
-                }
-
-                // Restricción para Reportes: Solo permitir leer
-                if (modulo.key === 'reportes' && accion.key !== 'leer') {
-                    continue;
-                }
+                // Aplicar restricciones de seguridad en la creación
+                if (modulo.key === 'liquidaciones' && (accion.key === 'crear' || accion.key === 'eliminar')) continue;
+                if (modulo.key === 'reportes' && accion.key !== 'leer') continue;
 
                 const [permiso, created] = await Permiso.findOrCreate({
                     where: {
@@ -117,14 +129,12 @@ const initializePermisos = async (req, res) => {
             }
         }
 
-
         res.json({
-            message: `Inicialización completada. ${permisosCreados.length} permisos creados/verificados.`,
+            message: `Inicialización completada. ${permisosCreados.length} permisos nuevos creados.`,
             permisosCreados,
         });
     } catch (error) {
-        console.error('Error al inicializar permisos:', error);
-        res.status(500).json({ error: 'Error al inicializar permisos' });
+        return serverError(res, error);
     }
 };
 

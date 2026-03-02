@@ -1,37 +1,22 @@
+/**
+ * @fileoverview Controller de Contactos de Empleados.
+ * Maneja la gestión de familiares y contactos de emergencia asociados a los empleados,
+ * aplicando reglas de visibilidad según el rol (Admin, Propietario o Empleado).
+ * @module controllers/contactoController
+ */
+
 const { Contacto, Empleado, Usuario, EspacioTrabajo, Contrato, Rol, Permiso } = require('../models');
 const { Op } = require('sequelize');
 
-// Helper: verifica si el usuario en sesión tiene un permiso específico en el módulo contactos
-const tienePermiso = async (session, accion) => {
-    if (session.esAdministrador) return true;
-    const usuarioId = session.usuarioId || session.empleadoId;
-    const empleado = await Empleado.findOne({ where: { usuarioId } });
+// Helpers
+const { parsearPaginacion, construirRespuestaPaginada } = require('../helpers/paginacion.helper');
+const { badRequest, forbidden, notFound, serverError, manejarErrorSequelize, ok, created } = require('../helpers/respuestas.helper');
+const { tienePermiso, respuestaPermisoDenegado } = require('../helpers/permisos.helper');
 
-    // No es empleado (propietario/externo) → pasa siempre
-    if (!empleado) return true;
-
-    // Es empleado sin contrato seleccionado → pasa (sin restricción configurada)
-    if (!empleado.ultimoContratoSeleccionadoId) return true;
-
-    const contrato = await Contrato.findByPk(empleado.ultimoContratoSeleccionadoId, {
-        include: [{ model: Rol, as: 'rol', include: [{ model: Permiso, as: 'permisos', through: { attributes: [] } }] }]
-    });
-
-    // Sin rol asignado al contrato → pasa
-    if (!contrato?.rol) return true;
-
-    const permisosDelModulo = (contrato.rol.permisos || []).filter(
-        p => p.modulo === 'contactos'
-    );
-
-    // El módulo no tiene permisos configurados en este rol → pasa
-    if (permisosDelModulo.length === 0) return true;
-
-    // Verificar si tiene la acción especifica
-    return permisosDelModulo.some(p => p.accion === accion);
-};
-
-// Include estándar con empleado
+/**
+ * Include estándar para cargar la relación con el empleado y sus datos básicos.
+ * @constant {object[]}
+ */
 const includeEmpleado = [{
     model: Empleado,
     as: 'empleado',
@@ -41,18 +26,24 @@ const includeEmpleado = [{
     ]
 }];
 
-// Obtener todos los contactos con filtros y paginación
+/**
+ * Obtiene todos los contactos con filtros de búsqueda y paginación.
+ * Aplica lógica de scope para restringir los resultados según el acceso del usuario.
+ *
+ * @param {import('express').Request} req - Request con query params de filtrado
+ * @param {import('express').Response} res - Response con lista paginada de contactos
+ * @returns {Promise<void>}
+ */
 const getAll = async (req, res) => {
     try {
-        const { nombre, empleadoId, activo, dni, parentesco, tipo, espacioTrabajoId, page = 1, limit = 10 } = req.query;
+        const { nombre, empleadoId, activo, dni, parentesco, tipo, espacioTrabajoId } = req.query;
+        const { page, limit, offset } = parsearPaginacion(req.query);
         const where = {};
 
         // Filtro de activo
         if (activo === 'false') {
             where.activo = false;
-        } else if (activo === 'all') {
-            // No filtrar
-        } else {
+        } else if (activo !== 'all') {
             where.activo = true;
         }
 
@@ -71,12 +62,11 @@ const getAll = async (req, res) => {
 
             if (empleadoSesion) {
                 // ES EMPLEADO — verificar permisos de escritura (equivale a "puede ver todos del workspace")
-                const tienePermisoVerTodos = await tienePermiso(req.session, 'crear') ||
-                    await tienePermiso(req.session, 'actualizar') ||
-                    await tienePermiso(req.session, 'eliminar');
+                const tieneGestion = await tienePermiso(req.session, 'contactos', 'crear') ||
+                    await tienePermiso(req.session, 'contactos', 'actualizar') ||
+                    await tienePermiso(req.session, 'contactos', 'eliminar');
 
-                if (tienePermisoVerTodos) {
-                    // Puede ver los contactos de todos los empleados de su workspace
+                if (tieneGestion) {
                     const empleadosWorkspace = await Empleado.findAll({
                         where: { espacioTrabajoId: empleadoSesion.espacioTrabajoId },
                         attributes: ['id']
@@ -85,28 +75,23 @@ const getAll = async (req, res) => {
 
                     if (empleadoId) {
                         if (!idsWs.includes(parseInt(empleadoId))) {
-                            return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
+                            return res.json({ data: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } });
                         }
                         where.empleadoId = empleadoId;
                     } else {
                         where.empleadoId = { [Op.in]: idsWs };
                     }
 
-                    // Validar filtro de espacio (debe ser el suyo)
                     if (espacioTrabajoId && parseInt(espacioTrabajoId) !== empleadoSesion.espacioTrabajoId) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
+                        return res.json({ data: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } });
                     }
-
                 } else {
-                    // Solo ve sus propios contactos
                     if (empleadoId && parseInt(empleadoId) !== empleadoSesion.id) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
+                        return res.json({ data: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } });
                     }
                     where.empleadoId = empleadoSesion.id;
                 }
-
             } else {
-                // ES PROPIETARIO (no empleado) → ve los contactos de empleados de sus espacios
                 const espaciosPropios = await EspacioTrabajo.findAll({
                     where: { propietarioId: usuarioSesionId },
                     attributes: ['id']
@@ -116,7 +101,7 @@ const getAll = async (req, res) => {
                 let targetEspacios = espaciosIds;
                 if (espacioTrabajoId) {
                     if (!espaciosIds.includes(parseInt(espacioTrabajoId))) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
+                        return res.json({ data: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } });
                     }
                     targetEspacios = [parseInt(espacioTrabajoId)];
                 }
@@ -129,70 +114,71 @@ const getAll = async (req, res) => {
 
                 if (empleadoId) {
                     if (!idsPermitidos.includes(parseInt(empleadoId))) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
+                        return res.json({ data: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } });
                     }
                     where.empleadoId = empleadoId;
                 } else if (idsPermitidos.length > 0) {
                     where.empleadoId = { [Op.in]: idsPermitidos };
                 } else {
-                    where.empleadoId = -1; // Ninguno permitido
+                    where.empleadoId = -1;
                 }
             }
-
         } else {
-            // ADMIN GLOBAL
             if (empleadoId) where.empleadoId = empleadoId;
             if (espacioTrabajoId) {
                 const empleadosWs = await Empleado.findAll({ where: { espacioTrabajoId }, attributes: ['id'] });
                 const ids = empleadosWs.map(e => e.id);
                 if (empleadoId && !ids.includes(parseInt(empleadoId))) {
-                    return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
+                    return res.json({ data: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } });
                 }
                 if (!empleadoId) where.empleadoId = { [Op.in]: ids };
             }
         }
 
-        const offset = (parseInt(page) - 1) * parseInt(limit);
-
-        const { count, rows } = await Contacto.findAndCountAll({
+        const result = await Contacto.findAndCountAll({
             where,
             include: includeEmpleado,
             order: [['nombreCompleto', 'ASC']],
-            limit: parseInt(limit),
+            limit,
             offset,
         });
 
-        res.json({
-            data: rows,
-            pagination: {
-                total: count,
-                page: parseInt(page),
-                limit: parseInt(limit),
-                totalPages: Math.ceil(count / parseInt(limit)),
-            },
-        });
+        return ok(res, construirRespuestaPaginada(result, page, limit));
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Obtener contacto por ID
+/**
+ * Obtiene un contacto por su ID.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con el contacto o 404
+ * @returns {Promise<void>}
+ */
 const getById = async (req, res) => {
     try {
         const contacto = await Contacto.findByPk(req.params.id, { include: includeEmpleado });
 
         if (!contacto) {
-            return res.status(404).json({ error: 'Contacto no encontrado' });
+            return notFound(res, 'Contacto');
         }
 
-        res.json(contacto);
+        return ok(res, contacto);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Verificar DNI duplicado para el mismo empleado
+/**
+ * Verifica si ya existe un contacto activo con el mismo DNI para un empleado específico.
+ *
+ * @param {number} empleadoId - ID del empleado
+ * @param {string} dni - DNI a verificar
+ * @param {number|null} [excludeId=null] - ID de contacto a excluir de la búsqueda (para actualizaciones)
+ * @returns {Promise<boolean>} True si existe el duplicado
+ */
 const checkDuplicateDNI = async (empleadoId, dni, excludeId = null) => {
     const where = { empleadoId, dni, activo: true };
     if (excludeId) where.id = { [Op.ne]: excludeId };
@@ -200,45 +186,55 @@ const checkDuplicateDNI = async (empleadoId, dni, excludeId = null) => {
     return existing !== null;
 };
 
-// Crear contacto
+/**
+ * Crea un nuevo contacto asociado a un empleado.
+ * Valida permisos de creación y evita duplicados por DNI.
+ *
+ * @param {import('express').Request} req - Request con los datos del contacto
+ * @param {import('express').Response} res - Response con el contacto creado
+ * @returns {Promise<void>}
+ */
 const create = async (req, res) => {
     try {
         // Verificar permiso de creación
-        if (!(await tienePermiso(req.session, 'crear'))) {
-            return res.status(403).json({ error: 'No tiene permiso para crear contactos' });
+        if (!(await tienePermiso(req.session, 'contactos', 'crear'))) {
+            return respuestaPermisoDenegado(res, 'contactos', 'crear');
         }
 
         const { empleadoId, dni } = req.body;
 
         const isDuplicate = await checkDuplicateDNI(empleadoId, dni);
         if (isDuplicate) {
-            return res.status(400).json({ error: `Ya existe un contacto con el DNI ( ${dni} ) para el empleado` });
+            return badRequest(res, `Ya existe un contacto con el DNI ( ${dni} ) para el empleado`);
         }
 
         const contacto = await Contacto.create(req.body);
 
         const contactoWithRelations = await Contacto.findByPk(contacto.id, { include: includeEmpleado });
-        res.status(201).json(contactoWithRelations);
+        return created(res, contactoWithRelations);
     } catch (error) {
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
+        return manejarErrorSequelize(res, error);
     }
 };
 
-// Actualizar contacto
+/**
+ * Actualiza los datos de un contacto existente.
+ * Valida permisos de actualización y evita duplicados por DNI.
+ *
+ * @param {import('express').Request} req - Request con `params.id` y datos a actualizar
+ * @param {import('express').Response} res - Response con el contacto actualizado
+ * @returns {Promise<void>}
+ */
 const update = async (req, res) => {
     try {
         // Verificar permiso de edición
-        if (!(await tienePermiso(req.session, 'actualizar'))) {
-            return res.status(403).json({ error: 'No tiene permiso para editar contactos' });
+        if (!(await tienePermiso(req.session, 'contactos', 'actualizar'))) {
+            return respuestaPermisoDenegado(res, 'contactos', 'actualizar');
         }
 
         const contacto = await Contacto.findByPk(req.params.id);
         if (!contacto) {
-            return res.status(404).json({ error: 'Contacto no encontrado' });
+            return notFound(res, 'Contacto');
         }
 
         const { empleadoId, dni } = req.body;
@@ -249,76 +245,90 @@ const update = async (req, res) => {
             contacto.id
         );
         if (isDuplicate) {
-            return res.status(400).json({ error: `Ya existe un contacto con el DNI ( ${dni} ) para el empleado` });
+            return badRequest(res, `Ya existe un contacto con el DNI ( ${dni} ) para el empleado`);
         }
 
         await contacto.update(req.body);
 
         const contactoWithRelations = await Contacto.findByPk(contacto.id, { include: includeEmpleado });
-        res.json(contactoWithRelations);
+        return ok(res, contactoWithRelations);
     } catch (error) {
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
+        return manejarErrorSequelize(res, error);
     }
 };
 
-// Eliminar contacto (eliminación lógica)
+/**
+ * Realiza una desactivación lógica (soft delete) del contacto.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
+ */
 const remove = async (req, res) => {
     try {
         // Verificar permiso de eliminación
-        if (!(await tienePermiso(req.session, 'eliminar'))) {
-            return res.status(403).json({ error: 'No tiene permiso para desactivar contactos' });
+        if (!(await tienePermiso(req.session, 'contactos', 'eliminar'))) {
+            return respuestaPermisoDenegado(res, 'contactos', 'eliminar');
         }
 
         const contacto = await Contacto.findByPk(req.params.id);
         if (!contacto) {
-            return res.status(404).json({ error: 'Contacto no encontrado' });
+            return notFound(res, 'Contacto');
         }
 
         await contacto.update({ activo: false });
-        res.json({ message: 'Contacto desactivado correctamente' });
+        return ok(res, { message: 'Contacto desactivado correctamente' });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Reactivar contacto
+/**
+ * Reactiva un contacto previamente desactivado.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con el contacto reactivado
+ * @returns {Promise<void>}
+ */
 const reactivate = async (req, res) => {
     try {
         const contacto = await Contacto.findByPk(req.params.id);
         if (!contacto) {
-            return res.status(404).json({ error: 'Contacto no encontrado' });
+            return notFound(res, 'Contacto');
         }
 
         await contacto.update({ activo: true });
 
         const contactoWithRelations = await Contacto.findByPk(contacto.id, { include: includeEmpleado });
-        res.json(contactoWithRelations);
+        return ok(res, contactoWithRelations);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Eliminar múltiples contactos (eliminación lógica en lote)
+/**
+ * Desactiva múltiples contactos en una sola operación (eliminación lógica en lote).
+ *
+ * @param {import('express').Request} req - Request con body conteniendo un array de `ids`
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
+ */
 const bulkRemove = async (req, res) => {
     try {
         // Verificar permiso de eliminación
-        if (!(await tienePermiso(req.session, 'eliminar'))) {
-            return res.status(403).json({ error: 'No tiene permiso para desactivar contactos en lote' });
+        if (!(await tienePermiso(req.session, 'contactos', 'eliminar'))) {
+            return respuestaPermisoDenegado(res, 'contactos', 'eliminar');
         }
 
         const { ids } = req.body;
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({ error: 'Se requiere un array de IDs' });
+            return badRequest(res, 'Se requiere un array de IDs');
         }
 
         await Contacto.update({ activo: false }, { where: { id: ids } });
-        res.json({ message: `${ids.length} contacto(s) desactivado(s) correctamente` });
+        return ok(res, { message: `${ids.length} contacto(s) desactivado(s) correctamente` });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 

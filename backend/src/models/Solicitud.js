@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Modelo de Solicitud (Base).
+ * Actúa como encabezado común para todas las novedades (Vacaciones, Licencias, Horas Extras, Renuncias).
+ * Gestiona el flujo de estados (pendiente, aprobada, rechazada).
+ * @module models/Solicitud
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

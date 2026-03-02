@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Rutas para la gestión de usuarios del sistema (Acceso a plataforma).
+ * @module routes/usuarioRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const { Usuario } = require('../models');

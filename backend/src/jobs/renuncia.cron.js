@@ -1,12 +1,23 @@
+/**
+ * @fileoverview Cron job de procesamiento automático de renuncias.
+ * Ejecuta diariamente la transición a 'procesada' de renuncias
+ * cuya `fechaBajaEfectiva` ya haya llegado.
+ * @module jobs/renuncia.cron
+ */
+
 const cron = require('node-cron');
 const { Op } = require('sequelize');
 const { Renuncia, Solicitud, Contrato } = require('../models');
-const { generarLiquidacionFinal } = require('../services/prueba_liq');
+const { generarLiquidacionFinal } = require('../services/liquidacionGeneradorService');
 
-// Ejecutar todos los días a las 01:00 (después de los otros crones)
+/**
+ * Cron: ejecuta todos los días a las 01:00.
+ * Procesa automáticamente las renuncias aceptadas que alcanzan su fecha de baja efectiva.
+ * Actualiza el contrato y genera la liquidación final.
+ */
 cron.schedule('0 1 * * *', async () => {
     try {
-        console.log('Ejecutando cron de procesamiento automático de renuncias...');
+        console.log('[cron] Ejecutando procesamiento automático de renuncias...');
 
         const hoy = new Date();
         const hoyStr = hoy.toISOString().split('T')[0];
@@ -24,7 +35,9 @@ cron.schedule('0 1 * * *', async () => {
             }]
         });
 
-        console.log(`Se encontraron ${renunciasAceptadas.length} renuncias para procesar.`);
+        if (renunciasAceptadas.length > 0) {
+            console.log(`[cron] Se encontraron ${renunciasAceptadas.length} renuncias para procesar.`);
+        }
 
         for (const renuncia of renunciasAceptadas) {
             try {
@@ -43,14 +56,13 @@ cron.schedule('0 1 * * *', async () => {
                 // 3. Generar liquidación final hasta hoy
                 await generarLiquidacionFinal(renuncia.solicitud.contratoId, hoyStr);
 
-                console.log(`Renuncia ${renuncia.id} procesada automáticamente para contrato ${renuncia.solicitud.contratoId}`);
+                console.log(`[cron] Renuncia ${renuncia.id} procesada para contrato ${renuncia.solicitud.contratoId}`);
             } catch (error) {
-                console.error(`Error al procesar automáticamente la renuncia ${renuncia.id}:`, error);
+                console.error(`[cron] Error al procesar renuncia ${renuncia.id}:`, error);
             }
         }
-
     } catch (error) {
-        console.error('Error en cron de renuncias:', error);
+        console.error('[cron] Error en cron de renuncias:', error);
     }
 });
 

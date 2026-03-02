@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Rutas del módulo de Liquidaciones.
+ * Define los endpoints REST para la consulta, actualización y
+ * generación (ejecución asíncrona) de liquidaciones de sueldo.
+ * @module routes/liquidacionRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const liquidacionController = require('../controllers/liquidacionController');

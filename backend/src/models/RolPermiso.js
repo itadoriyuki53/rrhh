@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Tabla de unión Rol-Permiso.
+ * Implementa la relación Muchos a Muchos entre roles y capacidades del sistema.
+ * @module models/RolPermiso
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

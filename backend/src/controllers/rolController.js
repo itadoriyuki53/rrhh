@@ -1,16 +1,31 @@
-const { Rol, Permiso, RolPermiso, EspacioTrabajo, Empleado, Contrato } = require('../models');
+/**
+ * @fileoverview Controller de Roles de Usuario.
+ * Gestiona la agrupación de permisos en perfiles (Roles) dentro de cada Espacio de Trabajo.
+ * Permite la asignación granular de capacidades a los diferentes tipos de empleados.
+ * @module controllers/rolController
+ */
+
+const { Rol, Permiso, EspacioTrabajo, Empleado, Contrato } = require('../models');
 const { Op } = require('sequelize');
 
+// Helpers
+const { parsearPaginacion, construirRespuestaPaginada } = require('../helpers/paginacion.helper');
+const { badRequest, notFound, serverError, manejarErrorSequelize, ok } = require('../helpers/respuestas.helper');
+
 /**
- * Obtener todos los roles con paginación y filtros
+ * Obtiene todos los roles registrados con soporte para paginación y filtros de búsqueda.
+ * Restringe los resultados según el Espacio de Trabajo asignado al usuario en sesión.
+ *
+ * @param {import('express').Request} req - Request con query params: `search`, `activo`, `espacioTrabajoId`, `page`, `limit`
+ * @param {import('express').Response} res - Response con lista paginada de roles y sus permisos
+ * @returns {Promise<void>}
  */
 const getAll = async (req, res) => {
     try {
-        const { search = '', page = 1, limit = 10, activo } = req.query;
-
+        const { search = '', activo, descripcion, espacioTrabajoId } = req.query;
+        const { page, limit, offset } = parsearPaginacion(req.query);
         const whereClause = {};
 
-        // Filtro de búsqueda
         if (search) {
             whereClause[Op.or] = [
                 { nombre: { [Op.like]: `%${search}%` } },
@@ -18,49 +33,34 @@ const getAll = async (req, res) => {
             ];
         }
 
-        // Filtro de estado activo
-        if (activo !== undefined) {
-            whereClause.activo = activo === 'true';
+        if (activo === 'false') {
+            whereClause.activo = false;
+        } else if (activo !== 'all' && activo !== undefined) {
+            whereClause.activo = true;
         }
 
-        // Filtro de descripción
-        const { descripcion } = req.query;
-        if (descripcion) {
-            whereClause.descripcion = { [Op.like]: `%${descripcion}%` };
-        }
+        if (descripcion) whereClause.descripcion = { [Op.like]: `%${descripcion}%` };
 
         const usuarioSesionId = req.session.usuarioId || req.session.empleadoId;
         const esAdmin = req.session.esAdministrador;
 
-        // Filtro de Espacio de Trabajo
-        if (req.query.espacioTrabajoId) {
-            whereClause.espacioTrabajoId = req.query.espacioTrabajoId;
+        if (espacioTrabajoId) {
+            whereClause.espacioTrabajoId = espacioTrabajoId;
         } else if (!esAdmin) {
-            // Si NO es admin y no hay filtro explícito, buscar sus espacios
             const empleadoSesion = await Empleado.findOne({ where: { usuarioId: usuarioSesionId } });
-
             if (empleadoSesion) {
                 whereClause.espacioTrabajoId = empleadoSesion.espacioTrabajoId;
             } else {
-                // Si es propietario
-                const espaciosPropios = await EspacioTrabajo.findAll({
-                    where: { propietarioId: usuarioSesionId },
-                    attributes: ['id']
-                });
-
+                const espaciosPropios = await EspacioTrabajo.findAll({ where: { propietarioId: usuarioSesionId }, attributes: ['id'] });
                 if (espaciosPropios.length > 0) {
-                    const espaciosIds = espaciosPropios.map(e => e.id);
-                    whereClause.espacioTrabajoId = { [Op.in]: espaciosIds };
+                    whereClause.espacioTrabajoId = { [Op.in]: espaciosPropios.map(e => e.id) };
                 } else {
-                    // Si no tiene espacios propios ni es empleado, no debe ver nada
                     whereClause.espacioTrabajoId = -1;
                 }
             }
         }
 
-        const offset = (parseInt(page) - 1) * parseInt(limit);
-
-        const { count, rows } = await Rol.findAndCountAll({
+        const result = await Rol.findAndCountAll({
             where: whereClause,
             include: [
                 {
@@ -75,30 +75,29 @@ const getAll = async (req, res) => {
                     attributes: ['id', 'nombre'],
                 },
             ],
-            limit: parseInt(limit),
-            offset: offset,
+            limit,
+            offset,
             order: [['nombre', 'ASC']],
+            distinct: true
         });
 
-        res.json({
-            roles: rows,
-            total: count,
-            page: parseInt(page),
-            totalPages: Math.ceil(count / parseInt(limit)),
-        });
+        res.json(construirRespuestaPaginada(result, page, limit, 'roles'));
     } catch (error) {
         console.error('Error al obtener roles:', error);
-        res.status(500).json({ error: 'Error al obtener roles' });
+        return serverError(res, error);
     }
 };
 
 /**
- * Obtener un rol por ID
+ * Obtiene un rol específico por su ID incluyendo su colección completa de permisos.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con el rol o 404
+ * @returns {Promise<void>}
  */
 const getById = async (req, res) => {
     try {
         const { id } = req.params;
-
         const rol = await Rol.findByPk(id, {
             include: [
                 {
@@ -110,76 +109,49 @@ const getById = async (req, res) => {
             ],
         });
 
-        if (!rol) {
-            return res.status(404).json({ error: 'Rol no encontrado' });
-        }
-
+        if (!rol) return notFound(res, 'Rol');
         res.json(rol);
     } catch (error) {
-        console.error('Error al obtener rol:', error);
-        res.status(500).json({ error: 'Error al obtener rol' });
+        return serverError(res, error);
     }
 };
 
 /**
- * Crear un nuevo rol
+ * Crea un nuevo rol en un Espacio de Trabajo con una lista inicial de permisos.
+ *
+ * @param {import('express').Request} req - Request con datos del rol y array de IDs de permisos
+ * @param {import('express').Response} res - Response con el rol creado y sus permisos asociados
+ * @returns {Promise<void>}
  */
 const create = async (req, res) => {
     try {
         let { nombre, descripcion, permisos = [], espacioTrabajoId } = req.body;
 
-        // Validar datos requeridos
-        if (!nombre) {
-            return res.status(400).json({ error: 'El nombre del rol es requerido' });
-        }
+        if (!nombre) return badRequest(res, 'El nombre del rol es requerido');
+        if (!espacioTrabajoId) return badRequest(res, 'El espacio de trabajo es requerido');
 
-        if (!espacioTrabajoId) {
-            return res.status(400).json({ error: 'Debe pertenecer a un espacio de trabajo para crear un rol.' });
-        }
+        const nuevoRol = await Rol.create({ nombre, descripcion, activo: true, espacioTrabajoId });
 
-        // Crear el rol
-        const nuevoRol = await Rol.create({
-            nombre,
-            descripcion,
-            activo: true,
-            espacioTrabajoId
-        });
-
-        // Asignar permisos si se proporcionaron
         if (permisos.length > 0) {
             await nuevoRol.setPermisos(permisos);
         }
 
-        // Obtener el rol con sus permisos
         const rolConPermisos = await Rol.findByPk(nuevoRol.id, {
-            include: [
-                {
-                    model: Permiso,
-                    as: 'permisos',
-                    through: { attributes: [] },
-                    attributes: ['id', 'modulo', 'accion', 'descripcion'],
-                },
-            ],
+            include: [{ model: Permiso, as: 'permisos', through: { attributes: [] }, attributes: ['id', 'modulo', 'accion', 'descripcion'] }],
         });
 
         res.status(201).json(rolConPermisos);
     } catch (error) {
-        console.error('Error al crear rol:', error);
-
-        if (error.name === 'SequelizeUniqueConstraintError') {
-            return res.status(400).json({ error: 'Ya existe un rol con este nombre' });
-        }
-
-        if (error.name === 'SequelizeValidationError') {
-            return res.status(400).json({ error: error.errors[0].message });
-        }
-
-        res.status(500).json({ error: 'Error al crear rol' });
+        return manejarErrorSequelize(res, error);
     }
 };
 
 /**
- * Actualizar un rol
+ * Actualiza la información de un rol y sincroniza su lista de permisos.
+ *
+ * @param {import('express').Request} req - Request con ID y campos a actualizar
+ * @param {import('express').Response} res - Response con el rol actualizado
+ * @returns {Promise<void>}
  */
 const update = async (req, res) => {
     try {
@@ -187,134 +159,96 @@ const update = async (req, res) => {
         const { nombre, descripcion, permisos } = req.body;
 
         const rol = await Rol.findByPk(id);
+        if (!rol) return notFound(res, 'Rol');
 
-        if (!rol) {
-            return res.status(404).json({ error: 'Rol no encontrado' });
-        }
-
-        // Actualizar datos básicos
         if (nombre !== undefined) rol.nombre = nombre;
         if (descripcion !== undefined) rol.descripcion = descripcion;
-
         await rol.save();
 
-        // Actualizar permisos si se proporcionaron
         if (permisos !== undefined) {
             await rol.setPermisos(permisos);
         }
 
-        // Obtener el rol actualizado con sus permisos
         const rolActualizado = await Rol.findByPk(id, {
-            include: [
-                {
-                    model: Permiso,
-                    as: 'permisos',
-                    through: { attributes: [] },
-                    attributes: ['id', 'modulo', 'accion', 'descripcion'],
-                },
-            ],
+            include: [{ model: Permiso, as: 'permisos', through: { attributes: [] }, attributes: ['id', 'modulo', 'accion', 'descripcion'] }],
         });
 
         res.json(rolActualizado);
     } catch (error) {
-        console.error('Error al actualizar rol:', error);
-
-        if (error.name === 'SequelizeUniqueConstraintError') {
-            return res.status(400).json({ error: 'Ya existe un rol con este nombre' });
-        }
-
-        if (error.name === 'SequelizeValidationError') {
-            return res.status(400).json({ error: error.errors[0].message });
-        }
-
-        res.status(500).json({ error: 'Error al actualizar rol' });
+        return manejarErrorSequelize(res, error);
     }
 };
 
 /**
- * Eliminar (desactivar) un rol
+ * Desactiva un rol (eliminación lógica).
+ * Valida que el rol no se encuentre asignado a ningún contrato laboral activo en el sistema.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
  */
 const deleteRol = async (req, res) => {
     try {
         const { id } = req.params;
-
         const rol = await Rol.findByPk(id);
+        if (!rol) return notFound(res, 'Rol');
 
-        if (!rol) {
-            return res.status(404).json({ error: 'Rol no encontrado' });
-        }
-
-        // --- Verificaciones de entidades asociadas activas ---
         const contratosActivos = await Contrato.count({ where: { rolId: rol.id, activo: true } });
         if (contratosActivos > 0) {
-            return res.status(400).json({ error: `No se puede desactivar el rol "${rol.nombre}" porque tiene ${contratosActivos} contrato(s) activo(s). Primero desactive los contratos.` });
+            return badRequest(res, `El rol "${rol.nombre}" tiene ${contratosActivos} contrato(s) activo(s).`);
         }
 
-        // Desactivar en lugar de eliminar
         rol.activo = false;
         await rol.save();
-
         res.json({ message: 'Rol desactivado exitosamente' });
     } catch (error) {
-        console.error('Error al eliminar rol:', error);
-        res.status(500).json({ error: 'Error al eliminar rol' });
+        return serverError(res, error);
     }
 };
 
 /**
- * Reactivar un rol
+ * Reactiva un rol previamente desactivado.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
  */
 const reactivate = async (req, res) => {
     try {
         const { id } = req.params;
-
         const rol = await Rol.findByPk(id);
-
-        if (!rol) {
-            return res.status(404).json({ error: 'Rol no encontrado' });
-        }
+        if (!rol) return notFound(res, 'Rol');
 
         rol.activo = true;
         await rol.save();
-
         res.json({ message: 'Rol reactivado exitosamente', rol });
     } catch (error) {
-        console.error('Error al reactivar rol:', error);
-        res.status(500).json({ error: 'Error al reactivar rol' });
+        return serverError(res, error);
     }
 };
 
 /**
- * Eliminación masiva de roles
+ * Desactiva múltiples roles en lote.
+ * Realiza verificaciones de integridad referencial para cada rol individualmente.
+ *
+ * @param {import('express').Request} req - Request con array de `ids` en el body
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
  */
 const deleteBulk = async (req, res) => {
     try {
         const { ids } = req.body;
-
-        if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({ error: 'Se requiere un array de IDs' });
-        }
+        if (!ids || !Array.isArray(ids) || ids.length === 0) return badRequest(res, 'IDs requeridos');
 
         for (const id of ids) {
-            const rol = await Rol.findByPk(id);
-            if (!rol) continue;
-
-            // --- Verificaciones de entidades asociadas activas ---
-            const contratosActivos = await Contrato.count({ where: { rolId: rol.id, activo: true } });
-            if (contratosActivos > 0) {
-                return res.status(400).json({ error: `No se puede desactivar el rol "${rol.nombre}" porque tiene ${contratosActivos} contrato(s) activo(s). Primero desactive los contratos.` });
-            }
+            const contratosActivos = await Contrato.count({ where: { rolId: id, activo: true } });
+            if (contratosActivos > 0) return badRequest(res, 'Uno de los roles tiene contratos activos asociados.');
         }
 
-        await Rol.update(
-            { activo: false },
-            { where: { id: ids } }
-        );
-
+        await Rol.update({ activo: false }, { where: { id: ids } });
         res.json({ message: `${ids.length} roles desactivados exitosamente` });
     } catch (error) {
-        console.error('Error al eliminar roles:', error);
-        res.status(500).json({ error: 'Error al eliminar roles' });
+        return serverError(res, error);
     }
 };
 

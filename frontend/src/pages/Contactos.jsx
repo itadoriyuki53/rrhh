@@ -130,10 +130,10 @@ const Contactos = () => {
     }, []);
 
     // Permisos y restricciones
+    const isRestricted = user?.esEmpleado && !user?.esAdministrador;
     const hasFullAccess = user?.esAdministrador || (user?.rol?.permisos?.some(p => p.modulo === 'contactos' && ['crear', 'actualizar', 'eliminar'].includes(p.accion)));
-    const isRestricted = user?.esEmpleado && !user?.esAdministrador && !hasFullAccess;
-    const isSingleEmployee = isRestricted;
-    const isSingleWorkspace = isRestricted && espaciosList.length === 1;
+    const isSingleEmployee = (empleadosList.length === 1 && isRestricted) || (isRestricted && !hasFullAccess);
+    const isSingleWorkspace = espaciosList.length === 1 && isRestricted;
 
     // Auto-select espacio y empleado para usuarios restringidos
     useEffect(() => {

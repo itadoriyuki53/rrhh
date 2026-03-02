@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Rutas para la gestión de contactos de emergencia y familiares de empleados.
+ * @module routes/contactoRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const contactoController = require('../controllers/contactoController');

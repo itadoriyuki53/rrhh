@@ -1,12 +1,29 @@
+/**
+ * @fileoverview Controller de Parámetros Laborales.
+ * Gestiona las configuraciones de reglas de negocio específicas para cada Espacio de Trabajo.
+ * Actualmente centraliza la gestión del límite de ausencias injustificadas.
+ * @module controllers/parametroLaboralController
+ */
+
 const { ParametroLaboral } = require('../models');
 
-// Obtener parámetros laborales por espacio de trabajo
+// Helpers
+const { badRequest, serverError, ok } = require('../helpers/respuestas.helper');
+
+/**
+ * Obtiene los parámetros laborales configurados para un espacio de trabajo específico.
+ * Si el parámetro solicitado no existe, lo inicializa automáticamente con valores por defecto.
+ *
+ * @param {import('express').Request} req - Request con `query.espacioTrabajoId`
+ * @param {import('express').Response} res - Response con el valor del límite de ausencias
+ * @returns {Promise<void>}
+ */
 const get = async (req, res) => {
     try {
         const { espacioTrabajoId } = req.query;
 
         if (!espacioTrabajoId) {
-            return res.status(400).json({ error: 'espacioTrabajoId es requerido' });
+            return badRequest(res, 'espacioTrabajoId es requerido');
         }
 
         // Buscar el parámetro de límite de ausencia para este espacio
@@ -17,7 +34,7 @@ const get = async (req, res) => {
             }
         });
 
-        // Si no existe, crear con valor por defecto
+        // Si no existe, crear con valor por defecto (mecanismo de auto-inicialización)
         if (!parametro) {
             parametro = await ParametroLaboral.create({
                 tipo: 'limite_ausencia_injustificada',
@@ -34,17 +51,24 @@ const get = async (req, res) => {
         });
     } catch (error) {
         console.error('Error al obtener parámetros laborales:', error);
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Actualizar parámetros laborales
+/**
+ * Actualiza los parámetros laborales persistidos para un espacio de trabajo.
+ * Soporta la lógica de "upsert" (actualiza si existe, crea si no).
+ *
+ * @param {import('express').Request} req - Request con `espacioTrabajoId` y nuevos valores en el body
+ * @param {import('express').Response} res - Response con mensaje de confirmación y nuevos valores
+ * @returns {Promise<void>}
+ */
 const update = async (req, res) => {
     try {
         const { limiteAusenciaInjustificada, espacioTrabajoId } = req.body;
 
         if (!espacioTrabajoId) {
-            return res.status(400).json({ error: 'espacioTrabajoId es requerido' });
+            return badRequest(res, 'espacioTrabajoId es requerido');
         }
 
         // Buscar el parámetro existente
@@ -78,7 +102,7 @@ const update = async (req, res) => {
         });
     } catch (error) {
         console.error('Error al actualizar parámetros laborales:', error);
-        res.status(400).json({ error: error.message });
+        return badRequest(res, error.message);
     }
 };
 

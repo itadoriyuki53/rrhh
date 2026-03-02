@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Configuración de Sequelize para la conexión con la base de datos MySQL.
+ * Define la instancia principal de la base de datos y su pool de conexiones.
+ * @module config/database
+ */
+
 const { Sequelize } = require('sequelize');
 
 const sequelize = new Sequelize(

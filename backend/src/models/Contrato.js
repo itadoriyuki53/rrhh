@@ -1,6 +1,13 @@
+/**
+ * @fileoverview Modelo de Contrato.
+ * Define la relación contractual entre un empleado y su puesto, incluyendo
+ * tipo de contratación (Relación de dependencia, Becas, etc.), vigencia, jornada y compensación.
+ * @module models/Contrato
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
+const { parseLocalDate, esDiaHabil } = require('../helpers/fechas.helper');
 
 // Tipos de contrato por categoría
 const TIPOS_CONTRATO = [

@@ -1,8 +1,24 @@
+/**
+ * @fileoverview Controller de Contratos Laborales.
+ * Gestiona el ciclo de vida de los contratos de los empleados, incluyendo la asignación de puestos,
+ * definición de salarios, estados contractuales y roles de acceso al sistema.
+ * @module controllers/contratoController
+ */
+
 const { Contrato, Empleado, Puesto, Departamento, Area, Empresa, ContratoPuesto, Rol, Usuario, EspacioTrabajo, Evaluacion, Solicitud, Liquidacion } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
-// Incluir puestos con su jerarquía empresarial
+// Helpers
+const { parsearPaginacion, construirRespuestaPaginada } = require('../helpers/paginacion.helper');
+const { badRequest, notFound, serverError, manejarErrorSequelize, ok, created } = require('../helpers/respuestas.helper');
+const { resolverScopeContratos } = require('../helpers/workspace.helper');
+
+/**
+ * Define las relaciones estándar para incluir en las consultas de contratos.
+ * Incluye empleado, usuario, espacio de trabajo, rol y la jerarquia completa de puestos.
+ * @constant {object[]}
+ */
 const includeRelations = [
     {
         model: Empleado,
@@ -44,80 +60,49 @@ const includeRelations = [
     }
 ];
 
-// Obtener todos los contratos con filtros y paginación
+/**
+ * Obtiene todos los contratos con soporte para filtros de búsqueda y paginación.
+ * Aplica lógica de visibilidad según el espacio de trabajo del usuario en sesión.
+ *
+ * @param {import('express').Request} req - Request con query params: `empleadoId`, `tipoContrato`, `estado`, `search`, `activo`, `salarioMin`, `salarioMax`
+ * @param {import('express').Response} res - Response con lista paginada de contratos
+ * @returns {Promise<void>}
+ */
 const getAll = async (req, res) => {
     try {
-        const { empleadoId, tipoContrato, estado, search, activo, page = 1, limit = 10 } = req.query;
+        const { empleadoId, tipoContrato, estado, search, activo, salarioMin, salarioMax, espacioTrabajoId } = req.query;
+        const { page, limit, offset } = parsearPaginacion(req.query);
+
+        // Resolver Scope de Contratos según usuario en sesión
+        const scope = await resolverScopeContratos(req.session, { empleadoId, espacioTrabajoId }, 'contratos');
+        if (scope.respuestaVacia) {
+            return res.json(construirRespuestaPaginada({ count: 0, rows: [] }, page, limit));
+        }
+
         const where = {};
 
-        // Por defecto solo mostrar activos
+        // Filtro de activo
         if (activo === 'false') {
             where.activo = false;
-        } else if (activo === 'all') {
-            // No filtrar
-        } else {
+        } else if (activo !== 'all') {
             where.activo = true;
         }
 
-        if (empleadoId) {
-            where.empleadoId = parseInt(empleadoId);
+        // Aplicar IDs de contratos resueltos por el scope
+        if (scope.contratoIds) {
+            where.id = { [Op.in]: scope.contratoIds };
         }
 
-        if (tipoContrato) {
-            where.tipoContrato = tipoContrato;
-        }
+        if (tipoContrato) where.tipoContrato = tipoContrato;
+        if (estado) where.estado = estado;
 
-        if (estado) {
-            where.estado = estado;
-        }
-
-        // Filtro por rango salarial
-        const { salarioMin, salarioMax } = req.query;
         if (salarioMin || salarioMax) {
             where.salario = {};
             if (salarioMin) where.salario[Op.gte] = parseFloat(salarioMin);
             if (salarioMax) where.salario[Op.lte] = parseFloat(salarioMax);
         }
 
-        // --- Filtrado por Espacio de Trabajo (via Empleado) ---
-        const usuarioSesionId = req.session.usuarioId || req.session.empleadoId;
-        const esAdmin = req.session.esAdministrador;
-
-        if (!esAdmin && !empleadoId) {
-            // Solo aplicar filtro de workspace si no se pidió un empleadoId específico
-            const empleadoSesion = await Empleado.findOne({ where: { usuarioId: usuarioSesionId } });
-
-            if (empleadoSesion) {
-                // Es empleado → solo contratos de empleados de su mismo workspace
-                const empleadosDelWorkspace = await Empleado.findAll({
-                    where: { espacioTrabajoId: empleadoSesion.espacioTrabajoId },
-                    attributes: ['id']
-                });
-                where.empleadoId = { [Op.in]: empleadosDelWorkspace.map(e => e.id) };
-            } else {
-                // Es propietario (no empleado) → contratos de todos sus workspaces
-                const espaciosPropios = await EspacioTrabajo.findAll({
-                    where: { propietarioId: usuarioSesionId },
-                    attributes: ['id']
-                });
-
-                if (espaciosPropios.length > 0) {
-                    const espaciosIds = espaciosPropios.map(e => e.id);
-                    const empleadosDeWorkspaces = await Empleado.findAll({
-                        where: { espacioTrabajoId: { [Op.in]: espaciosIds } },
-                        attributes: ['id']
-                    });
-                    where.empleadoId = { [Op.in]: empleadosDeWorkspaces.map(e => e.id) };
-                } else {
-                    // Sin workspace → no ve nada
-                    where.empleadoId = -1;
-                }
-            }
-        }
-
-        const offset = (parseInt(page) - 1) * parseInt(limit);
-
-        let result = await Contrato.findAndCountAll({
+        const result = await Contrato.findAndCountAll({
             where,
             include: includeRelations,
             order: [
@@ -128,38 +113,38 @@ const getAll = async (req, res) => {
                     ELSE 4 END`), 'ASC'],
                 ['fechaInicio', 'DESC']
             ],
-            limit: parseInt(limit),
+            limit,
             offset,
-            distinct: true, // Para contar correctamente con M:N
+            distinct: true,
         });
 
-        // Filtrar por nombre de empleado si hay búsqueda
+        // Filtrar por nombre de empleado si hay búsqueda (filtro post-query por simplicidad con includes complejos)
         if (search) {
             const searchLower = search.toLowerCase();
             result.rows = result.rows.filter(contrato => {
                 const empleado = contrato.empleado;
                 if (!empleado || !empleado.usuario) return false;
                 const fullName = `${empleado.usuario.nombre} ${empleado.usuario.apellido}`.toLowerCase();
-                const documento = empleado.usuario.numeroDocumento?.toLowerCase() || '';
+                const documento = empleado.numeroDocumento?.toLowerCase() || '';
                 return fullName.includes(searchLower) || documento.includes(searchLower);
             });
+            result.count = result.rows.length; // Ajustar count para la paginación local si aplica
         }
 
-        res.json({
-            data: result.rows,
-            pagination: {
-                total: result.count,
-                page: parseInt(page),
-                limit: parseInt(limit),
-                totalPages: Math.ceil(result.count / parseInt(limit)),
-            },
-        });
+        return ok(res, construirRespuestaPaginada(result, page, limit));
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error en contratoController.getAll:', error);
+        return serverError(res, error);
     }
 };
 
-// Obtener contrato por ID
+/**
+ * Obtiene los detalles de un contrato específico por ID.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con el contrato o 404
+ * @returns {Promise<void>}
+ */
 const getById = async (req, res) => {
     try {
         const contrato = await Contrato.findByPk(req.params.id, {
@@ -167,16 +152,24 @@ const getById = async (req, res) => {
         });
 
         if (!contrato) {
-            return res.status(404).json({ error: 'Contrato no encontrado' });
+            return notFound(res, 'Contrato');
         }
 
-        res.json(contrato);
+        return ok(res, contrato);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Crear contrato
+/**
+ * Crea un nuevo contrato para un empleado.
+ * Realiza múltiples validaciones: existencia del empleado, consistencia de puestos y empresa,
+ * pertenencia al mismo espacio de trabajo y ausencia de solapamientos de cargos activos.
+ *
+ * @param {import('express').Request} req - Request con datos del contrato y array de `puestoIds`
+ * @param {import('express').Response} res - Response con el nuevo contrato creado
+ * @returns {Promise<void>}
+ */
 const create = async (req, res) => {
     const transaction = await sequelize.transaction();
 
@@ -185,7 +178,7 @@ const create = async (req, res) => {
 
         if (!puestoIds || !Array.isArray(puestoIds) || puestoIds.length === 0) {
             await transaction.rollback();
-            return res.status(400).json({ error: 'Debe seleccionar al menos un puesto' });
+            return badRequest(res, 'Debe seleccionar al menos un puesto');
         }
 
         // Obtener todos los puestos con sus empresas
@@ -207,14 +200,14 @@ const create = async (req, res) => {
 
         if (puestos.length !== puestoIds.length) {
             await transaction.rollback();
-            return res.status(400).json({ error: 'Uno o más puestos no existen' });
+            return badRequest(res, 'Uno o más puestos no existen');
         }
 
         // Validar que el empleado exista y obtener su espacio de trabajo
         const empleado = await Empleado.findByPk(empleadoId);
         if (!empleado) {
             await transaction.rollback();
-            return res.status(400).json({ error: 'El empleado seleccionado no existe' });
+            return badRequest(res, 'El empleado seleccionado no existe');
         }
 
         const espacioId = empleado.espacioTrabajoId;
@@ -224,9 +217,7 @@ const create = async (req, res) => {
             const puestoEspacioId = puesto.departamento?.area?.empresa?.espacioTrabajoId;
             if (puestoEspacioId !== espacioId) {
                 await transaction.rollback();
-                return res.status(400).json({
-                    error: `El puesto "${puesto.nombre}" pertenece a un espacio de trabajo diferente al del empleado.`
-                });
+                return badRequest(res, `El puesto "${puesto.nombre}" pertenece a un espacio de trabajo diferente al del empleado.`);
             }
         }
 
@@ -235,7 +226,7 @@ const create = async (req, res) => {
             const rol = await Rol.findByPk(contratoData.rolId);
             if (!rol || rol.espacioTrabajoId !== espacioId) {
                 await transaction.rollback();
-                return res.status(400).json({ error: 'El rol seleccionado no pertenece al mismo espacio de trabajo que el empleado.' });
+                return badRequest(res, 'El rol seleccionado no pertenece al mismo espacio de trabajo que el empleado.');
             }
         }
 
@@ -243,9 +234,7 @@ const create = async (req, res) => {
         const empresaIds = [...new Set(puestos.map(p => p.departamento?.area?.empresa?.id))];
         if (empresaIds.length > 1) {
             await transaction.rollback();
-            return res.status(400).json({
-                error: 'Todos los puestos deben pertenecer a la misma empresa. Para asignar puestos de diferentes empresas, cree contratos separados.'
-            });
+            return badRequest(res, 'Todos los puestos deben pertenecer a la misma empresa. Para asignar puestos de diferentes empresas, cree contratos separados.');
         }
 
         // Validar que el empleado no tenga ya un contrato activo (y no finalizado) para alguno de estos puestos
@@ -270,9 +259,7 @@ const create = async (req, res) => {
                 .join(', ');
 
             await transaction.rollback();
-            return res.status(400).json({
-                error: `El empleado ya tiene un contrato activo (no finalizado) para el/los puesto(s): ${puestosNombres}`
-            });
+            return badRequest(res, `El empleado ya tiene un contrato activo (no finalizado) para el/los puesto(s): ${puestosNombres}`);
         }
 
         // Crear el contrato
@@ -297,21 +284,22 @@ const create = async (req, res) => {
             include: includeRelations,
         });
 
-        res.status(201).json(contratoConRelaciones);
+        return created(res, contratoConRelaciones);
     } catch (error) {
         await transaction.rollback();
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        if (error.name === 'SequelizeForeignKeyConstraintError') {
-            return res.status(400).json({ error: 'El empleado seleccionado no existe' });
-        }
-        res.status(500).json({ error: error.message });
+        return manejarErrorSequelize(res, error);
     }
 };
 
-// Actualizar contrato
+/**
+ * Actualiza los datos de un contrato existente.
+ * Permite cambiar salarios, fechas, estados y puestos asociados (con transacciones).
+ * No permite editar contratos que ya se encuentran en estado 'finalizado'.
+ *
+ * @param {import('express').Request} req - Request con `params.id` y datos a actualizar
+ * @param {import('express').Response} res - Response con el contrato actualizado
+ * @returns {Promise<void>}
+ */
 const update = async (req, res) => {
     const transaction = await sequelize.transaction();
 
@@ -321,15 +309,13 @@ const update = async (req, res) => {
 
         if (!contrato) {
             await transaction.rollback();
-            return res.status(404).json({ error: 'Contrato no encontrado' });
+            return notFound(res, 'Contrato');
         }
 
         // No permitir editar contratos finalizados
         if (contrato.estado === 'finalizado') {
             await transaction.rollback();
-            return res.status(400).json({
-                error: 'No se puede editar un contrato finalizado. Solo puede visualizarlo o desactivarlo.'
-            });
+            return badRequest(res, 'No se puede editar un contrato finalizado. Solo puede visualizarlo o desactivarlo.');
         }
 
         // Si cambia el rol, validar espacio
@@ -339,8 +325,7 @@ const update = async (req, res) => {
             });
             const rol = await Rol.findByPk(contratoData.rolId);
             if (!rol || rol.espacioTrabajoId !== contratoConEmpleado.empleado.espacioTrabajoId) {
-                await transaction.rollback();
-                return res.status(400).json({ error: 'El rol seleccionado no pertenece al mismo espacio de trabajo que el contrato.' });
+                return badRequest(res, 'El rol seleccionado no pertenece al mismo espacio de trabajo que el contrato.');
             }
         }
 
@@ -386,9 +371,7 @@ const update = async (req, res) => {
             const empresaIds = [...new Set(puestos.map(p => p.departamento?.area?.empresa?.id))];
             if (empresaIds.length > 1) {
                 await transaction.rollback();
-                return res.status(400).json({
-                    error: 'Todos los puestos deben pertenecer a la misma empresa.'
-                });
+                return badRequest(res, 'Todos los puestos deben pertenecer a la misma empresa.');
             }
 
             // Validar que no haya conflictos con otros contratos activos del mismo empleado
@@ -414,9 +397,7 @@ const update = async (req, res) => {
                     .join(', ');
 
                 await transaction.rollback();
-                return res.status(400).json({
-                    error: `El empleado ya tiene otro contrato activo para el/los puesto(s): ${puestosNombres}`
-                });
+                return badRequest(res, `El empleado ya tiene otro contrato activo para el/los puesto(s): ${puestosNombres}`);
             }
 
             // Eliminar asociaciones anteriores
@@ -441,30 +422,34 @@ const update = async (req, res) => {
             include: includeRelations,
         });
 
-        res.json(contratoActualizado);
+        return ok(res, contratoActualizado);
     } catch (error) {
         await transaction.rollback();
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
+        return manejarErrorSequelize(res, error);
     }
 };
 
-// Eliminar contrato (eliminación lógica)
+/**
+ * Desactiva un contrato (eliminación lógica).
+ * Valida que no existan entidades activas dependientes (evaluaciones, solicitudes o liquidaciones).
+ * De existir, impide la desactivación para mantener la integridad referencial.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response confirmando la desactivación
+ * @returns {Promise<void>}
+ */
 const remove = async (req, res) => {
     try {
         const contrato = await Contrato.findByPk(req.params.id);
 
         if (!contrato) {
-            return res.status(404).json({ error: 'Contrato no encontrado' });
+            return notFound(res, 'Contrato');
         }
 
         // --- Verificaciones de entidades asociadas activas ---
         const evaluadosActivos = await Evaluacion.count({ where: { contratoEvaluadoId: contrato.id, activo: true } });
         if (evaluadosActivos > 0) {
-            return res.status(400).json({ error: `No se puede desactivar el contrato porque tiene ${evaluadosActivos} evaluación(es) de desempeño activa(s) como evaluado. Primero desactive las evaluaciones.` });
+            return badRequest(res, `No se puede desactivar el contrato porque tiene ${evaluadosActivos} evaluación(es) de desempeño activa(s) como evaluado. Primero desactive las evaluaciones.`);
         }
 
         const evaluadoresActivos = await Evaluacion.count({
@@ -477,27 +462,34 @@ const remove = async (req, res) => {
             }]
         });
         if (evaluadoresActivos > 0) {
-            return res.status(400).json({ error: `No se puede desactivar el contrato porque es evaluador en ${evaluadoresActivos} evaluación(es) de desempeño activa(s). Primero desactive las evaluaciones o asigne otro evaluador.` });
+            return badRequest(res, `No se puede desactivar el contrato porque es evaluador en ${evaluadoresActivos} evaluación(es) de desempeño activa(s). Primero desactive las evaluaciones o asigne otro evaluador.`);
         }
 
         const solicitudesActivas = await Solicitud.count({ where: { contratoId: contrato.id, activo: true } });
         if (solicitudesActivas > 0) {
-            return res.status(400).json({ error: `No se puede desactivar el contrato porque tiene ${solicitudesActivas} solicitud(es) activa(s). Primero desactive las solicitudes.` });
+            return badRequest(res, `No se puede desactivar el contrato porque tiene ${solicitudesActivas} solicitud(es) activa(s). Primero desactive las solicitudes.`);
         }
 
         const liquidacionesActivas = await Liquidacion.count({ where: { contratoId: contrato.id, activo: true } });
         if (liquidacionesActivas > 0) {
-            return res.status(400).json({ error: `No se puede desactivar el contrato porque tiene ${liquidacionesActivas} liquidación(es) activa(s). Primero desactive las liquidaciones.` });
+            return badRequest(res, `No se puede desactivar el contrato porque tiene ${liquidacionesActivas} liquidación(es) activa(s). Primero desactive las liquidaciones.`);
         }
 
         await contrato.update({ activo: false });
-        res.json({ message: 'Contrato desactivado correctamente' });
+        return ok(res, { message: 'Contrato desactivado correctamente' });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Reactivar contrato
+/**
+ * Reactiva un contrato previamente desactivado.
+ * Valida que no se generen conflictos de puestos activos para el mismo empleado.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con el contrato reactivado
+ * @returns {Promise<void>}
+ */
 const reactivate = async (req, res) => {
     try {
         const contrato = await Contrato.findByPk(req.params.id, {
@@ -509,7 +501,7 @@ const reactivate = async (req, res) => {
         });
 
         if (!contrato) {
-            return res.status(404).json({ error: 'Contrato no encontrado' });
+            return notFound(res, 'Contrato');
         }
 
         const puestoIds = contrato.puestos.map(p => p.id);
@@ -530,16 +522,14 @@ const reactivate = async (req, res) => {
                 }]
             });
 
-            if (contratosExistentes.length > 0) {
+            if (contatosExistentes.length > 0) {
                 const puestosConContrato = contratosExistentes.map(cp => cp.puestoId);
                 const puestosNombres = contrato.puestos
                     .filter(p => puestosConContrato.includes(p.id))
                     .map(p => p.nombre)
                     .join(', ');
 
-                return res.status(400).json({
-                    error: `El empleado ya tiene un contrato activo (no finalizado) para el/los puesto(s): ${puestosNombres}`
-                });
+                return badRequest(res, `El empleado ya tiene un contrato activo (no finalizado) para el/los puesto(s): ${puestosNombres}`);
             }
         }
 
@@ -549,25 +539,32 @@ const reactivate = async (req, res) => {
             include: includeRelations,
         });
 
-        res.json(contratoReactivado);
+        return ok(res, contratoReactivado);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Eliminar múltiples contratos (eliminación lógica en lote)
+/**
+ * Desactiva múltiples contratos en lote.
+ * Realiza las mismas validaciones de integridad que la desactivación individual.
+ *
+ * @param {import('express').Request} req - Request con array de `ids` en el body
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
+ */
 const bulkRemove = async (req, res) => {
     try {
         const { ids } = req.body;
 
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({ error: 'Se requiere un array de IDs' });
+            return badRequest(res, 'Se requiere un array de IDs');
         }
 
         for (const id of ids) {
             const evaluadosActivos = await Evaluacion.count({ where: { contratoEvaluadoId: id, activo: true } });
             if (evaluadosActivos > 0) {
-                return res.status(400).json({ error: `No se puede desactivar un contrato seleccionado porque tiene ${evaluadosActivos} evaluación(es) activa(s) como evaluado. Primero desactive las evaluaciones.` });
+                return badRequest(res, `No se puede desactivar un contrato seleccionado porque tiene ${evaluadosActivos} evaluación(es) activa(s) como evaluado. Primero desactive las evaluaciones.`);
             }
 
             const evaluadoresActivos = await Evaluacion.count({
@@ -580,17 +577,17 @@ const bulkRemove = async (req, res) => {
                 }]
             });
             if (evaluadoresActivos > 0) {
-                return res.status(400).json({ error: `No se puede desactivar un contrato seleccionado porque es evaluador en ${evaluadoresActivos} evaluación(es) activa(s). Primero desactive las evaluaciones o asigne otro evaluador.` });
+                return badRequest(res, `No se puede desactivar un contrato seleccionado porque es evaluador en ${evaluadoresActivos} evaluación(es) activa(s). Primero desactive las evaluaciones o asigne otro evaluador.`);
             }
 
             const solicitudesActivas = await Solicitud.count({ where: { contratoId: id, activo: true } });
             if (solicitudesActivas > 0) {
-                return res.status(400).json({ error: `No se puede desactivar el contrato porque tiene ${solicitudesActivas} solicitud(es) activa(s). Primero desactive las solicitudes.` });
+                return badRequest(res, `No se puede desactivar el contrato porque tiene ${solicitudesActivas} solicitud(es) activa(s). Primero desactive las solicitudes.`);
             }
 
             const liquidacionesActivas = await Liquidacion.count({ where: { contratoId: id, activo: true } });
             if (liquidacionesActivas > 0) {
-                return res.status(400).json({ error: `No se puede desactivar el contrato porque tiene ${liquidacionesActivas} liquidación(es) activa(s). Primero desactive las liquidaciones.` });
+                return badRequest(res, `No se puede desactivar el contrato porque tiene ${liquidacionesActivas} liquidación(es) activa(s). Primero desactive las liquidaciones.`);
             }
         }
 
@@ -599,13 +596,20 @@ const bulkRemove = async (req, res) => {
             { where: { id: ids } }
         );
 
-        res.json({ message: `${ids.length} contrato(s) desactivado(s) correctamente` });
+        return ok(res, { message: `${ids.length} contrato(s) desactivado(s) correctamente` });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Obtener puestos con contratos activos para un empleado
+/**
+ * Obtiene los IDs de los puestos que ya tienen un contrato activo (no finalizado)
+ * para un empleado específico. Útil para filtrado en el frontend.
+ *
+ * @param {import('express').Request} req - Request con `params.empleadoId`
+ * @param {import('express').Response} res - Response con array de `puestoIds`
+ * @returns {Promise<void>}
+ */
 const getPuestosConContrato = async (req, res) => {
     try {
         const { empleadoId } = req.params;
@@ -626,9 +630,9 @@ const getPuestosConContrato = async (req, res) => {
         // Extraer IDs de puestos con contrato activo (no finalizado)
         const puestoIds = contratosActivos.flatMap(c => c.puestos.map(p => p.id));
 
-        res.json({ puestoIds: [...new Set(puestoIds)] });
+        return ok(res, { puestoIds: [...new Set(puestoIds)] });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 

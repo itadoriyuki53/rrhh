@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Tabla de unión Contrato-Puesto.
+ * Implementa la relación Muchos a Muchos entre los contratos laborales y los puestos de la organización.
+ * @module models/ContratoPuesto
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

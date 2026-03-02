@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Modelo de Espacio de Trabajo.
+ * Define la entidad de nivel superior para el soporte multi-tenant, permitiendo
+ * que distintos grupos de empresas operen de forma aislada.
+ * @module models/EspacioTrabajo
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

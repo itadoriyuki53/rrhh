@@ -1,37 +1,25 @@
+/**
+ * @fileoverview Controller de Registros de Salud.
+ * Gestiona el historial médico laboral de los empleados, incluyendo exámenes pre-ocupacionales,
+ * periódicos y certificados de aptitud. Controla la vigencia de los mismos y su vinculación con licencias.
+ * @module controllers/registroSaludController
+ */
+
 const { RegistroSalud, Empleado, Usuario, EspacioTrabajo, Contrato, Rol, Permiso, Licencia, Solicitud } = require('../models');
 const { Op } = require('sequelize');
 
-// Helper: verifica si el usuario en sesión tiene un permiso específico en el módulo registros_salud
-const tienePermiso = async (session, accion) => {
-    if (session.esAdministrador) return true;
-    const usuarioId = session.usuarioId || session.empleadoId;
-    const empleado = await Empleado.findOne({ where: { usuarioId } });
+// Helpers
+const { parsearPaginacion, construirRespuestaPaginada } = require('../helpers/paginacion.helper');
+const { badRequest, notFound, serverError, manejarErrorSequelize, ok, forbidden } = require('../helpers/respuestas.helper');
+const { tienePermiso, respuestaPermisoDenegado } = require('../helpers/permisos.helper');
+const { resolverScopeContratos } = require('../helpers/workspace.helper');
 
-    // No es empleado (propietario/externo) → pasa siempre
-    if (!empleado) return true;
 
-    // Es empleado sin contrato seleccionado → pasa (sin restricción configurada)
-    if (!empleado.ultimoContratoSeleccionadoId) return true;
 
-    const contrato = await Contrato.findByPk(empleado.ultimoContratoSeleccionadoId, {
-        include: [{ model: Rol, as: 'rol', include: [{ model: Permiso, as: 'permisos', through: { attributes: [] } }] }]
-    });
-
-    // Sin rol asignado al contrato → pasa
-    if (!contrato?.rol) return true;
-
-    const permisosDelModulo = (contrato.rol.permisos || []).filter(
-        p => p.modulo === 'registros_salud'
-    );
-
-    // El módulo no tiene permisos configurados en este rol → pasa
-    if (permisosDelModulo.length === 0) return true;
-
-    // Verificar si tiene la acción especifica
-    return permisosDelModulo.some(p => p.accion === accion);
-};
-
-// Include para obtener empleado
+/**
+ * Configuración de inclusión para recuperar la información del empleado vinculada al registro.
+ * @constant {object[]}
+ */
 const includeEmpleado = [{
     model: Empleado,
     as: 'empleado',
@@ -49,152 +37,68 @@ const includeEmpleado = [{
     ]
 }];
 
-// Obtener todos los registros de salud con paginación y filtros
+/**
+ * Obtiene la lista de registros de salud con soporte para filtros y paginación.
+ * Filtra automáticamente los resultados según el Espacio de Trabajo y el rol del usuario.
+ *
+ * @param {import('express').Request} req - Request con query params: `search`, `tipoExamen`, `vigente`, `empleadoId`, etc.
+ * @param {import('express').Response} res - Response con lista paginada de registros
+ * @returns {Promise<void>}
+ */
 const getAll = async (req, res) => {
     try {
-        const { search, page = 1, limit = 10, activo, tipoExamen, resultado, empleadoId, vigente, espacioTrabajoId } = req.query;
-        const where = {};
+        const { search, activo, tipoExamen, resultado, empleadoId, vigente, espacioTrabajoId } = req.query;
+        const { page, limit, offset } = parsearPaginacion(req.query);
 
-        // --- Filtrado por Espacio de Trabajo y Permisos ---
-        const usuarioSesionId = req.session.usuarioId || req.session.empleadoId;
-        const esAdmin = req.session.esAdministrador;
-        const filtrosEmpleados = []; // Array de IDs permitidos
-
-        if (!esAdmin) {
-            // Buscar si es empleado
-            const empleadoSesion = await Empleado.findOne({ where: { usuarioId: usuarioSesionId } });
-
-            if (empleadoSesion) {
-                // Verificar usando el helper si tiene permisos de escritura (equivale a "puede ver todos")
-                const tienePermisoVerTodos = await tienePermiso(req.session, 'crear') ||
-                    await tienePermiso(req.session, 'actualizar') ||
-                    await tienePermiso(req.session, 'eliminar');
-
-                if (tienePermisoVerTodos) {
-                    // Puede ver todo el workspace
-                    const empleadosWorkspace = await Empleado.findAll({
-                        where: { espacioTrabajoId: empleadoSesion.espacioTrabajoId },
-                        attributes: ['id']
-                    });
-                    const idsWs = empleadosWorkspace.map(e => e.id);
-
-                    if (empleadoId) {
-                        // Si pide uno específico, validar que sea del ws
-                        if (!idsWs.includes(parseInt(empleadoId))) {
-                            return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                        }
-                        where.empleadoId = empleadoId;
-                    } else {
-                        where.empleadoId = { [Op.in]: idsWs };
-                    }
-                } else {
-                    // Solo ve sus propios registros
-                    where.empleadoId = empleadoSesion.id;
-                    // Si pidió otro empleadoId, lo ignoramos o retornamos vacío (por seguridad, forzamos el suyo)
-                    if (empleadoId && parseInt(empleadoId) !== empleadoSesion.id) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                }
-            } else {
-                // ES PROPIETARIO (No empleado)
-                const espaciosPropios = await EspacioTrabajo.findAll({
-                    where: { propietarioId: usuarioSesionId },
-                    attributes: ['id']
-                });
-                const espaciosIds = espaciosPropios.map(e => e.id);
-
-                let targetEspacios = espaciosIds;
-                if (espacioTrabajoId) {
-                    if (!espaciosIds.includes(parseInt(espacioTrabajoId))) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    targetEspacios = [espacioTrabajoId];
-                }
-
-                const empleadosDeWorkspaces = await Empleado.findAll({
-                    where: { espacioTrabajoId: { [Op.in]: targetEspacios } },
-                    attributes: ['id']
-                });
-                const idsPermitidos = empleadosDeWorkspaces.map(e => e.id);
-
-                if (empleadoId) {
-                    if (!idsPermitidos.includes(parseInt(empleadoId))) {
-                        return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                    }
-                    where.empleadoId = empleadoId;
-                } else if (idsPermitidos.length > 0) {
-                    where.empleadoId = { [Op.in]: idsPermitidos };
-                } else {
-                    where.empleadoId = -1; // Ninguno
-                }
-            }
-        } else {
-            // ADMIN GLOBAL
-            if (empleadoId) where.empleadoId = empleadoId;
-            // Si quisiera filtrar por espacioTrabajoId siendo admin
-            if (espacioTrabajoId) {
-                const empleadosWs = await Empleado.findAll({ where: { espacioTrabajoId } });
-                const ids = empleadosWs.map(e => e.id);
-                if (empleadoId && !ids.includes(parseInt(empleadoId))) {
-                    return res.json({ data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } });
-                }
-                if (!empleadoId) where.empleadoId = { [Op.in]: ids };
-            }
+        // Resolver Scope de Contratos (para determinar visibilidad de empleados)
+        const scope = await resolverScopeContratos(req.session, { empleadoId, espacioTrabajoId }, 'registros_salud');
+        if (scope.respuestaVacia) {
+            return res.json(construirRespuestaPaginada({ count: 0, rows: [] }, page, limit));
         }
+
+        const where = {};
 
         // Filtro de activo
         if (activo === 'false') {
             where.activo = false;
-        } else if (activo === 'all') {
-            // No filtrar
-        } else {
+        } else if (activo !== 'all') {
             where.activo = true;
         }
 
-        // Filtro por tipo de examen
-        if (tipoExamen) {
-            where.tipoExamen = tipoExamen;
+        if (tipoExamen) where.tipoExamen = tipoExamen;
+        if (resultado) where.resultado = resultado;
+        if (vigente) where.vigente = vigente === 'true';
+
+        // Aplicar IDs de empleados resueltos por el scope
+        if (scope.contratoIds) {
+            // Obtener empleadoIds de esos contratoIds
+            const contratos = await Contrato.findAll({ where: { id: { [Op.in]: scope.contratoIds } }, attributes: ['empleadoId'] });
+            const empIds = [...new Set(contratos.map(c => c.empleadoId))];
+            where.empleadoId = { [Op.in]: empIds };
         }
 
-        // Filtro por resultado
-        if (resultado) {
-            where.resultado = resultado;
-        }
-
-        // Filtro por vigente
-        if (vigente) {
-            where.vigente = vigente === 'true';
-        }
-
-        const offset = (parseInt(page) - 1) * parseInt(limit);
-
-        const { count, rows } = await RegistroSalud.findAndCountAll({
+        const result = await RegistroSalud.findAndCountAll({
             where,
             include: includeEmpleado,
-            order: [
-                ['vigente', 'DESC'], // 'true' (1) before 'false' (0)
-                ['fechaRealizacion', 'DESC']
-            ],
-            limit: parseInt(limit),
+            order: [['vigente', 'DESC'], ['fechaRealizacion', 'DESC']],
+            limit,
             offset,
         });
 
-        res.json({
-            data: rows,
-            pagination: {
-                total: count,
-                page: parseInt(page),
-                limit: parseInt(limit),
-                totalPages: Math.ceil(count / parseInt(limit)),
-            },
-        });
+        res.json(construirRespuestaPaginada(result, page, limit));
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
+        console.error('Error en registroSaludController.getAll:', error);
+        return serverError(res, error);
     }
 };
 
-// Obtener registro por ID
+/**
+ * Obtiene un registro de salud específico por su ID.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con el registro o 404
+ * @returns {Promise<void>}
+ */
 const getById = async (req, res) => {
     try {
         const registro = await RegistroSalud.findByPk(req.params.id, {
@@ -202,41 +106,38 @@ const getById = async (req, res) => {
         });
 
         if (!registro) {
-            return res.status(404).json({ error: 'Registro de salud no encontrado' });
+            return notFound(res, 'Registro de salud');
         }
 
         res.json(registro);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Crear registro de salud
+/**
+ * Crea un nuevo registro de salud para un empleado.
+ * Los registros pueden incluir archivos adjuntos (comprobantes/certificados).
+ *
+ * @param {import('express').Request} req - Request con datos del examen/certificado
+ * @param {import('express').Response} res - Response con el registro creado
+ * @returns {Promise<void>}
+ */
 const create = async (req, res) => {
     try {
-        // Verificar permiso de creación
-        if (!(await tienePermiso(req.session, 'crear'))) {
-            return res.status(403).json({ error: 'No tiene permiso para crear registros de salud' });
+        if (!(await tienePermiso(req.session, 'registros_salud', 'crear'))) {
+            return respuestaPermisoDenegado(res, 'registros_salud', 'crear');
         }
 
         const { tipoExamen, resultado, fechaRealizacion, fechaVencimiento, comprobante, comprobanteNombre, comprobanteTipo, comprobantes, empleadoId } = req.body;
 
-        // Validar empleado
-        if (!empleadoId) {
-            return res.status(400).json({ error: 'Debe seleccionar un empleado' });
-        }
+        if (!empleadoId) return badRequest(res, 'Debe seleccionar un empleado');
 
         const empleado = await Empleado.findByPk(empleadoId);
-        if (!empleado) {
-            return res.status(404).json({ error: 'Empleado no encontrado' });
-        }
+        if (!empleado) return notFound(res, 'Empleado');
 
-        // Crear el registro
         const nuevoRegistro = await RegistroSalud.create({
-            tipoExamen,
-            resultado,
-            fechaRealizacion,
-            fechaVencimiento,
+            tipoExamen, resultado, fechaRealizacion, fechaVencimiento,
             comprobante: comprobante || null,
             comprobanteNombre: comprobanteNombre || null,
             comprobanteTipo: comprobanteTipo || null,
@@ -244,51 +145,36 @@ const create = async (req, res) => {
             empleadoId,
         });
 
-        // Retornar registro con empleado
-        const registroConEmpleado = await RegistroSalud.findByPk(nuevoRegistro.id, {
-            include: includeEmpleado
-        });
-
+        const registroConEmpleado = await RegistroSalud.findByPk(nuevoRegistro.id, { include: includeEmpleado });
         res.status(201).json(registroConEmpleado);
     } catch (error) {
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
+        return manejarErrorSequelize(res, error);
     }
 };
 
-// Actualizar registro de salud
+/**
+ * Actualiza la información de un registro de salud existente.
+ *
+ * @param {import('express').Request} req - Request con ID y campos a actualizar
+ * @param {import('express').Response} res - Response con registro actualizado
+ * @returns {Promise<void>}
+ */
 const update = async (req, res) => {
     try {
-        // Verificar permiso de edición
-        if (!(await tienePermiso(req.session, 'actualizar'))) {
-            return res.status(403).json({ error: 'No tiene permiso para editar registros de salud' });
+        if (!(await tienePermiso(req.session, 'registros_salud', 'actualizar'))) {
+            return respuestaPermisoDenegado(res, 'registros_salud', 'actualizar');
         }
 
         const { id } = req.params;
         const { tipoExamen, resultado, fechaRealizacion, fechaVencimiento, comprobante, comprobanteNombre, comprobanteTipo, comprobantes, empleadoId } = req.body;
 
         const registro = await RegistroSalud.findByPk(id);
-        if (!registro) {
-            return res.status(404).json({ error: 'Registro de salud no encontrado' });
-        }
+        if (!registro) return notFound(res, 'Registro de salud');
 
-        // Validar empleado si se envía
-        if (empleadoId) {
-            const empleado = await Empleado.findByPk(empleadoId);
-            if (!empleado) {
-                return res.status(404).json({ error: 'Empleado no encontrado' });
-            }
-        }
+        if (empleadoId && !(await Empleado.findByPk(empleadoId))) return notFound(res, 'Empleado');
 
-        // Actualizar campos
         await registro.update({
-            tipoExamen,
-            resultado,
-            fechaRealizacion,
-            fechaVencimiento,
+            tipoExamen, resultado, fechaRealizacion, fechaVencimiento,
             comprobante: comprobante || null,
             comprobanteNombre: comprobanteNombre || null,
             comprobanteTipo: comprobanteTipo || null,
@@ -296,116 +182,92 @@ const update = async (req, res) => {
             empleadoId: empleadoId || registro.empleadoId,
         });
 
-        // Retornar registro actualizado
-        const registroActualizado = await RegistroSalud.findByPk(id, {
-            include: includeEmpleado
-        });
-
+        const registroActualizado = await RegistroSalud.findByPk(id, { include: includeEmpleado });
         res.json(registroActualizado);
     } catch (error) {
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
+        return manejarErrorSequelize(res, error);
     }
 };
 
-// Eliminar registro (eliminación lógica)
+/**
+ * Desactiva un registro de salud (eliminación lógica).
+ * Valida que el registro no sea el sustento de una licencia médica activa en el sistema.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
+ */
 const remove = async (req, res) => {
     try {
-        // Verificar permiso de eliminación
-        if (!(await tienePermiso(req.session, 'eliminar'))) {
-            return res.status(403).json({ error: 'No tiene permiso para desactivar registros de salud' });
+        if (!(await tienePermiso(req.session, 'registros_salud', 'eliminar'))) {
+            return respuestaPermisoDenegado(res, 'registros_salud', 'eliminar');
         }
 
         const registro = await RegistroSalud.findByPk(req.params.id);
+        if (!registro) return notFound(res, 'Registro de salud');
 
-        if (!registro) {
-            return res.status(404).json({ error: 'Registro de salud no encontrado' });
-        }
-
-        // --- Verificaciones de entidades asociadas activas ---
         const licenciasActivas = await Licencia.count({
-            include: [{
-                model: Solicitud,
-                as: 'solicitud',
-                where: { activo: true }
-            }],
+            include: [{ model: Solicitud, as: 'solicitud', where: { activo: true } }],
             where: { registroSaludId: registro.id }
         });
         if (licenciasActivas > 0) {
-            return res.status(400).json({ error: `No se puede desactivar el registro de salud porque tiene ${licenciasActivas} licencia(s) activa(s). Primero desactive las licencias.` });
+            return badRequest(res, `El registro tiene ${licenciasActivas} licencia(s) activa(s).`);
         }
 
         await registro.update({ activo: false });
         res.json({ message: 'Registro de salud desactivado correctamente' });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Eliminar registros en lote (eliminación lógica)
+/**
+ * Desactiva múltiples registros de salud en lote.
+ * Realiza verificaciones de integridad referencial para cada registro.
+ *
+ * @param {import('express').Request} req - Request con array de `ids` en el body
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
+ */
 const bulkRemove = async (req, res) => {
     try {
-        // Verificar permiso de eliminación
-        if (!(await tienePermiso(req.session, 'eliminar'))) {
-            return res.status(403).json({ error: 'No tiene permiso para desactivar registros de salud en lote' });
+        if (!(await tienePermiso(req.session, 'registros_salud', 'eliminar'))) {
+            return respuestaPermisoDenegado(res, 'registros_salud', 'eliminar');
         }
-
         const { ids } = req.body;
-
-        if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({ error: 'Se requiere un array de IDs' });
-        }
+        if (!ids || !Array.isArray(ids) || ids.length === 0) return badRequest(res, 'IDs requeridos');
 
         for (const id of ids) {
-            const registro = await RegistroSalud.findByPk(id);
-            if (!registro) continue;
-
-            // --- Verificaciones de entidades asociadas activas ---
             const licenciasActivas = await Licencia.count({
-                include: [{
-                    model: Solicitud,
-                    as: 'solicitud',
-                    where: { activo: true }
-                }],
-                where: { registroSaludId: registro.id }
+                include: [{ model: Solicitud, as: 'solicitud', where: { activo: true } }],
+                where: { registroSaludId: id }
             });
-            if (licenciasActivas > 0) {
-                return res.status(400).json({ error: `No se puede desactivar el registro de salud porque tiene ${licenciasActivas} licencia(s) activa(s). Primero desactive las licencias.` });
-            }
+            if (licenciasActivas > 0) return badRequest(res, 'Un registro posee licencias activas.');
         }
 
-        await RegistroSalud.update(
-            { activo: false },
-            { where: { id: { [Op.in]: ids } } }
-        );
-
-        res.json({ message: `${ids.length} registro(s) de salud desactivado(s) correctamente` });
+        await RegistroSalud.update({ activo: false }, { where: { id: { [Op.in]: ids } } });
+        res.json({ message: `${ids.length} registro(s) desactivado(s)` });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 
-// Reactivar registro
+/**
+ * Reactiva un registro de salud previamente desactivado.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res
+ * @returns {Promise<void>}
+ */
 const reactivate = async (req, res) => {
     try {
         const registro = await RegistroSalud.findByPk(req.params.id);
-
-        if (!registro) {
-            return res.status(404).json({ error: 'Registro de salud no encontrado' });
-        }
+        if (!registro) return notFound(res, 'Registro de salud');
 
         await registro.update({ activo: true });
-
-        const registroReactivado = await RegistroSalud.findByPk(req.params.id, {
-            include: includeEmpleado
-        });
-
-        res.json(registroReactivado);
+        res.json(await RegistroSalud.findByPk(req.params.id, { include: includeEmpleado }));
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return serverError(res, error);
     }
 };
 

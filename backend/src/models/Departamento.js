@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Modelo de Departamento.
+ * Representa una unidad operativa específica dentro de un Área (ej: Contabilidad, Ventas).
+ * @module models/Departamento
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

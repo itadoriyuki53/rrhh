@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Modelo de Puesto.
+ * Define los cargos y responsabilidades asignables a los contratos laborales.
+ * @module models/Puesto
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Rutas para la gestión central de empleados.
+ * Contiene los datos personales y de contacto base del personal.
+ * @module routes/empleadoRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const empleadoController = require('../controllers/empleadoController');
@@ -15,6 +21,8 @@ router.post('/', requirePermiso('empleados', 'crear'), empleadoController.create
 
 // PUT — requiere permiso 'actualizar'
 router.put('/:id', requirePermiso('empleados', 'actualizar'), empleadoController.update);
+
+// PATCH — requiere permiso 'actualizar'
 router.patch('/:id/reactivate', requirePermiso('empleados', 'actualizar'), empleadoController.reactivate);
 
 // DELETE — requiere permiso 'eliminar'

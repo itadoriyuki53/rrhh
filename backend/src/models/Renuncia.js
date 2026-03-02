@@ -1,6 +1,13 @@
+/**
+ * @fileoverview Modelo de Renuncia.
+ * Gestiona la desvinculación voluntaria del empleado, incluyendo preavisos
+ * y fechas de baja efectivas. Dispara la liquidación final vía cron.
+ * @module models/Renuncia
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
+const { parseLocalDate, esDiaHabil } = require('../helpers/fechas.helper');
 
 // Estados de renuncia
 const ESTADOS_RENUNCIA = [

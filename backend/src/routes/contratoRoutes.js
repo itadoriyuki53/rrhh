@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Rutas para la gestión de contratos laborales.
+ * Administra la vinculación de empleados con puestos, salarios y condiciones de trabajo.
+ * @module routes/contratoRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const contratoController = require('../controllers/contratoController');

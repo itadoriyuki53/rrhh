@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Helper para el manejo de fechas.
+ * Proporciona utilidades para validar días hábiles (considerando feriados)
+ * y parsear fechas ignorando el desfase de zona horaria.
+ * @module helpers/fechas.helper
+ */
+
 const feriadosData = require('../data/feriados.json');
 
 /**

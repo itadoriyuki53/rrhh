@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Modelo de Rol.
+ * Define conjuntos de permisos dentro de un Espacio de Trabajo específico.
+ * Se asigna a los contratos de los empleados para controlar el acceso granular.
+ * @module models/Rol
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

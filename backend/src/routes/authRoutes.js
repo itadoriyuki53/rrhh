@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Rutas para la autenticación de usuarios.
+ * Gestiona el inicio/cierre de sesión, registro y gestión de perfil del usuario actual.
+ * @module routes/authRoutes
+ */
+
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');

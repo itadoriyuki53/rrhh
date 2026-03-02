@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Modelo de Liquidación de Sueldo.
+ * Almacena el resultado final del cálculo de haberes y deducciones de un período.
+ * Contiene los totales (Bruto, Retenciones, Neto) y el desglose en formato JSON.
+ * @module models/Liquidacion
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 

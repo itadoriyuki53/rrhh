@@ -1,6 +1,13 @@
+/**
+ * @fileoverview Modelo de Horas Extras.
+ * Representa la jornada suplementaria laborada (50% o 100%).
+ * Se vincula a una Solicitud y se utiliza en el cálculo de la liquidación.
+ * @module models/HorasExtras
+ */
+
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
+const { parseLocalDate, esDiaHabil } = require('../helpers/fechas.helper');
 
 // Tipos de horas extra
 const TIPOS_HORAS_EXTRA = [
