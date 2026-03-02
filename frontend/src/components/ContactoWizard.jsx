@@ -1,56 +1,45 @@
+﻿/**
+ * @fileoverview Orquestador para el alta y edición de contactos de empleados.
+ * @module components/ContactoWizard
+ */
+
 import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import StepTracker from './StepTracker';
 import { getEmpleados, createContacto, updateContacto } from '../services/api';
-import { formatFullName } from '../utils/formatters';
+import { formatFullName } from '../helpers/formatters';
+import { useIsDark } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 
 const PARENTESCOS = [
-    'Cónyuge', 'Padre', 'Madre', 'Hijo/a', 'Hermano/a',
-    'Abuelo/a', 'Nieto/a', 'Tío/a', 'Sobrino/a', 'Primo/a',
-    'Suegro/a', 'Cuñado/a', 'Yerno', 'Nuera', 'Otro'
+    'CÃ³nyuge', 'Padre', 'Madre', 'Hijo/a', 'Hermano/a',
+    'Abuelo/a', 'Nieto/a', 'TÃ­o/a', 'Sobrino/a', 'Primo/a',
+    'Suegro/a', 'CuÃ±ado/a', 'Yerno', 'Nuera', 'Otro'
 ];
 
-// Field error component
+/**
+ * Componente interno de error de campo.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {string} [props.message] - Mensaje de error.
+ */
 const FieldError = ({ message }) => {
     if (!message) return null;
     return <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}</span>;
 };
 
-// Custom styles for react-select - Green selected items
-const getSelectStyles = (isDark) => ({
-    control: (base, state) => ({
-        ...base,
-        backgroundColor: isDark ? '#1e293b' : 'white',
-        borderColor: state.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'),
-        boxShadow: state.isFocused ? '0 0 0 2px rgba(13, 148, 136, 0.2)' : 'none',
-        '&:hover': { borderColor: '#0d9488' },
-        minHeight: '42px',
-        borderRadius: '0.5rem',
-    }),
-    menu: (base) => ({
-        ...base,
-        backgroundColor: isDark ? '#1e293b' : 'white',
-        border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-        borderRadius: '0.5rem',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        zIndex: 9999,
-    }),
-    menuPortal: (base) => ({
-        ...base,
-        zIndex: 9999,
-    }),
-    option: (base, state) => ({
-        ...base,
-        backgroundColor: state.isSelected ? '#0d9488' : state.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent',
-        color: state.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'),
-        cursor: 'pointer',
-        '&:active': { backgroundColor: '#0d9488' },
-    }),
-    input: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    singleValue: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (base) => ({ ...base, color: '#94a3b8' }),
-});
-
+/**
+ * Componente ContactoWizard
+ * 
+ * Formulario multi-paso para gestionar familiares y contactos de emergencia.
+ * Incluye validaciones de DNI, edad mínima del contacto y campos obligatorios.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.contacto] - Objeto contacto a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @returns {JSX.Element}
+ */
 const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
     const isEditing = !!contacto;
     const [currentStep, setCurrentStep] = useState(1);
@@ -78,21 +67,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
     const [fieldErrors, setFieldErrors] = useState({});
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-
-    const steps = [
-        { number: 1, title: 'Datos Básicos' },
-        { number: 2, title: 'Información Adicional' },
-    ];
-
-    // Detect theme changes
-    useEffect(() => {
-        const observer = new MutationObserver(() => {
-            setIsDark(document.documentElement.classList.contains('dark'));
-        });
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => observer.disconnect();
-    }, []);
+    const isDark = useIsDark();
 
     // Load empleados
     useEffect(() => {
@@ -182,7 +157,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
         if (currentStep === 1) {
             if (!formData.empleadoId) errors.empleadoId = 'Debe seleccionar un empleado';
             if (!formData.esFamiliar && !formData.esContactoEmergencia) {
-                errors.checkboxes = 'Debe seleccionar al menos una opción: Familiar o Contacto de Emergencia';
+                errors.checkboxes = 'Debe seleccionar al menos una opciÃ³n: Familiar o Contacto de Emergencia';
             }
             if (!formData.nombreCompleto) {
                 errors.nombreCompleto = 'El nombre completo es requerido';
@@ -192,7 +167,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
             if (!formData.dni) {
                 errors.dni = 'El DNI es requerido';
             } else if (!/^(\d{8}|[MF]\d{7})$/.test(formData.dni)) {
-                errors.dni = 'El DNI debe ser 8 números o comenzar con M/F seguido de 7 números';
+                errors.dni = 'El DNI debe ser 8 nÃºmeros o comenzar con M/F seguido de 7 nÃºmeros';
             }
             if (formData.fechaNacimiento) {
                 const birthDate = new Date(formData.fechaNacimiento);
@@ -201,7 +176,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                 today.setHours(0, 0, 0, 0);
 
                 if (birthDate < minDate) {
-                    errors.fechaNacimiento = 'La fecha de nacimiento no es válida';
+                    errors.fechaNacimiento = 'La fecha de nacimiento no es vÃ¡lida';
                 } else if (birthDate > today) {
                     errors.fechaNacimiento = 'La fecha de nacimiento no puede ser futura';
                 } else {
@@ -212,7 +187,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                         age--;
                     }
                     if (age < 18) {
-                        errors.fechaNacimiento = 'El contacto debe tener al menos 18 años para ser responsable';
+                        errors.fechaNacimiento = 'El contacto debe tener al menos 18 aÃ±os para ser responsable';
                     }
                 }
             }
@@ -223,15 +198,15 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
 
         if (currentStep === 2) {
             if (!formData.telefonoPrincipal) {
-                errors.telefonoPrincipal = 'El teléfono principal es requerido';
+                errors.telefonoPrincipal = 'El telÃ©fono principal es requerido';
             } else if (!/^[0-9+\-\s()]*$/.test(formData.telefonoPrincipal)) {
-                errors.telefonoPrincipal = 'El teléfono solo puede contener números, +, -, espacios y paréntesis';
+                errors.telefonoPrincipal = 'El telÃ©fono solo puede contener nÃºmeros, +, -, espacios y parÃ©ntesis';
             }
             if (formData.telefonoSecundario && !/^[0-9+\-\s()]*$/.test(formData.telefonoSecundario)) {
-                errors.telefonoSecundario = 'El teléfono solo puede contener números, +, -, espacios y paréntesis';
+                errors.telefonoSecundario = 'El telÃ©fono solo puede contener nÃºmeros, +, -, espacios y parÃ©ntesis';
             }
             if (formData.direccion && formData.direccion.length > 300) {
-                errors.direccion = 'La dirección no puede exceder 300 caracteres';
+                errors.direccion = 'La direcciÃ³n no puede exceder 300 caracteres';
             }
         }
 
@@ -304,7 +279,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                     onBlur={() => handleBlur('empleadoId')}
                     placeholder="Buscar y seleccionar empleado..."
                     noOptionsMessage={() => "No se encontraron empleados"}
-                    styles={getSelectStyles(isDark)}
+                    styles={buildSelectStyles(isDark)}
                     formatGroupLabel={data => (
                         <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
                             {data.label}
@@ -407,7 +382,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
         <div style={{ display: 'grid', gap: '1.5rem' }}>
             {/* Checkboxes adicionales */}
             <div className="form-group">
-                <label className="form-label">Información Adicional</label>
+                <label className="form-label">InformaciÃ³n Adicional</label>
                 <div style={{ display: 'flex', gap: '2rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                         <input
@@ -439,10 +414,10 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                 </div>
             </div>
 
-            {/* Teléfonos */}
+            {/* TelÃ©fonos */}
             <div className="form-grid-stacked">
                 <div className="form-group">
-                    <label className="form-label">Teléfono Principal *</label>
+                    <label className="form-label">TelÃ©fono Principal *</label>
                     <input
                         type="tel"
                         className={`form-input ${touched.telefonoPrincipal && fieldErrors.telefonoPrincipal ? 'input-error' : ''}`}
@@ -454,7 +429,7 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                     <FieldError message={touched.telefonoPrincipal && fieldErrors.telefonoPrincipal} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Teléfono Secundario</label>
+                    <label className="form-label">TelÃ©fono Secundario</label>
                     <input
                         type="tel"
                         className={`form-input ${touched.telefonoSecundario && fieldErrors.telefonoSecundario ? 'input-error' : ''}`}
@@ -467,15 +442,15 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                 </div>
             </div>
 
-            {/* Dirección */}
+            {/* DirecciÃ³n */}
             <div className="form-group">
-                <label className="form-label">Dirección</label>
+                <label className="form-label">DirecciÃ³n</label>
                 <textarea
                     className={`form-input ${touched.direccion && fieldErrors.direccion ? 'input-error' : ''}`}
                     value={formData.direccion}
                     onChange={(e) => handleChange('direccion', e.target.value)}
                     onBlur={() => handleBlur('direccion')}
-                    placeholder="Dirección completa (opcional)"
+                    placeholder="DirecciÃ³n completa (opcional)"
                     rows={3}
                     style={{ resize: 'vertical' }}
                     maxLength={300}
@@ -506,8 +481,8 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
                             {steps[currentStep - 1].title}
                         </h3>
                         <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                            {currentStep === 1 && 'Ingresa los datos básicos del contacto'}
-                            {currentStep === 2 && 'Completa la información adicional del contacto'}
+                            {currentStep === 1 && 'Ingresa los datos bÃ¡sicos del contacto'}
+                            {currentStep === 2 && 'Completa la informaciÃ³n adicional del contacto'}
                         </p>
                     </div>
 
@@ -550,3 +525,4 @@ const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
 };
 
 export default ContactoWizard;
+

@@ -1,7 +1,22 @@
+﻿/**
+ * @fileoverview Formulario para la edición manual de conceptos de liquidación.
+ * @module components/LiquidacionFormulario
+ */
+
 import { useState } from 'react';
 import { updateLiquidacion } from '../services/api';
-import { formatDateOnly, formatCurrency } from '../utils/formatters';
+import { formatDateOnly, formatCurrency } from '../helpers/formatters';
 
+/**
+ * Componente LiquidacionFormulario
+ * Permite ajustar manualmente los valores de una liquidación generada.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {Object} props.liquidacion - La liquidación a editar.
+ * @param {Function} props.onClose - Callback para cerrar el formulario.
+ * @param {Function} props.onSuccess - Callback tras guardado exitoso.
+ * @returns {JSX.Element}
+ */
 const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
     const [formData, setFormData] = useState({
         basico: liquidacion?.basico || 0,
@@ -48,7 +63,7 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
                 <div className="modal-header">
-                    <h2 className="modal-title">Editar Liquidación</h2>
+                    <h2 className="modal-title">Editar LiquidaciÃ³n</h2>
                     <button className="modal-close" onClick={onClose}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -58,13 +73,13 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
 
                 <form onSubmit={handleSubmit}>
                     <div className="modal-body" style={{ padding: '2rem' }}>
-                        {/* Título y subtítulo dentro del body */}
+                        {/* TÃ­tulo y subtÃ­tulo dentro del body */}
                         <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
                             <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
                                 Editar Valores
                             </h3>
                             <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                                Modifica los conceptos remunerativos y deducciones de la liquidación
+                                Modifica los conceptos remunerativos y deducciones de la liquidaciÃ³n
                             </p>
                         </div>
 
@@ -89,7 +104,7 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">Período</label>
+                                <label className="form-label">PerÃ­odo</label>
                                 <input
                                     type="text"
                                     className="form-input"
@@ -101,7 +116,7 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">Básico *</label>
+                                <label className="form-label">BÃ¡sico *</label>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -114,7 +129,7 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">Antigüedad</label>
+                                <label className="form-label">AntigÃ¼edad</label>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -214,3 +229,4 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
 };
 
 export default LiquidacionFormulario;
+

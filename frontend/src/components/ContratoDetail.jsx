@@ -1,30 +1,35 @@
-import { formatDateOnly, formatCurrency as formatCurrencyUtil, formatDateTime, formatFullName } from '../utils/formatters';
+﻿/**
+ * @fileoverview Vista detallada de un contrato laboral y sus condiciones.
+ * @module components/ContratoDetail
+ */
+
+import { formatDateOnly, formatCurrency as formatCurrencyUtil, formatDateTime, formatFullName } from '../helpers/formatters';
 import { useAuth } from '../context/AuthContext';
 
 // Mapeo de tipos de contrato a labels legibles
 const TIPOS_CONTRATO_LABELS = {
     tiempo_indeterminado: 'Contrato por Tiempo Indeterminado (Efectivo)',
-    periodo_prueba: 'Período de Prueba (Art. 92 bis)',
+    periodo_prueba: 'PerÃ­odo de Prueba (Art. 92 bis)',
     plazo_fijo: 'Contrato a Plazo Fijo',
     eventual: 'Contrato Eventual',
     teletrabajo: 'Contrato de Teletrabajo (Ley 27.555)',
-    locacion_servicios: 'Locación de Servicios (Contractor / Freelancer)',
+    locacion_servicios: 'LocaciÃ³n de Servicios (Contractor / Freelancer)',
     monotributista: 'Monotributista',
-    responsable_inscripto: 'Responsable Inscripto (Autónomo)',
+    responsable_inscripto: 'Responsable Inscripto (AutÃ³nomo)',
     honorarios: 'Honorarios',
     contrato_obra: 'Contrato de Obra',
-    pasantia_educativa: 'Pasantía Educativa (Ley 26.427)',
+    pasantia_educativa: 'PasantÃ­a Educativa (Ley 26.427)',
     beca: 'Beca',
     ad_honorem: 'Ad honorem',
 };
 
-// Categorías de contrato
+// CategorÃ­as de contrato
 const CATEGORIA_CONTRATO = {
-    tiempo_indeterminado: 'Relación de Dependencia',
-    periodo_prueba: 'Relación de Dependencia',
-    plazo_fijo: 'Relación de Dependencia',
-    eventual: 'Relación de Dependencia',
-    teletrabajo: 'Relación de Dependencia',
+    tiempo_indeterminado: 'RelaciÃ³n de Dependencia',
+    periodo_prueba: 'RelaciÃ³n de Dependencia',
+    plazo_fijo: 'RelaciÃ³n de Dependencia',
+    eventual: 'RelaciÃ³n de Dependencia',
+    teletrabajo: 'RelaciÃ³n de Dependencia',
     locacion_servicios: 'No Laborales / Extracontractuales',
     monotributista: 'No Laborales / Extracontractuales',
     responsable_inscripto: 'No Laborales / Extracontractuales',
@@ -99,10 +104,22 @@ const Icons = {
     ),
 };
 
+/**
+ * Componente ContratoDetail
+ * 
+ * Presenta el estado del contrato (en curso, finalizado, pendiente),
+ * el desglose de puestos asignados, salarios, horarios y rol de sistema.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} props.contrato - Objeto contrato poblado con empleado y puestos.
+ * @param {Function} props.onClose - Callback para cerrar la vista.
+ * @param {Function} [props.onEdit] - Callback para abrir la edición (deshabilitado si finalizado).
+ * @returns {JSX.Element|null}
+ */
 const ContratoDetail = ({ contrato, onClose, onEdit }) => {
     if (!contrato) return null;
 
-    // Permisos del módulo contratos
+    // Permisos del mÃ³dulo contratos
     const { user } = useAuth();
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
@@ -111,7 +128,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
 
     const formatCurrency = formatCurrencyUtil;
 
-    // Calculate relative time (hace X minutos/horas/días)
+    // Calculate relative time (hace X minutos/horas/dÃ­as)
     const getRelativeTime = (dateString) => {
         if (!dateString) return 'fecha desconocida';
         const date = new Date(dateString);
@@ -124,7 +141,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
         if (diffMinutes < 1) return 'menos de un minuto';
         if (diffMinutes < 60) return `${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
         if (diffHours < 24) return `${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-        return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
+        return `${diffDays} dÃ­a${diffDays !== 1 ? 's' : ''}`;
     };
 
     // Determine contract status based on dates
@@ -151,7 +168,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
 
     const categoria = CATEGORIA_CONTRATO[contrato.tipoContrato] || 'Otro';
 
-    // Obtener el primer puesto para el subtítulo
+    // Obtener el primer puesto para el subtÃ­tulo
     const primerPuesto = contrato.puestos?.[0];
     const subtitulo = primerPuesto
         ? `${primerPuesto.nombre}${primerPuesto.departamento?.area?.empresa?.nombre ? ` - ${primerPuesto.departamento.area.empresa.nombre}` : ''}`
@@ -317,9 +334,9 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
 
                     {/* Registro de Actividad Section */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(contrato.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Ãšltimos cambios hace ${getRelativeTime(contrato.updatedAt)}`} />
                         <div className="activity-log-grid">
-                            {/* Fecha de Creación */}
+                            {/* Fecha de CreaciÃ³n */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -332,7 +349,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Fecha de Creación
+                                        Fecha de CreaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(contrato.createdAt)}
@@ -367,7 +384,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                                     </span>
                                 </div>
                             </div>
-                            {/* Última Modificación */}
+                            {/* Ãšltima ModificaciÃ³n */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -379,7 +396,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Última Modificación
+                                        Ãšltima ModificaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(contrato.updatedAt)}
@@ -394,7 +411,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                         <div>
                             {/* Column 1: Resumen */}
                             <div style={{ marginBottom: '1.5rem' }}>
-                                <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(contrato.updatedAt)}`} />
+                                <SectionHeader title="Resumen" subtitle={`Ãšltimos cambios hace ${getRelativeTime(contrato.updatedAt)}`} />
                                 <div style={{
                                     background: 'var(--card-bg)',
                                     borderRadius: '0.5rem',
@@ -434,13 +451,13 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                                     <Field icon={Icons.calendar} label="Fecha de Inicio" value={formatDateOnly(contrato.fechaInicio)} />
                                     <Field icon={Icons.calendar} label="Fecha de Fin" value={contrato.fechaFin ? formatDateOnly(contrato.fechaFin) : 'Indeterminado'} />
                                     <Field icon={Icons.document} label="Tipo de Contrato" value={TIPOS_CONTRATO_LABELS[contrato.tipoContrato] || contrato.tipoContrato} />
-                                    <Field icon={Icons.building} label="Categoría" value={categoria} />
+                                    <Field icon={Icons.building} label="CategorÃ­a" value={categoria} />
                                 </div>
                             </div>
 
                             {/* Puestos Asignados */}
                             <div>
-                                <SectionHeader title={`Distribución de Puestos`} subtitle={`Total de Puesto(s) Asignado(s): ${contrato.puestos?.length || 0}`} />
+                                <SectionHeader title={`DistribuciÃ³n de Puestos`} subtitle={`Total de Puesto(s) Asignado(s): ${contrato.puestos?.length || 0}`} />
                                 <div style={{
                                     background: 'var(--card-bg)',
                                     borderRadius: '0.5rem',
@@ -464,7 +481,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                                                         {puesto.nombre}
                                                     </div>
                                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                                        {puesto.departamento?.nombre} • {puesto.departamento?.area?.nombre} • {puesto.departamento?.area?.empresa?.nombre}
+                                                        {puesto.departamento?.nombre} â€¢ {puesto.departamento?.area?.nombre} â€¢ {puesto.departamento?.area?.empresa?.nombre}
                                                     </div>
                                                 </div>
                                             </div>
@@ -482,7 +499,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                         <div>
                             {/* Datos del Empleado */}
                             <div style={{ marginBottom: '1.5rem' }}>
-                                <SectionHeader title="Datos del Empleado" subtitle={`Últimos cambios hace ${getRelativeTime(contrato.empleado?.updatedAt || contrato.updatedAt)}`} />
+                                <SectionHeader title="Datos del Empleado" subtitle={`Ãšltimos cambios hace ${getRelativeTime(contrato.empleado?.updatedAt || contrato.updatedAt)}`} />
                                 <div style={{
                                     background: 'var(--card-bg)',
                                     borderRadius: '0.5rem',
@@ -531,7 +548,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
 
                             {/* Condiciones */}
                             <div>
-                                <SectionHeader title="Condiciones" subtitle={`Últimos cambios hace ${getRelativeTime(contrato.updatedAt)}`} />
+                                <SectionHeader title="Condiciones" subtitle={`Ãšltimos cambios hace ${getRelativeTime(contrato.updatedAt)}`} />
                                 <div style={{
                                     background: 'var(--card-bg)',
                                     borderRadius: '0.5rem',
@@ -541,7 +558,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                                     <Field icon={Icons.money} label="Salario" value={formatCurrency(contrato.salario)} />
                                     <Field icon={Icons.clock} label="Horario" value={contrato.horario} />
                                     {contrato.compensacion && (
-                                        <Field icon={Icons.gift} label="Compensación Adicional" value={contrato.compensacion} />
+                                        <Field icon={Icons.gift} label="CompensaciÃ³n Adicional" value={contrato.compensacion} />
                                     )}
                                 </div>
                             </div>
@@ -565,3 +582,4 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
 };
 
 export default ContratoDetail;
+

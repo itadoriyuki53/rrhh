@@ -1,10 +1,20 @@
+﻿/**
+ * @fileoverview Componente que redirige a usuarios ya autenticados lejos de rutas públicas (login/register).
+ * @module components/PublicRoute
+ */
+
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 /**
- * Componente que redirige a usuarios autenticados lejos de rutas públicas
- * Usar en rutas como /login y /register
+ * Componente PublicRoute
+ * Redirige a /dashboard si el usuario ya inició sesión.
+ * Utilizado para prevenir re-login accidental.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {React.ReactNode} props.children - Componentes de la ruta pública.
+ * @returns {JSX.Element}
  */
 const PublicRoute = ({ children }) => {
     const navigate = useNavigate();
@@ -16,7 +26,7 @@ const PublicRoute = ({ children }) => {
         }
     }, [isAuthenticated, loading, navigate]);
 
-    // Mostrar loader mientras verifica autenticación
+    // Mostrar loader mientras verifica autenticaciÃ³n
     if (loading) {
         return (
             <div style={{
@@ -33,14 +43,15 @@ const PublicRoute = ({ children }) => {
                     textAlign: 'center',
                     boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
                 }}>
-                    <p style={{ margin: 0, color: 'var(--text-primary)' }}>Verificando sesión...</p>
+                    <p style={{ margin: 0, color: 'var(--text-primary)' }}>Verificando sesiÃ³n...</p>
                 </div>
             </div>
         );
     }
 
-    // Si no está autenticado, mostrar el contenido (login/register)
+    // Si no estÃ¡ autenticado, mostrar el contenido (login/register)
     return children;
 };
 
 export default PublicRoute;
+

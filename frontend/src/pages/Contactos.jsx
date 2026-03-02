@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Gestión y listado de contactos asociados a empleados.
+ * @module pages/Contactos
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -14,39 +19,32 @@ import {
 import ContactoWizard from '../components/ContactoWizard';
 import ContactoDetail from '../components/ContactoDetail';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { truncateText, formatFullName } from '../utils/formatters';
+import { truncateText, formatFullName } from '../helpers/formatters';
+import { useIsDark, useModulePermissions } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 
 const PARENTESCOS = [
-    'Cónyuge', 'Padre', 'Madre', 'Hijo/a', 'Hermano/a',
-    'Abuelo/a', 'Nieto/a', 'Tío/a', 'Sobrino/a', 'Primo/a',
-    'Suegro/a', 'Cuñado/a', 'Yerno', 'Nuera', 'Otro'
+    'CÃ³nyuge', 'Padre', 'Madre', 'Hijo/a', 'Hermano/a',
+    'Abuelo/a', 'Nieto/a', 'TÃ­o/a', 'Sobrino/a', 'Primo/a',
+    'Suegro/a', 'CuÃ±ado/a', 'Yerno', 'Nuera', 'Otro'
 ];
-
-const buildSelectStyles = (isDark) => ({
-    control: (b, s) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', borderColor: s.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'), boxShadow: 'none', '&:hover': { borderColor: '#0d9488' }, minHeight: '36px', fontSize: '0.875rem', borderRadius: '0.5rem' }),
-    menu: (b) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 9999 }),
-    option: (b, s) => ({ ...b, backgroundColor: s.isSelected ? '#0d9488' : s.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent', color: s.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'), fontSize: '0.875rem', cursor: 'pointer' }),
-    groupHeading: (b) => ({ ...b, fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.7rem', color: '#64748b' }),
-    input: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b', fontSize: '0.875rem' }),
-    singleValue: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (b) => ({ ...b, color: '#94a3b8', fontSize: '0.875rem' }),
-    valueContainer: (b) => ({ ...b, padding: '0 8px' }),
-    menuPortal: (b) => ({ ...b, zIndex: 9999 }),
-});
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
+/**
+ * Componente Contactos
+ * 
+ * Interfaz principal para visualizar y administrar la información de los contactos asociados a los empleados.
+ * Utiliza hooks centralizados (useIsDark, useModulePermissions) para el control visual y validación de 
+ * permisos de usuario sobre el módulo 'contactos'. Integra múltiples handlers de estado (filtros, paginado, etc).
+ * 
+ * @returns {JSX.Element} Vista del grid y dashboard de Contactos.
+ */
 const Contactos = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    // Permisos del módulo empresas
-    const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
-    const userPermisos = user?.rol?.permisos || [];
-    const canRead = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'contactos' && p.accion === 'leer');
-    const canCreate = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'contactos' && p.accion === 'crear');
-    const canEdit = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'contactos' && p.accion === 'actualizar');
-    const canDelete = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'contactos' && p.accion === 'eliminar');
+    const { isEmpleadoUser, canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'contactos');
 
     // Data State
     const [items, setItems] = useState([]);
@@ -74,7 +72,7 @@ const Contactos = () => {
     // Filter lists
     const [empleadosList, setEmpleadosList] = useState([]);
     const [espaciosList, setEspaciosList] = useState([]);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const isDark = useIsDark();
 
     // Selection
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -100,12 +98,7 @@ const Contactos = () => {
     const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
-    // Theme observer
-    useEffect(() => {
-        const obs = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
-        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => obs.disconnect();
-    }, []);
+
 
     // Redirigir si no tiene permiso de lectura
     useEffect(() => {
@@ -114,7 +107,12 @@ const Contactos = () => {
         }
     }, [user, isEmpleadoUser, canRead, navigate]);
 
-    // Load filter data
+    /**
+     * Carga de manera asíncrona la lista de empleados y espacios de trabajo para poblar los filtros
+     * iniciales usando Promise.all para optimizar latencia.
+     * 
+     * @returns {Promise<void>}
+     */
     useEffect(() => {
         const load = async () => {
             try {
@@ -187,6 +185,13 @@ const Contactos = () => {
     }, [dniInput]);
 
     // Load Items
+    /**
+     * Refresca la vista de contactos realizando una consulta al servicio API `getContactos`.
+     * Filtra los resultados considerando la paginación, búsqueda textual y filtros categóricos.
+     * 
+     * @async
+     * @returns {Promise<void>}
+     */
     const loadItems = useCallback(async () => {
         try {
             setLoading(true);
@@ -219,6 +224,11 @@ const Contactos = () => {
         loadItems();
     }, [loadItems]);
 
+    /**
+     * Restablece activamente y elimina todos los filtros aplicados a la vista de datos.
+     * 
+     * @returns {void}
+     */
     const clearFilters = () => {
         setSearchInput('');
         setFilterNombre('');
@@ -404,13 +414,13 @@ const Contactos = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                 </div>
             )}
 
@@ -616,7 +626,7 @@ const Contactos = () => {
                         {/* Pagination */}
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por página:</span>
+                                <span>Filas por pÃ¡gina:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                     {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
@@ -625,11 +635,11 @@ const Contactos = () => {
                                 </span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
-                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
+                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
                             </div>
                         </div>
                     </>
@@ -657,7 +667,7 @@ const Contactos = () => {
             <ConfirmDialog
                 isOpen={confirmOpen}
                 title="Desactivar contacto"
-                message={itemToDelete ? `¿Estás seguro de desactivar al contacto "${itemToDelete.nombreCompleto}"? Podrás reactivarlo más tarde.` : ''}
+                message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar al contacto "${itemToDelete.nombreCompleto}"? PodrÃ¡s reactivarlo mÃ¡s tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -667,7 +677,7 @@ const Contactos = () => {
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
                 title="Desactivar contactos"
-                message={`¿Estás seguro de desactivar ${selectedIds.size} contacto(s)? Podrás reactivarlos más tarde.`}
+                message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} contacto(s)? PodrÃ¡s reactivarlos mÃ¡s tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todos"
@@ -678,3 +688,4 @@ const Contactos = () => {
 };
 
 export default Contactos;
+

@@ -1,6 +1,20 @@
+﻿/**
+ * @fileoverview Formulario para la creación y edición de espacios de trabajo.
+ * @module components/EspacioTrabajoFormulario
+ */
+
 import { useState, useEffect } from 'react';
 import { createEspacioTrabajo, updateEspacioTrabajo } from '../services/api';
 
+/**
+ * Componente EspacioTrabajoFormulario
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.espacio] - Objeto espacio a editar (null para creación).
+ * @param {Function} props.onClose - Callback para cerrar el modal.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @returns {JSX.Element}
+ */
 const EspacioTrabajoFormulario = ({ espacio, onClose, onSuccess }) => {
     const isEditMode = !!espacio;
     const [formData, setFormData] = useState({
@@ -64,13 +78,13 @@ const EspacioTrabajoFormulario = ({ espacio, onClose, onSuccess }) => {
 
                 <form onSubmit={handleSubmit}>
                     <div className="modal-body" style={{ padding: '2rem' }}>
-                        {/* Título y subtítulo dentro del body */}
+                        {/* TÃ­tulo y subtÃ­tulo dentro del body */}
                         <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
                             <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                                Información Básica
+                                InformaciÃ³n BÃ¡sica
                             </h3>
                             <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                                {isEditMode ? 'Modifica los datos del espacio de trabajo' : 'Completa la información para crear un nuevo espacio de trabajo'}
+                                {isEditMode ? 'Modifica los datos del espacio de trabajo' : 'Completa la informaciÃ³n para crear un nuevo espacio de trabajo'}
                             </p>
                         </div>
 
@@ -95,13 +109,13 @@ const EspacioTrabajoFormulario = ({ espacio, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">Descripción</label>
+                                <label className="form-label">DescripciÃ³n</label>
                                 <textarea
                                     name="descripcion"
                                     className="form-input"
                                     value={formData.descripcion}
                                     onChange={handleChange}
-                                    placeholder="Descripción del espacio de trabajo..."
+                                    placeholder="DescripciÃ³n del espacio de trabajo..."
                                     rows={4}
                                     style={{ resize: 'vertical', minHeight: '100px' }}
                                     maxLength={1000}
@@ -128,3 +142,4 @@ const EspacioTrabajoFormulario = ({ espacio, onClose, onSuccess }) => {
 };
 
 export default EspacioTrabajoFormulario;
+

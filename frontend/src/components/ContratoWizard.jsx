@@ -1,3 +1,8 @@
+﻿/**
+ * @fileoverview Asistente multi-paso para la creación y edición de contratos laborales.
+ * @module components/ContratoWizard
+ */
+
 import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import StepTracker from './StepTracker';
@@ -11,111 +16,86 @@ import {
     getPuestosConContrato,
     getRoles
 } from '../services/api';
-import { validarDiaHabil } from '../utils/diasHabiles';
-import { getTodayStr, formatFullName } from '../utils/formatters';
+import { validarDiaHabil } from '../helpers/diasHabiles';
+import { getTodayStr, formatFullName } from '../helpers/formatters';
+import { useIsDark } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 
-// Tipos de contrato agrupados por categoría
+// Tipos de contrato agrupados por categorÃ­a
 const TIPOS_CONTRATO = {
-    'Relación de Dependencia (Ley 20.744 – LCT)': [
+    'RelaciÃ³n de Dependencia (Ley 20.744 â€“ LCT)': [
         { value: 'tiempo_indeterminado', label: 'Contrato por Tiempo Indeterminado (Efectivo)' },
-        { value: 'periodo_prueba', label: 'Período de Prueba (Art. 92 bis)' },
+        { value: 'periodo_prueba', label: 'PerÃ­odo de Prueba (Art. 92 bis)' },
         { value: 'plazo_fijo', label: 'Contrato a Plazo Fijo' },
         { value: 'eventual', label: 'Contrato Eventual' },
         { value: 'teletrabajo', label: 'Contrato de Teletrabajo (Ley 27.555)' },
     ],
     'No Laborales / Extracontractuales (Freelancers / Outsourcing)': [
-        { value: 'locacion_servicios', label: 'Locación de Servicios (Contractor / Freelancer)' },
+        { value: 'locacion_servicios', label: 'LocaciÃ³n de Servicios (Contractor / Freelancer)' },
         { value: 'monotributista', label: 'Monotributista' },
-        { value: 'responsable_inscripto', label: 'Responsable Inscripto (Autónomo)' },
+        { value: 'responsable_inscripto', label: 'Responsable Inscripto (AutÃ³nomo)' },
         { value: 'honorarios', label: 'Honorarios' },
         { value: 'contrato_obra', label: 'Contrato de Obra' },
     ],
     'Formativos (Educativos)': [
-        { value: 'pasantia_educativa', label: 'Pasantía Educativa (Ley 26.427)' },
+        { value: 'pasantia_educativa', label: 'PasantÃ­a Educativa (Ley 26.427)' },
         { value: 'beca', label: 'Beca' },
         { value: 'ad_honorem', label: 'Ad honorem' },
     ],
 };
 
 // Tooltip content for Step 1 - Puestos
-const TOOLTIP_PUESTOS = `**Reglas de asignación:**
-• Un empleado puede tener varios puestos en un mismo contrato solo si pertenecen a la misma empresa.
-• Si los puestos son de empresas distintas, deben crearse contratos separados.
-• No se permite crear un contrato para un puesto que el empleado ya tiene asignado en otro contrato activo.
+const TOOLTIP_PUESTOS = `**Reglas de asignaciÃ³n:**
+â€¢ Un empleado puede tener varios puestos en un mismo contrato solo si pertenecen a la misma empresa.
+â€¢ Si los puestos son de empresas distintas, deben crearse contratos separados.
+â€¢ No se permite crear un contrato para un puesto que el empleado ya tiene asignado en otro contrato activo.
 
-**Categoría superior:** Según la Ley de Contrato de Trabajo, si el empleado realiza dos tareas de distinta jerarquía, se le debe remunerar según la de mayor categoría o proporcionalmente al tiempo dedicado a cada una.`;
+**CategorÃ­a superior:** SegÃºn la Ley de Contrato de Trabajo, si el empleado realiza dos tareas de distinta jerarquÃ­a, se le debe remunerar segÃºn la de mayor categorÃ­a o proporcionalmente al tiempo dedicado a cada una.`;
 
 // Tooltip content for Step 2 - Tipos de Contrato
-const TOOLTIP_TIPOS_CONTRATO = `**Relación de Dependencia**
-• La empresa paga cargas sociales (jubilación, obra social, ART).
-• El estándar es el contrato por tiempo indeterminado.
-• El período de prueba comprende los primeros 3 meses (Art. 92 bis).
-• El plazo fijo tiene fecha de fin y requiere preaviso especial.
-• El contrato eventual cubre necesidades extraordinarias.
-• El teletrabajo debe registrarse según la ley vigente.
+const TOOLTIP_TIPOS_CONTRATO = `**RelaciÃ³n de Dependencia**
+â€¢ La empresa paga cargas sociales (jubilaciÃ³n, obra social, ART).
+â€¢ El estÃ¡ndar es el contrato por tiempo indeterminado.
+â€¢ El perÃ­odo de prueba comprende los primeros 3 meses (Art. 92 bis).
+â€¢ El plazo fijo tiene fecha de fin y requiere preaviso especial.
+â€¢ El contrato eventual cubre necesidades extraordinarias.
+â€¢ El teletrabajo debe registrarse segÃºn la ley vigente.
 
 **No Laborales / Extracontractuales**
-• Incluye locación de servicios, monotributistas, responsables inscriptos, honorarios y contrato de obra.
-• No tienen recibo de sueldo ni vacaciones pagas automáticas.
-• Requieren constancia de inscripción y facturación mensual.
+â€¢ Incluye locaciÃ³n de servicios, monotributistas, responsables inscriptos, honorarios y contrato de obra.
+â€¢ No tienen recibo de sueldo ni vacaciones pagas automÃ¡ticas.
+â€¢ Requieren constancia de inscripciÃ³n y facturaciÃ³n mensual.
 
 **Formativos**
-• Incluye pasantía educativa, beca y ad honorem.
-• No son empleados ni freelancers.
-• La pasantía tiene duración máxima y asignación estímulo.`;
+â€¢ Incluye pasantÃ­a educativa, beca y ad honorem.
+â€¢ No son empleados ni freelancers.
+â€¢ La pasantÃ­a tiene duraciÃ³n mÃ¡xima y asignaciÃ³n estÃ­mulo.`;
 
-// Error component
+/**
+ * Componente interno de error de campo.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {string} [props.message] - Mensaje de error.
+ */
 const FieldError = ({ message }) => {
     if (!message) return null;
     return <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}</span>;
 };
 
-// Custom styles for react-select with solid colors for dark/light mode
-const getSelectStyles = (isDark) => ({
-    control: (base, state) => ({
-        ...base,
-        backgroundColor: isDark ? '#1e293b' : 'white',
-        borderColor: state.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'),
-        boxShadow: state.isFocused ? '0 0 0 2px rgba(13, 148, 136, 0.2)' : 'none',
-        '&:hover': { borderColor: '#0d9488' },
-        minHeight: '42px',
-        borderRadius: '0.5rem',
-    }),
-    menu: (base) => ({
-        ...base,
-        backgroundColor: isDark ? '#1e293b' : 'white',
-        border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-        borderRadius: '0.5rem',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        zIndex: 1000,
-    }),
-    option: (base, state) => ({
-        ...base,
-        backgroundColor: state.isSelected ? '#0d9488' : state.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent',
-        color: state.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'),
-        cursor: 'pointer',
-        '&:active': { backgroundColor: '#0d9488' },
-    }),
-    multiValue: (base) => ({
-        ...base,
-        backgroundColor: '#0d9488',
-        borderRadius: '0.375rem',
-    }),
-    multiValueLabel: (base) => ({
-        ...base,
-        color: 'white',
-        padding: '4px 8px',
-    }),
-    multiValueRemove: (base) => ({
-        ...base,
-        color: 'white',
-        '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' },
-    }),
-    input: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    singleValue: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (base) => ({ ...base, color: '#94a3b8' }),
-});
-
+/**
+ * Componente ContratoWizard
+ * 
+ * Gestiona el ciclo de vida de un contrato: selección de empleado/puesto,
+ * tipo de contrato (dependencia, freelance, formativo) y condiciones económicas/horarias.
+ * Permite la creación masiva (un contrato por empleado si se seleccionan varios).
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.contrato] - Objeto contrato a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @param {Object} [props.empleadoPreseleccionado] - Empleado inicial opcional.
+ * @returns {JSX.Element}
+ */
 const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleadoPreseleccionado = null }) => {
     const { user } = useAuth();
     const isEditMode = !!contratoToEdit;
@@ -127,16 +107,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
     const [isEditDataLoaded, setIsEditDataLoaded] = useState(false);
     const [showTooltipPuestos, setShowTooltipPuestos] = useState(false);
     const [showTooltipTipos, setShowTooltipTipos] = useState(false);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-
-    // Detect theme changes
-    useEffect(() => {
-        const observer = new MutationObserver(() => {
-            setIsDark(document.documentElement.classList.contains('dark'));
-        });
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => observer.disconnect();
-    }, []);
+    const isDark = useIsDark();
 
     // Data
     const [empleados, setEmpleados] = useState([]);
@@ -245,7 +216,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                 roleFilters.espacioTrabajoId = filters.espacioTrabajoId;
             }
 
-            // Para empresas, también usamos el mismo filtro
+            // Para empresas, tambiÃ©n usamos el mismo filtro
             const empresaFilters = { limit: 100, activo: 'true' };
             if (filters.espacioTrabajoId) {
                 empresaFilters.espacioTrabajoId = filters.espacioTrabajoId;
@@ -336,7 +307,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
 
         setSelectedEmpleados(selectedOptions);
 
-        // Resetear puestos al cambiar selección, except when loading edit data
+        // Resetear puestos al cambiar selecciÃ³n, except when loading edit data
         if (!skipPuestosReset) {
             setSelectedPuestos([]);
             setSelectedEmpresa(null);
@@ -383,11 +354,11 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
         } else if (currentStep === 2) {
             if (!tipoContrato) errors.tipoContrato = 'Debe seleccionar un tipo de contrato';
         } else if (currentStep === 3) {
-            // Validación de fecha de inicio
+            // ValidaciÃ³n de fecha de inicio
             if (!formData.fechaInicio) {
                 errors.fechaInicio = 'La fecha de inicio es requerida';
             } else if (!isEditMode) {
-                // Solo validar que no sea anterior a hoy si no es edición
+                // Solo validar que no sea anterior a hoy si no es ediciÃ³n
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const [year, month, day] = formData.fechaInicio.split('-');
@@ -397,55 +368,55 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                 }
             }
 
-            // Validación de fecha de fin (si se ingresó)
+            // ValidaciÃ³n de fecha de fin (si se ingresÃ³)
             if (formData.fechaFin && formData.fechaInicio) {
                 if (new Date(formData.fechaFin) < new Date(formData.fechaInicio)) {
                     errors.fechaFin = 'La fecha de fin no puede ser anterior a la fecha de inicio';
                 }
             }
 
-            // Validación de horario
+            // ValidaciÃ³n de horario
             if (!formData.horario?.trim()) {
                 errors.horario = 'El horario es requerido';
             } else if (formData.horario.length < 5 || formData.horario.length > 100) {
                 errors.horario = 'El horario debe tener entre 5 y 100 caracteres';
             }
 
-            // Validación de salario
+            // ValidaciÃ³n de salario
             if (!formData.salario) {
                 errors.salario = 'El salario es requerido';
             } else if (isNaN(parseFloat(formData.salario))) {
-                errors.salario = 'Debe ser un número válido';
+                errors.salario = 'Debe ser un nÃºmero vÃ¡lido';
             } else if (parseFloat(formData.salario) < 0) {
                 errors.salario = 'El salario no puede ser negativo';
             } else if (parseFloat(formData.salario) > 999999999.99) {
                 errors.salario = 'El salario no puede exceder 999,999,999.99';
             }
 
-            // Validación de compensación (opcional pero con límite)
+            // ValidaciÃ³n de compensaciÃ³n (opcional pero con lÃ­mite)
             if (formData.compensacion && formData.compensacion.length > 500) {
-                errors.compensacion = 'La compensación no puede exceder 500 caracteres';
+                errors.compensacion = 'La compensaciÃ³n no puede exceder 500 caracteres';
             }
 
-            // Validación de rol
+            // ValidaciÃ³n de rol
             if (!formData.rolId) {
                 errors.rolId = 'El rol es requerido';
             }
         }
 
-        // Preservar solo los errores de días hábiles de campos de fecha
+        // Preservar solo los errores de dÃ­as hÃ¡biles de campos de fecha
         setFieldErrors(prev => {
             const camposFecha = ['fechaInicio', 'fechaFin'];
             const erroresDiasHabiles = {};
 
-            // Preservar errores de días hábiles en campos de fecha
+            // Preservar errores de dÃ­as hÃ¡biles en campos de fecha
             camposFecha.forEach(campo => {
-                if (prev[campo] && prev[campo].includes('día hábil')) {
+                if (prev[campo] && prev[campo].includes('dÃ­a hÃ¡bil')) {
                     erroresDiasHabiles[campo] = prev[campo];
                 }
             });
 
-            // Combinar: errores de la validación actual + errores de días hábiles preservados
+            // Combinar: errores de la validaciÃ³n actual + errores de dÃ­as hÃ¡biles preservados
             return { ...erroresDiasHabiles, ...errors };
         });
 
@@ -465,17 +436,17 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
         validateStep();
     };
 
-    const handleChange = (e) => { // ✅ Síncrono ahora
+    const handleChange = (e) => { // âœ… SÃ­ncrono ahora
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
 
-        // Validar días hábiles en tiempo real SÍNCRONO
+        // Validar dÃ­as hÃ¡biles en tiempo real SÃNCRONO
         if ((name === 'fechaInicio' || name === 'fechaFin') && value) {
             try {
                 const nombreCampo = name === 'fechaInicio'
                     ? 'La fecha de inicio'
                     : 'La fecha de fin';
-                validarDiaHabil(value, nombreCampo); // ✅ Síncrono
+                validarDiaHabil(value, nombreCampo); // âœ… SÃ­ncrono
                 setFieldErrors(prev => ({ ...prev, [name]: null }));
             } catch (error) {
                 setFieldErrors(prev => ({ ...prev, [name]: error.message }));
@@ -621,7 +592,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                     {isEditMode ? 'Empleado *' : 'Empleado(s) *'}
                     {!isEditMode && selectedEmpleados.length > 1 && (
                         <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--primary-color)', fontWeight: 500 }}>
-                            ({selectedEmpleados.length} seleccionados - se creará un contrato por cada uno)
+                            ({selectedEmpleados.length} seleccionados - se crearÃ¡ un contrato por cada uno)
                         </span>
                     )}
                 </label>
@@ -643,7 +614,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                     onBlur={() => handleBlur('empleados')}
                     placeholder={isEditMode ? "Empleado..." : "Buscar y seleccionar empleados..."}
                     noOptionsMessage={() => "No se encontraron empleados"}
-                    styles={getSelectStyles(isDark)}
+                    styles={buildSelectStyles(isDark)}
                     isClearable={!isEmpleadoLocked}
                     closeMenuOnSelect={isEditMode}
                     formatGroupLabel={data => (
@@ -679,7 +650,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                         onChange={handleEmpresaChange}
                         placeholder="Seleccionar empresa..."
                         noOptionsMessage={() => "No se encontraron empresas"}
-                        styles={getSelectStyles(isDark)}
+                        styles={buildSelectStyles(isDark)}
                         isClearable
                         formatGroupLabel={data => (
                             <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
@@ -720,7 +691,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                         noOptionsMessage={() => "No hay puestos disponibles"}
                         formatOptionLabel={formatPuestoOption}
                         isOptionDisabled={isPuestoDisabled}
-                        styles={getSelectStyles(isDark)}
+                        styles={buildSelectStyles(isDark)}
                         closeMenuOnSelect={false}
                     />
                     <FieldError message={touched.puestos && fieldErrors.puestos} />
@@ -819,7 +790,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                 <FieldError message={touched.horario && fieldErrors.horario} />
             </div>
 
-            {/* Salario y Compensación */}
+            {/* Salario y CompensaciÃ³n */}
             <div className="form-grid-stacked">
                 <div className="form-group">
                     <label className="form-label">Salario *</label>
@@ -837,7 +808,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                     <FieldError message={touched.salario && fieldErrors.salario} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Compensación</label>
+                    <label className="form-label">CompensaciÃ³n</label>
                     <input
                         type="text"
                         name="compensacion"
@@ -876,7 +847,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                     onBlur={() => handleBlur('rolId')}
                     placeholder="Seleccionar rol..."
                     noOptionsMessage={() => "No se encontraron roles"}
-                    styles={getSelectStyles(isDark)}
+                    styles={buildSelectStyles(isDark)}
                     formatGroupLabel={data => (
                         <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
                             {data.label}
@@ -913,7 +884,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                             {steps[currentStep - 1].title}
                         </h3>
                         <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                            {currentStep === 1 && 'Selecciona el empleado y los puestos que ocupará'}
+                            {currentStep === 1 && 'Selecciona el empleado y los puestos que ocuparÃ¡'}
                             {currentStep === 2 && 'Elige el tipo de contrato laboral'}
                             {currentStep === 3 && 'Completa los datos del contrato'}
                         </p>
@@ -959,3 +930,4 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
 };
 
 export default ContratoWizard;
+

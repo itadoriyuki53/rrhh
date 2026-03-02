@@ -1,12 +1,27 @@
+﻿/**
+ * @fileoverview Menú lateral de navegación con control de permisos por módulo.
+ * @module components/Sidebar
+ */
+
 import { NavLink } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
+/**
+ * Componente Sidebar
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {boolean} props.isCollapsed - Estado de colapso de la barra.
+ * @param {Function} props.onToggle - Función para alternar el colapso.
+ * @param {boolean} [props.isMobileOpen=false] - Indica si está abierto en vista móvil (overlay).
+ * @param {Function} [props.onMobileClose] - Función para cerrar el menú en móvil.
+ * @returns {JSX.Element}
+ */
 const Sidebar = ({ isCollapsed, onToggle, isMobileOpen = false, onMobileClose }) => {
     const { isDark, toggleTheme } = useTheme();
     const { user } = useAuth();
 
-    // Permisos de los módulos
+    // Permisos de los mÃ³dulos
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
     const canReadEmpleados = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'empleados' && p.accion === 'leer');
@@ -213,7 +228,7 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileOpen = false, onMobileClose })
                     {!isCollapsed && <span>{isDark ? 'Modo claro' : 'Modo oscuro'}</span>}
                 </button>
                 {!isCollapsed && (
-                    <p className="sidebar-copyright">© 2026 CataratasRH</p>
+                    <p className="sidebar-copyright">Â© 2026 CataratasRH</p>
                 )}
             </div>
         </aside>
@@ -221,3 +236,4 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileOpen = false, onMobileClose })
 };
 
 export default Sidebar;
+

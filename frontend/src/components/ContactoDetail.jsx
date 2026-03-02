@@ -1,4 +1,9 @@
-import { formatDateOnly, formatDateTime, formatFullName } from '../utils/formatters';
+﻿/**
+ * @fileoverview Vista detallada de un contacto de empleado (familiar o emergencia).
+ * @module components/ContactoDetail
+ */
+
+import { formatDateOnly, formatDateTime, formatFullName } from '../helpers/formatters';
 import { useAuth } from '../context/AuthContext';
 
 // Icons SVG components
@@ -67,21 +72,33 @@ const Icons = {
 };
 
 const PARENTESCOS = [
-    'Cónyuge', 'Padre', 'Madre', 'Hijo/a', 'Hermano/a',
-    'Abuelo/a', 'Nieto/a', 'Tío/a', 'Sobrino/a', 'Primo/a',
-    'Suegro/a', 'Cuñado/a', 'Yerno', 'Nuera', 'Otro'
+    'CÃ³nyuge', 'Padre', 'Madre', 'Hijo/a', 'Hermano/a',
+    'Abuelo/a', 'Nieto/a', 'TÃ­o/a', 'Sobrino/a', 'Primo/a',
+    'Suegro/a', 'CuÃ±ado/a', 'Yerno', 'Nuera', 'Otro'
 ];
 
+/**
+ * Componente ContactoDetail
+ * 
+ * Muestra la información completa de un contacto, incluyendo su relación con el empleado,
+ * datos de contacto, ubicación e información adicional como discapacidad o dependencia.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} props.contacto - Objeto contacto con sus relaciones pobladas.
+ * @param {Function} props.onClose - Callback para cerrar la vista.
+ * @param {Function} [props.onEdit] - Callback para abrir la edición.
+ * @returns {JSX.Element|null}
+ */
 const ContactoDetail = ({ contacto, onClose, onEdit }) => {
     if (!contacto) return null;
 
-    // Permisos del módulo contactos
+    // Permisos del mÃ³dulo contactos
     const { user } = useAuth();
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
     const canEdit = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'contactos' && p.accion === 'actualizar');
 
-    // Calculate relative time (hace X minutos/horas/días)
+    // Calculate relative time (hace X minutos/horas/dÃ­as)
     const getRelativeTime = (dateString) => {
         if (!dateString) return 'fecha desconocida';
         const date = new Date(dateString);
@@ -94,7 +111,7 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
         if (diffMinutes < 1) return 'menos de un minuto';
         if (diffMinutes < 60) return `${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
         if (diffHours < 24) return `${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-        return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
+        return `${diffDays} dÃ­a${diffDays !== 1 ? 's' : ''}`;
     };
 
     // Field component with icon
@@ -164,7 +181,7 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                     fontWeight: 500
                 }}>
                     {value ? Icons.check : Icons.x}
-                    {value ? 'Sí' : 'No'}
+                    {value ? 'SÃ­' : 'No'}
                 </div>
             </div>
         </div>
@@ -266,9 +283,9 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
 
                     {/* Registro de Actividad Section */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(contacto.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Ãšltimos cambios hace ${getRelativeTime(contacto.updatedAt)}`} />
                         <div className="activity-log-grid">
-                            {/* Fecha de Creación */}
+                            {/* Fecha de CreaciÃ³n */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -281,7 +298,7 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Fecha de Creación
+                                        Fecha de CreaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(contacto.createdAt)}
@@ -316,7 +333,7 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                                     </span>
                                 </div>
                             </div>
-                            {/* Última Modificación */}
+                            {/* Ãšltima ModificaciÃ³n */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -328,7 +345,7 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Última Modificación
+                                        Ãšltima ModificaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(contacto.updatedAt)}
@@ -342,7 +359,7 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                     <div className="detail-grid-2col">
                         {/* Column 1: Datos del Contacto */}
                         <div>
-                            <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(contacto.updatedAt)}`} />
+                            <SectionHeader title="Resumen" subtitle={`Ãšltimos cambios hace ${getRelativeTime(contacto.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -372,7 +389,7 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                             </div>
 
                             {/* Contacto */}
-                            <SectionHeader title="Contacto" subtitle={`Últimos cambios hace ${getRelativeTime(contacto.updatedAt)}`} />
+                            <SectionHeader title="Contacto" subtitle={`Ãšltimos cambios hace ${getRelativeTime(contacto.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -380,26 +397,26 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                                 padding: '0 1rem',
                                 marginBottom: '1.5rem'
                             }}>
-                                <Field icon={Icons.phone} label="Teléfono Principal" value={contacto.telefonoPrincipal} />
-                                <Field icon={Icons.phone} label="Teléfono Secundario" value={contacto.telefonoSecundario} />
+                                <Field icon={Icons.phone} label="TelÃ©fono Principal" value={contacto.telefonoPrincipal} />
+                                <Field icon={Icons.phone} label="TelÃ©fono Secundario" value={contacto.telefonoSecundario} />
                             </div>
 
-                            {/* Ubicación */}
-                            <SectionHeader title="Ubicación" subtitle={`Últimos cambios hace ${getRelativeTime(contacto.updatedAt)}`} />
+                            {/* UbicaciÃ³n */}
+                            <SectionHeader title="UbicaciÃ³n" subtitle={`Ãšltimos cambios hace ${getRelativeTime(contacto.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
                                 border: '1px solid var(--border-color)',
                                 padding: '0 1rem'
                             }}>
-                                <Field icon={Icons.location} label="Dirección" value={contacto.direccion} />
+                                <Field icon={Icons.location} label="DirecciÃ³n" value={contacto.direccion} />
                             </div>
                         </div>
 
-                        {/* Column 2: Empleado + Información Adicional */}
+                        {/* Column 2: Empleado + InformaciÃ³n Adicional */}
                         <div>
                             {/* Empleado Asociado */}
-                            <SectionHeader title="Datos del Empleado" subtitle={`Últimos cambios hace ${getRelativeTime(contacto.empleado?.updatedAt || contacto.updatedAt)}`} />
+                            <SectionHeader title="Datos del Empleado" subtitle={`Ãšltimos cambios hace ${getRelativeTime(contacto.empleado?.updatedAt || contacto.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -419,8 +436,8 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                                 />
                             </div>
 
-                            {/* Información Adicional */}
-                            <SectionHeader title="Información Adicional" subtitle={`Últimos cambios hace ${getRelativeTime(contacto.updatedAt)}`} />
+                            {/* InformaciÃ³n Adicional */}
+                            <SectionHeader title="InformaciÃ³n Adicional" subtitle={`Ãšltimos cambios hace ${getRelativeTime(contacto.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -452,3 +469,4 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
 };
 
 export default ContactoDetail;
+

@@ -1,11 +1,16 @@
-import { formatDateOnly, formatDateTime, formatFullName } from '../utils/formatters';
+﻿/**
+ * @fileoverview Vista detallada de una solicitud (vacaciones, licencias, horas extras, renuncias).
+ * @module components/SolicitudDetail
+ */
+
+import { formatDateOnly, formatDateTime, formatFullName } from '../helpers/formatters';
 import { useAuth } from '../context/AuthContext';
 
 const TIPO_LABELS = {
-    vacaciones: { label: 'Vacaciones', icon: '🏖️' },
-    licencia: { label: 'Licencia / Inasistencia', icon: '📋' },
-    horas_extras: { label: 'Horas Extras', icon: '⏰' },
-    renuncia: { label: 'Renuncia', icon: '👋' },
+    vacaciones: { label: 'Vacaciones', icon: 'ðŸ–ï¸' },
+    licencia: { label: 'Licencia / Inasistencia', icon: 'ðŸ“‹' },
+    horas_extras: { label: 'Horas Extras', icon: 'â°' },
+    renuncia: { label: 'Renuncia', icon: 'ðŸ‘‹' },
 };
 
 const MOTIVO_LABELS = {
@@ -18,12 +23,12 @@ const MOTIVO_LABELS = {
     enfermedad_inculpable: 'Enfermedad inculpable',
     maternidad: 'Maternidad',
     excedencia: 'Estado de excedencia',
-    donacion_sangre: 'Donación de sangre',
-    citacion_judicial: 'Citación judicial',
+    donacion_sangre: 'DonaciÃ³n de sangre',
+    citacion_judicial: 'CitaciÃ³n judicial',
     presidente_mesa: 'Presidente de mesa',
     mudanza: 'Mudanza',
-    cumpleanos: 'Día de cumpleaños',
-    tramites_personales: 'Trámites personales',
+    cumpleanos: 'DÃ­a de cumpleaÃ±os',
+    tramites_personales: 'TrÃ¡mites personales',
     compensatorio_franco: 'Compensatorio / Franco',
 };
 
@@ -150,16 +155,28 @@ const SectionHeader = ({ title, subtitle }) => (
     </div>
 );
 
+/**
+ * Componente SolicitudDetail
+ * 
+ * Centraliza la visualización de cualquier tipo de solicitud, 
+ * adaptando los campos mostrados según el tipo y permitiendo la edición si está pendiente.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} props.solicitud - Objeto solicitud con sus relaciones pobladas.
+ * @param {Function} [props.onEdit] - Callback para abrir la edición.
+ * @param {Function} props.onClose - Callback para cerrar la vista.
+ * @returns {JSX.Element|null}
+ */
 const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
     if (!solicitud) return null;
 
-    // Permisos del módulo solicitudes
+    // Permisos del mÃ³dulo solicitudes
     const { user } = useAuth();
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
     const canEdit = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'solicitudes' && p.accion === 'actualizar');
 
-    const tipoInfo = TIPO_LABELS[solicitud.tipoSolicitud] || { label: solicitud.tipoSolicitud, icon: '📄' };
+    const tipoInfo = TIPO_LABELS[solicitud.tipoSolicitud] || { label: solicitud.tipoSolicitud, icon: 'ðŸ“„' };
     const typeData = solicitud.licencia || solicitud.vacaciones || solicitud.horasExtras || solicitud.renuncia || {};
     const estadoStyle = ESTADO_STYLES[typeData.estado] || ESTADO_STYLES.pendiente;
 
@@ -179,7 +196,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
         if (diffMinutes < 1) return 'menos de un minuto';
         if (diffMinutes < 60) return `${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
         if (diffHours < 24) return `${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-        return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
+        return `${diffDays} dÃ­a${diffDays !== 1 ? 's' : ''}`;
     };
 
     const Section = ({ title, children, subtitle }) => (
@@ -228,7 +245,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
 
         if (type === 'vacaciones' || type === 'licencia') {
             return (
-                <DetalleGrupo title="Período Solicitado">
+                <DetalleGrupo title="PerÃ­odo Solicitado">
                     <Field icon={Icons.calendar} label="Fecha de Inicio" value={formatDateOnly(data.fechaInicio)} />
                     {type === 'vacaciones' ? (
                         <>
@@ -242,7 +259,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
             );
         } else if (type === 'horas_extras') {
             return (
-                <DetalleGrupo title="Período Solicitado">
+                <DetalleGrupo title="PerÃ­odo Solicitado">
                     <Field icon={Icons.calendar} label="Fecha" value={formatDateOnly(data.fecha)} />
                     <Field icon={Icons.clock} label="Hora de Inicio" value={data.horaInicio} />
                     <Field icon={Icons.clock} label="Hora de Fin" value={data.horaFin} noBorder={true} />
@@ -250,8 +267,8 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
             );
         } else if (type === 'renuncia') {
             return (
-                <DetalleGrupo title="Período Solicitado">
-                    <Field icon={Icons.calendar} label="Fecha de Notificación" value={formatDateOnly(data.fechaNotificacion)} noBorder={true} />
+                <DetalleGrupo title="PerÃ­odo Solicitado">
+                    <Field icon={Icons.calendar} label="Fecha de NotificaciÃ³n" value={formatDateOnly(data.fechaNotificacion)} noBorder={true} />
                 </DetalleGrupo>
             );
         }
@@ -266,8 +283,8 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
         if (type === 'vacaciones') {
             return (
                 <DetalleGrupo title="Alcance">
-                    <Field icon={Icons.calendar} label="Período (Año)" value={data.periodo} />
-                    <Field icon={Icons.calendar} label="Días Solicitados" value={data.diasSolicitud} noBorder={true} />
+                    <Field icon={Icons.calendar} label="PerÃ­odo (AÃ±o)" value={data.periodo} />
+                    <Field icon={Icons.calendar} label="DÃ­as Solicitados" value={data.diasSolicitud} noBorder={true} />
                 </DetalleGrupo>
             );
         } else if (type === 'licencia') {
@@ -275,21 +292,21 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
                 <DetalleGrupo title="Alcance">
                     <Field icon={Icons.document} label="Tipo" value={data.esLicencia ? 'Licencia' : 'Inasistencia'} />
                     <Field icon={Icons.document} label="Motivo Legal" value={MOTIVO_LABELS[data.motivoLegal] || data.motivoLegal} />
-                    <Field icon={Icons.calendar} label="Días Solicitados" value={data.diasSolicitud} noBorder={true} />
+                    <Field icon={Icons.calendar} label="DÃ­as Solicitados" value={data.diasSolicitud} noBorder={true} />
                 </DetalleGrupo>
             );
         } else if (type === 'horas_extras') {
             return (
                 <DetalleGrupo title="Alcance">
                     <Field icon={Icons.clock} label="Cantidad de Horas" value={formatDecimalToTime(data.cantidadHoras)} />
-                    <Field icon={Icons.document} label="Tipo de Horas Extra" value={data.tipoHorasExtra === '100' ? '100% (Fines de semana/Feriados)' : '50% (Días hábiles)'} noBorder={true} />
+                    <Field icon={Icons.document} label="Tipo de Horas Extra" value={data.tipoHorasExtra === '100' ? '100% (Fines de semana/Feriados)' : '50% (DÃ­as hÃ¡biles)'} noBorder={true} />
                 </DetalleGrupo>
             );
         } else if (type === 'renuncia') {
             return (
                 <DetalleGrupo title="Alcance">
                     <Field icon={Icons.calendar} label="Fecha Baja Efectiva" value={formatDateOnly(data.fechaBajaEfectiva)} />
-                    <Field icon={Icons.document} label="Preaviso" value={'15 días (Según LCT)'} noBorder={true} />
+                    <Field icon={Icons.document} label="Preaviso" value={'15 dÃ­as (SegÃºn LCT)'} noBorder={true} />
                 </DetalleGrupo>
             );
         }
@@ -345,9 +362,9 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
         if (!info && !hasNotificado) return null;
 
         return (
-            <DetalleGrupo title="Información Adicional">
+            <DetalleGrupo title="InformaciÃ³n Adicional">
                 {hasNotificado && <Field icon={Icons.calendar} label="Notificado el" value={formatDateOnly(data.notificadoEl)} />}
-                {info && <Field icon={Icons.document} label={type === 'horas_extras' || type === 'renuncia' ? "Motivo" : "Descripción"} value={info} />}
+                {info && <Field icon={Icons.document} label={type === 'horas_extras' || type === 'renuncia' ? "Motivo" : "DescripciÃ³n"} value={info} />}
             </DetalleGrupo>
         );
     };
@@ -359,7 +376,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
 
         const TIPOS_EXAMEN_LABELS = {
             pre_ocupacional: 'Pre-Ocupacional',
-            periodico: 'Periódico',
+            periodico: 'PeriÃ³dico',
             post_ocupacional: 'Post-Ocupacional',
             retorno_trabajo: 'Retorno al Trabajo',
         };
@@ -380,7 +397,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
         const allComprobantes = rs.comprobantes || [];
 
         return (
-            <Section title="Registro de Salud" subtitle={`Últimos cambios hace ${getRelativeTime(rs.updatedAt)}`}>
+            <Section title="Registro de Salud" subtitle={`Ãšltimos cambios hace ${getRelativeTime(rs.updatedAt)}`}>
                 <div style={{
                     display: 'flex',
                     alignItems: 'flex-start',
@@ -449,7 +466,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
                 {allComprobantes.length > 0 && (
                     <div style={{ padding: '0.75rem 0', borderTop: '1px solid var(--border-color)' }}>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                            Comprobantes Médicos ({allComprobantes.length})
+                            Comprobantes MÃ©dicos ({allComprobantes.length})
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             {allComprobantes.map((file, index) => (
@@ -491,10 +508,10 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
         const isVacaciones = type === 'vacaciones';
 
         const diasDisponibles = (isVacaciones && data) ? (
-            <DetalleGrupo title="Días disponibles">
-                <Field icon={Icons.calendar} label="Días Correspondientes" value={data.diasCorrespondientes} />
-                <Field icon={Icons.calendar} label="Días Tomados" value={data.diasTomados} />
-                <Field icon={Icons.calendar} label="Días Disponibles" value={data.diasDisponibles} />
+            <DetalleGrupo title="DÃ­as disponibles">
+                <Field icon={Icons.calendar} label="DÃ­as Correspondientes" value={data.diasCorrespondientes} />
+                <Field icon={Icons.calendar} label="DÃ­as Tomados" value={data.diasTomados} />
+                <Field icon={Icons.calendar} label="DÃ­as Disponibles" value={data.diasDisponibles} />
             </DetalleGrupo>
         ) : null;
 
@@ -504,7 +521,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
         if (!diasDisponibles && !enlaces && !extra) return null;
 
         return (
-            <Section title="Información de Respaldo" subtitle={`Últimos cambios hace ${getRelativeTime(solicitud.updatedAt)}`}>
+            <Section title="InformaciÃ³n de Respaldo" subtitle={`Ãšltimos cambios hace ${getRelativeTime(solicitud.updatedAt)}`}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {diasDisponibles}
                     {enlaces}
@@ -568,9 +585,9 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
 
                     {/* Registro de Actividad Section - FIRST */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(solicitud.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Ãšltimos cambios hace ${getRelativeTime(solicitud.updatedAt)}`} />
                         <div className="activity-log-grid">
-                            {/* Fecha de Creación */}
+                            {/* Fecha de CreaciÃ³n */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -583,7 +600,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Fecha de Creación
+                                        Fecha de CreaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(solicitud.createdAt)}
@@ -618,7 +635,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
                                     </span>
                                 </div>
                             </div>
-                            {/* Última Modificación */}
+                            {/* Ãšltima ModificaciÃ³n */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -630,7 +647,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Última Modificación
+                                        Ãšltima ModificaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(solicitud.updatedAt)}
@@ -646,7 +663,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
                         <div>
                             <Section
                                 title="Resumen"
-                                subtitle={`Últimos cambios hace ${getRelativeTime(solicitud.updatedAt)}`}
+                                subtitle={`Ãšltimos cambios hace ${getRelativeTime(solicitud.updatedAt)}`}
                             >
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                     {/* Estado Badge inside Resumen */}
@@ -691,7 +708,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
                             {/* Datos del Empleado */}
                             <Section
                                 title="Datos del Empleado"
-                                subtitle={`Últimos cambios hace ${getRelativeTime(solicitud.contrato?.empleado?.updatedAt)}`}
+                                subtitle={`Ãšltimos cambios hace ${getRelativeTime(solicitud.contrato?.empleado?.updatedAt)}`}
                             >
                                 <Field
                                     icon={Icons.user}
@@ -710,7 +727,7 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
                                 />
                             </Section>
 
-                            {/* Enlaces e Información Adicional */}
+                            {/* Enlaces e InformaciÃ³n Adicional */}
                             {renderInformacionAdicionalSection()}
                         </div>
                     </div>
@@ -732,3 +749,4 @@ const SolicitudDetail = ({ solicitud, onEdit, onClose }) => {
 };
 
 export default SolicitudDetail;
+

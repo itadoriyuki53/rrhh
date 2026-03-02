@@ -1,12 +1,31 @@
+﻿/**
+ * @fileoverview Selector dinámico de espacios de trabajo con lógica de auto-asignación para empleados.
+ * @module components/EspacioTrabajoSelector
+ */
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getEspaciosTrabajo, getEspacioTrabajoById } from '../services/api';
 
 /**
  * Componente selector de Espacio de Trabajo
- * - Si el usuario es empleado: asigna automáticamente su espacio de trabajo
- * - Si el usuario NO es empleado: muestra un select con todos los espacios disponibles
- * - Permite deshabilitar el cambio si hay restricciones (ej: tiene contratos asociados)
+ * 
+ * Se encarga de mostrar los espacios disponibles (para administradores) o fijar
+ * el espacio propio (para empleados). Maneja restricciones de cambio si el registro
+ * tiene dependencias activas.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {number|string} props.value - ID del espacio seleccionado.
+ * @param {Function} props.onChange - Handler para el cambio de selección.
+ * @param {Function} props.onBlur - Handler para el desenfoque del input.
+ * @param {boolean} [props.disabled=false] - Indica si el selector está deshabilitado.
+ * @param {boolean} [props.canChange=true] - Indica si el usuario tiene permiso para cambiar el espacio.
+ * @param {string} [props.changeRestrictionMessage=''] - Mensaje explicativo si no puede cambiar.
+ * @param {boolean} [props.touched=false] - Indica si el campo ha sido tocado (para validación).
+ * @param {string} [props.error=''] - Mensaje de error a mostrar.
+ * @param {boolean} [props.required=true] - Indica si el campo es obligatorio.
+ * @param {string} [props.className=''] - Clases CSS adicionales.
+ * @returns {JSX.Element}
  */
 const EspacioTrabajoSelector = ({
     value,
@@ -33,7 +52,7 @@ const EspacioTrabajoSelector = ({
     }, [user]);
 
     useEffect(() => {
-        // Si el usuario es empleado y no se ha auto-asignado, asignar su espacio automáticamente
+        // Si el usuario es empleado y no se ha auto-asignado, asignar su espacio automÃ¡ticamente
         const espacioId = user?.empleado?.espacioTrabajoId || user?.espacioTrabajoId;
 
         if (user?.esEmpleado && espacioId && !autoAssigned && !value) {
@@ -91,7 +110,7 @@ const EspacioTrabajoSelector = ({
                     readOnly
                 />
                 <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-                    Asignado automáticamente según tu perfil de empleado
+                    Asignado automÃ¡ticamente segÃºn tu perfil de empleado
                 </p>
             </div>
         );
@@ -143,7 +162,7 @@ const EspacioTrabajoSelector = ({
 
             {!user?.esEmpleado && canChange && (
                 <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-                    Selecciona el espacio de trabajo al que pertenecerá este registro
+                    Selecciona el espacio de trabajo al que pertenecerÃ¡ este registro
                 </p>
             )}
         </div>
@@ -151,3 +170,4 @@ const EspacioTrabajoSelector = ({
 };
 
 export default EspacioTrabajoSelector;
+

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Configuración de espacios organizacionales y definición de límites.
+ * @module pages/EspaciosTrabajo
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import Select from 'react-select';
 import {
@@ -12,20 +17,20 @@ import {
 import EspacioTrabajoFormulario from '../components/EspacioTrabajoFormulario';
 import EspacioTrabajoDetail from '../components/EspacioTrabajoDetail';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { truncateText } from '../utils/formatters';
-
-const buildSelectStyles = (isDark) => ({
-    control: (b, s) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', borderColor: s.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'), boxShadow: 'none', '&:hover': { borderColor: '#0d9488' }, minHeight: '36px', fontSize: '0.875rem', borderRadius: '0.5rem' }),
-    menu: (b) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 9999 }),
-    option: (b, s) => ({ ...b, backgroundColor: s.isSelected ? '#0d9488' : s.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent', color: s.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'), fontSize: '0.875rem', cursor: 'pointer' }),
-    input: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b', fontSize: '0.875rem' }),
-    singleValue: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (b) => ({ ...b, color: '#94a3b8', fontSize: '0.875rem' }),
-    valueContainer: (b) => ({ ...b, padding: '0 8px' }),
-});
+import { truncateText } from '../helpers/formatters';
+import { useIsDark } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
+/**
+ * Componente EspaciosTrabajo
+ * 
+ * Configura particiones organizacionales de trabajo (Espacios). Depende de la API
+ * local y estandarización de estados a través de utilidades selectStyles y useIsDark.
+ * 
+ * @returns {JSX.Element}
+ */
 const EspaciosTrabajo = () => {
     // Data State
     const [items, setItems] = useState([]);
@@ -51,7 +56,7 @@ const EspaciosTrabajo = () => {
     // Filter lists
     const [usuariosList, setUsuariosList] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const isDark = useIsDark();
 
     // Selection
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -75,14 +80,9 @@ const EspaciosTrabajo = () => {
     const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
-    // Theme observer
-    useEffect(() => {
-        const obs = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
-        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => obs.disconnect();
-    }, []);
 
-    // Load filter data — solo usuarios no-empleados (admins/staff que pueden ser propietarios)
+
+    // Load filter data â€” solo usuarios no-empleados (admins/staff que pueden ser propietarios)
     useEffect(() => {
         const load = async () => {
             try {
@@ -114,7 +114,7 @@ const EspaciosTrabajo = () => {
     }));
     const selectStyles = buildSelectStyles(isDark);
 
-    // Debounce Search (nombre y descripción)
+    // Debounce Search (nombre y descripciÃ³n)
     useEffect(() => {
         const timer = setTimeout(() => {
             setFilterNombre(searchInput);
@@ -131,7 +131,13 @@ const EspaciosTrabajo = () => {
         return () => clearTimeout(timer);
     }, [descripcionInput]);
 
-    // Load Items
+    /**
+     * Reconstruye y refresca los datos de los espacios de trabajo consultando `getEspaciosTrabajo`.
+     * Filtra por nombre, descripción, propietario y estatus de activación.
+     * 
+     * @async
+     * @returns {Promise<void>}
+     */
     const loadItems = useCallback(async () => {
         try {
             setLoading(true);
@@ -261,9 +267,13 @@ const EspaciosTrabajo = () => {
         } else {
             newSelected.add(id);
         }
-        setSelectedIds(newSelected);
     };
 
+    /**
+     * Restablece activamente y elimina todos los filtros aplicados a la vista de datos.
+     * 
+     * @returns {void}
+     */
     const clearFilters = () => {
         setSearchInput('');
         setFilterNombre('');
@@ -284,7 +294,7 @@ const EspaciosTrabajo = () => {
         }));
     };
 
-    // Si no es admin, el filtro de propietario es obligatorio y no cuenta como "activo" para mostrar el botón limpiar
+    // Si no es admin, el filtro de propietario es obligatorio y no cuenta como "activo" para mostrar el botÃ³n limpiar
     const isNotAdmin = currentUser && !currentUser.esAdministrador;
     const hasActiveFilters = filterNombre || filterActivo !== 'true' || filterDescripcion || (!isNotAdmin && filterPropietario) || filterFechaCreacion;
     const allSelected = items.length > 0 && selectedIds.size === items.length;
@@ -304,7 +314,7 @@ const EspaciosTrabajo = () => {
                 <div className="page-header">
                     <div>
                         <h1 className="page-title">Espacios de Trabajo</h1>
-                        <p className="page-subtitle">Gestiona los espacios de trabajo de la organización</p>
+                        <p className="page-subtitle">Gestiona los espacios de trabajo de la organizaciÃ³n</p>
                     </div>
                 </div>
 
@@ -312,13 +322,13 @@ const EspaciosTrabajo = () => {
                 {error && (
                     <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                         {error}
-                        <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                        <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                     </div>
                 )}
                 {success && (
                     <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                         {success}
-                        <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                        <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                     </div>
                 )}
 
@@ -368,10 +378,10 @@ const EspaciosTrabajo = () => {
                                 <input type="text" className="filter-input" placeholder="Buscar por nombre..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} style={{ width: '200px' }} />
                             </div>
                             <div className="filter-group">
-                                <input type="text" className="filter-input" placeholder="Descripción" value={descripcionInput} onChange={(e) => setDescripcionInput(e.target.value)} style={{ width: '200px' }} />
+                                <input type="text" className="filter-input" placeholder="DescripciÃ³n" value={descripcionInput} onChange={(e) => setDescripcionInput(e.target.value)} style={{ width: '200px' }} />
                             </div>
                             <div className="filter-group">
-                                <input type="date" className="filter-input" placeholder="Fecha Creación" value={filterFechaCreacion} onChange={(e) => { setFilterFechaCreacion(e.target.value); setPage(1); }} style={{ width: '200px' }} />
+                                <input type="date" className="filter-input" placeholder="Fecha CreaciÃ³n" value={filterFechaCreacion} onChange={(e) => { setFilterFechaCreacion(e.target.value); setPage(1); }} style={{ width: '200px' }} />
                             </div>
                             <div className="filter-group">
                                 <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }} style={{ width: '200px' }}>
@@ -393,9 +403,9 @@ const EspaciosTrabajo = () => {
                                 {showColumnSelector && (
                                     <div className="column-selector-dropdown">
                                         {Object.entries({
-                                            descripcion: 'Descripción',
+                                            descripcion: 'DescripciÃ³n',
                                             propietario: 'Propietario',
-                                            creacion: 'Fecha de Creación',
+                                            creacion: 'Fecha de CreaciÃ³n',
                                         }).map(([key, label]) => (
                                             <label key={key} className="column-option">
                                                 <input
@@ -441,9 +451,9 @@ const EspaciosTrabajo = () => {
                                                 <input type="checkbox" checked={allSelected} ref={input => { if (input) input.indeterminate = someSelected; }} onChange={handleSelectAll} />
                                             </th>
                                             <th>Nombre</th>
-                                            {visibleColumns.descripcion && <th>Descripción</th>}
+                                            {visibleColumns.descripcion && <th>DescripciÃ³n</th>}
                                             {visibleColumns.propietario && <th>Propietario</th>}
-                                            {visibleColumns.creacion && <th>Fecha de Creación</th>}
+                                            {visibleColumns.creacion && <th>Fecha de CreaciÃ³n</th>}
                                             <th>Acciones</th>
                                         </tr>
                                     </thead>
@@ -504,7 +514,7 @@ const EspaciosTrabajo = () => {
                             {/* Pagination */}
                             <div className="pagination-bar">
                                 <div className="pagination-info">
-                                    <span>Filas por página:</span>
+                                    <span>Filas por pÃ¡gina:</span>
                                     <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                         {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                     </select>
@@ -513,11 +523,11 @@ const EspaciosTrabajo = () => {
                                     </span>
                                 </div>
                                 <div className="pagination-controls">
-                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
-                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
-                                    <span className="pagination-page">Página {page} de {totalPages || 1}</span>
-                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
-                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
+                                    <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
+                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
                                 </div>
                             </div>
                         </>
@@ -538,7 +548,7 @@ const EspaciosTrabajo = () => {
                 <ConfirmDialog
                     isOpen={true}
                     title="Desactivar espacio de trabajo"
-                    message={`¿Está seguro de que desea desactivar el espacio "${itemToDelete?.nombre}"?`}
+                    message={`Â¿EstÃ¡ seguro de que desea desactivar el espacio "${itemToDelete?.nombre}"?`}
                     onConfirm={handleConfirmDelete}
                     onCancel={handleCancelDelete}
                     confirmText="Desactivar"
@@ -549,7 +559,7 @@ const EspaciosTrabajo = () => {
                 <ConfirmDialog
                     isOpen={true}
                     title="Desactivar espacios de trabajo"
-                    message={`¿Está seguro de que desea desactivar ${selectedIds.size} espacio(s) de trabajo?`}
+                    message={`Â¿EstÃ¡ seguro de que desea desactivar ${selectedIds.size} espacio(s) de trabajo?`}
                     onConfirm={handleConfirmBulkDelete}
                     onCancel={() => setConfirmBulkOpen(false)}
                     confirmText="Desactivar todos"
@@ -560,3 +570,4 @@ const EspaciosTrabajo = () => {
 };
 
 export default EspaciosTrabajo;
+

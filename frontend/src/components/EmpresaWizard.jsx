@@ -1,8 +1,25 @@
+﻿/**
+ * @fileoverview Orquestador de creación y edición de empresas mediante un formulario multi-paso.
+ * @module components/EmpresaWizard
+ */
+
 import { useState, useEffect } from 'react';
 import StepTracker from './StepTracker';
 import EspacioTrabajoSelector from './EspacioTrabajoSelector';
 import { createEmpresa, updateEmpresa, checkCanDeleteEmpresaItem, canChangeEmpresaWorkspace } from '../services/api';
 
+/**
+ * Componente EmpresaWizard
+ * 
+ * Gestiona el ciclo de vida de creación/edición de una empresa, incluyendo su información básica,
+ * estructura organizacional (Áreas, Departamentos, Puestos) y asignación a Espacios de Trabajo.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.empresa] - Objeto empresa a editar (si es null, el modo es creación).
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras una operación exitosa.
+ * @returns {JSX.Element}
+ */
 const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -88,7 +105,7 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
 
     const addArea = () => {
         if (!tempArea.nombre.trim()) {
-            setErrors(prev => ({ ...prev, areaNombre: 'El nombre del área es requerido' }));
+            setErrors(prev => ({ ...prev, areaNombre: 'El nombre del Ã¡rea es requerido' }));
             return;
         }
         setEmpresa(prev => ({
@@ -219,33 +236,33 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
             else if (empresa.nombre.length < 2 || empresa.nombre.length > 200) newErrors.nombre = 'El nombre debe tener entre 2 y 200 caracteres';
 
             if (!empresa.email.trim()) newErrors.email = 'El email es requerido';
-            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empresa.email)) newErrors.email = 'El email no es válido';
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empresa.email)) newErrors.email = 'El email no es vÃ¡lido';
             else if (empresa.email.length < 5 || empresa.email.length > 100) newErrors.email = 'El email debe tener entre 5 y 100 caracteres';
 
-            // Validación de teléfono (opcional pero con formato si se ingresa)
+            // ValidaciÃ³n de telÃ©fono (opcional pero con formato si se ingresa)
             if (empresa.telefono && !/^[0-9+\-\s()]*$/.test(empresa.telefono)) {
-                newErrors.telefono = 'El teléfono solo puede contener números, +, -, espacios y paréntesis';
+                newErrors.telefono = 'El telÃ©fono solo puede contener nÃºmeros, +, -, espacios y parÃ©ntesis';
             } else if (empresa.telefono && empresa.telefono.length > 50) {
-                newErrors.telefono = 'El teléfono no puede exceder 50 caracteres';
+                newErrors.telefono = 'El telÃ©fono no puede exceder 50 caracteres';
             }
 
             if (!empresa.industria.trim()) newErrors.industria = 'La industria es requerida';
             else if (empresa.industria.length < 2 || empresa.industria.length > 100) newErrors.industria = 'La industria debe tener entre 2 y 100 caracteres';
 
-            if (!empresa.direccion.trim()) newErrors.direccion = 'La dirección es requerida';
-            else if (empresa.direccion.length < 5 || empresa.direccion.length > 255) newErrors.direccion = 'La dirección debe tener entre 5 y 255 caracteres';
+            if (!empresa.direccion.trim()) newErrors.direccion = 'La direcciÃ³n es requerida';
+            else if (empresa.direccion.length < 5 || empresa.direccion.length > 255) newErrors.direccion = 'La direcciÃ³n debe tener entre 5 y 255 caracteres';
 
             // Add general error message if any field has errors
             if (Object.keys(newErrors).length > 0) {
                 newErrors.general = 'Por favor completa todos los campos obligatorios';
             }
 
-            // Validación de espacio de trabajo
+            // ValidaciÃ³n de espacio de trabajo
             if (!espacioTrabajoId) {
                 newErrors.espacioTrabajoId = 'El espacio de trabajo es requerido';
             }
         }
-        if (step === 2 && empresa.areas.length === 0) newErrors.general = 'Debes agregar al menos un área para continuar';
+        if (step === 2 && empresa.areas.length === 0) newErrors.general = 'Debes agregar al menos un Ã¡rea para continuar';
         setErrors(newErrors);
         return Object.keys(newErrors).filter(k => k !== 'general').length === 0 && !newErrors.general;
     };
@@ -256,11 +273,11 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
     const validateFinalSubmit = () => {
         if (!empresa.nombre.trim()) { setErrors({ nombre: 'El nombre de la empresa es requerido' }); setStep(1); return false; }
         if (!empresa.email.trim()) { setErrors({ email: 'El email es requerido' }); setStep(1); return false; }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empresa.email)) { setErrors({ email: 'El email no es válido' }); setStep(1); return false; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empresa.email)) { setErrors({ email: 'El email no es vÃ¡lido' }); setStep(1); return false; }
         if (!empresa.industria.trim()) { setErrors({ industria: 'La industria es requerida' }); setStep(1); return false; }
-        if (!empresa.direccion.trim()) { setErrors({ direccion: 'La dirección es requerida' }); setStep(1); return false; }
+        if (!empresa.direccion.trim()) { setErrors({ direccion: 'La direcciÃ³n es requerida' }); setStep(1); return false; }
         if (!espacioTrabajoId) { setErrors({ espacioTrabajoId: 'El espacio de trabajo es requerido' }); setStep(1); return false; }
-        if (empresa.areas.length === 0) { setErrors({ general: 'Debes agregar al menos un área' }); setStep(2); return false; }
+        if (empresa.areas.length === 0) { setErrors({ general: 'Debes agregar al menos un Ã¡rea' }); setStep(2); return false; }
         return true;
     };
 
@@ -314,7 +331,7 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
         } catch (err) {
             const errorMessage = err.message.toLowerCase();
             // Detect step 1 field errors (nombre, email, industria, direccion)
-            const step1Fields = ['nombre', 'email', 'industria', 'direccion', 'dirección'];
+            const step1Fields = ['nombre', 'email', 'industria', 'direccion', 'direcciÃ³n'];
             const isStep1Error = step1Fields.some(field => errorMessage.includes(field));
 
             if (isStep1Error) {
@@ -322,9 +339,9 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                 const newErrors = { submit: err.message };
                 if (errorMessage.includes('email')) {
                     if (errorMessage.includes('unique') || errorMessage.includes('existe') || errorMessage.includes('duplicado') || errorMessage.includes('registrado')) {
-                        newErrors.email = 'Este email ya está registrado';
+                        newErrors.email = 'Este email ya estÃ¡ registrado';
                     } else {
-                        newErrors.email = 'Debe ser un email válido';
+                        newErrors.email = 'Debe ser un email vÃ¡lido';
                     }
                 }
                 if (errorMessage.includes('nombre')) {
@@ -390,8 +407,8 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
     const renderStep1 = () => (
         <div>
             <div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Información de la Empresa</h3>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Ingresa los datos básicos de la empresa</p>
+                <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>InformaciÃ³n de la Empresa</h3>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Ingresa los datos bÃ¡sicos de la empresa</p>
             </div>
 
             {(errors.submit || errors.general) && (<div className="alert alert-error" style={{ marginBottom: '1.5rem', }}>{errors.submit || errors.general}</div>)}
@@ -413,20 +430,20 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
 
             <div className="form-grid-stacked" style={{ marginBottom: '1rem' }}>
                 <div className="form-group">
-                    <label className="form-label">Teléfono</label>
+                    <label className="form-label">TelÃ©fono</label>
                     <input type="tel" name="telefono" className={`form-input ${errors.telefono ? 'input-error' : ''}`} value={empresa.telefono} onChange={handleInfoChange} placeholder="Ej: +54 11 1234-5678" />
                     {errors.telefono && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.telefono}</span>}
                 </div>
                 <div className="form-group">
                     <label className="form-label">Industria / Sector *</label>
                     <input type="text" name="industria" className={`form-input ${errors.industria ? 'input-error' : ''}`}
-                        value={empresa.industria} onChange={handleInfoChange} placeholder="Ej: Tecnología, Salud..." />
+                        value={empresa.industria} onChange={handleInfoChange} placeholder="Ej: TecnologÃ­a, Salud..." />
                     {errors.industria && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.industria}</span>}
                 </div>
             </div>
 
             <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">Dirección *</label>
+                <label className="form-label">DirecciÃ³n *</label>
                 <input type="text" name="direccion" className={`form-input ${errors.direccion ? 'input-error' : ''}`}
                     value={empresa.direccion} onChange={handleInfoChange} placeholder="Ej: Calle Falsa 123, Ciudad" />
                 {errors.direccion && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.direccion}</span>}
@@ -448,8 +465,8 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
     const renderStep2 = () => (
         <div>
             <div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Áreas de la Empresa</h3>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Define las áreas principales que componen tu organización</p>
+                <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Ãreas de la Empresa</h3>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Define las Ã¡reas principales que componen tu organizaciÃ³n</p>
             </div>
 
             {errors.general && (
@@ -460,12 +477,12 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
 
             <div className="form-grid-stacked" style={{ gap: '2rem' }}>
                 <div>
-                    <h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Áreas Agregadas ({empresa.areas.length})</h4>
+                    <h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Ãreas Agregadas ({empresa.areas.length})</h4>
                     <div style={listContainerStyle}>
                         {empresa.areas.length === 0 ? (
                             <div style={emptyStateStyle}>
-                                <p>No hay áreas agregadas aún</p>
-                                <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Agrega tu primera área →</p>
+                                <p>No hay Ã¡reas agregadas aÃºn</p>
+                                <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Agrega tu primera Ã¡rea â†’</p>
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -484,19 +501,19 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                 </div>
 
                 <div>
-                    <h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Agregar Nueva Área</h4>
+                    <h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Agregar Nueva Ãrea</h4>
                     <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                        <label className="form-label">Nombre del Área <span className="required">*</span></label>
+                        <label className="form-label">Nombre del Ãrea <span className="required">*</span></label>
                         <input type="text" className={`form-input ${errors.areaNombre ? 'error' : ''}`}
                             value={tempArea.nombre} onChange={(e) => { setTempArea(prev => ({ ...prev, nombre: e.target.value })); if (errors.areaNombre) setErrors(prev => ({ ...prev, areaNombre: '' })); }}
                             placeholder="Ej: Recursos Humanos" />
                         {errors.areaNombre && <span className="form-error">{errors.areaNombre}</span>}
                     </div>
                     <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                        <label className="form-label">Descripción (Opcional)</label>
-                        <textarea className="form-input" value={tempArea.descripcion} onChange={(e) => setTempArea(prev => ({ ...prev, descripcion: e.target.value }))} placeholder="Breve descripción del área..." rows={3} />
+                        <label className="form-label">DescripciÃ³n (Opcional)</label>
+                        <textarea className="form-input" value={tempArea.descripcion} onChange={(e) => setTempArea(prev => ({ ...prev, descripcion: e.target.value }))} placeholder="Breve descripciÃ³n del Ã¡rea..." rows={3} />
                     </div>
-                    <button className="btn btn-primary" onClick={addArea} type="button" style={{ width: '100%' }}>+ Agregar Área</button>
+                    <button className="btn btn-primary" onClick={addArea} type="button" style={{ width: '100%' }}>+ Agregar Ãrea</button>
                 </div>
             </div>
         </div>
@@ -509,8 +526,8 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
         return (
             <div>
                 <div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
-                    <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Departamentos por Área</h3>
-                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Organiza cada área en departamentos específicos</p>
+                    <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Departamentos por Ãrea</h3>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Organiza cada Ã¡rea en departamentos especÃ­ficos</p>
                 </div>
 
                 {errors.general && (
@@ -521,7 +538,7 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
 
                 <div className="form-grid-stacked" style={{ gap: '2rem' }}>
                     <div>
-                        <h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Selecciona un Área</h4>
+                        <h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Selecciona un Ãrea</h4>
                         <div style={listContainerStyle}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {empresa.areas.map(area => (
@@ -548,8 +565,8 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                                     {errors.deptoNombre && <span className="form-error">{errors.deptoNombre}</span>}
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                                    <label className="form-label">Descripción (Opcional)</label>
-                                    <textarea className="form-input" value={tempDepto.descripcion} onChange={(e) => setTempDepto(prev => ({ ...prev, descripcion: e.target.value }))} placeholder="Descripción del departamento..." rows={2} />
+                                    <label className="form-label">DescripciÃ³n (Opcional)</label>
+                                    <textarea className="form-input" value={tempDepto.descripcion} onChange={(e) => setTempDepto(prev => ({ ...prev, descripcion: e.target.value }))} placeholder="DescripciÃ³n del departamento..." rows={2} />
                                 </div>
                                 <button className="btn btn-primary" onClick={addDepto} type="button" style={{ width: '100%', marginBottom: '1.5rem' }}>+ Agregar Departamento</button>
 
@@ -572,7 +589,7 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                             </>
                         ) : (
                             <div style={emptyStateStyle}>
-                                <p style={{ fontSize: '1rem' }}>← Selecciona un área</p>
+                                <p style={{ fontSize: '1rem' }}>â† Selecciona un Ã¡rea</p>
                                 <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>para gestionar sus departamentos</p>
                             </div>
                         )}
@@ -639,8 +656,8 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                                     {errors.puestoNombre && <span className="form-error">{errors.puestoNombre}</span>}
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                                    <label className="form-label">Descripción (Opcional)</label>
-                                    <textarea className="form-input" value={tempPuesto.descripcion} onChange={(e) => setTempPuesto(prev => ({ ...prev, descripcion: e.target.value }))} placeholder="Descripción del puesto..." rows={2} />
+                                    <label className="form-label">DescripciÃ³n (Opcional)</label>
+                                    <textarea className="form-input" value={tempPuesto.descripcion} onChange={(e) => setTempPuesto(prev => ({ ...prev, descripcion: e.target.value }))} placeholder="DescripciÃ³n del puesto..." rows={2} />
                                 </div>
                                 <button className="btn btn-primary" onClick={addPuesto} type="button" style={{ width: '100%', marginBottom: '1.5rem' }}>+ Agregar Puesto</button>
 
@@ -663,7 +680,7 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                             </>
                         ) : (
                             <div style={emptyStateStyle}>
-                                <p style={{ fontSize: '1rem' }}>← Selecciona un departamento</p>
+                                <p style={{ fontSize: '1rem' }}>â† Selecciona un departamento</p>
                                 <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>para gestionar sus puestos</p>
                             </div>
                         )}
@@ -687,7 +704,7 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                 </div>
                 <div style={{ padding: '1.25rem', background: 'var(--card-bg)', border: `1px solid ${borderColor}`, borderRadius: '0.5rem', textAlign: 'center' }}>
                     <div style={{ fontSize: '1.5rem', fontWeight: '700', color: primaryColor }}>{empresa.areas.length}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Áreas</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Ãreas</div>
                 </div>
                 <div style={{ padding: '1.25rem', background: 'var(--card-bg)', border: `1px solid ${borderColor}`, borderRadius: '0.5rem', textAlign: 'center' }}>
                     <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#22c55e' }}>{empresa.areas.reduce((acc, area) => acc + area.departamentos.length, 0)}</div>
@@ -697,11 +714,11 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
 
             <div style={{ background: 'var(--card-bg)', border: `1px solid ${borderColor}`, borderRadius: '0.75rem', padding: '1.5rem' }}>
                 <h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    Estructura Jerárquica
+                    Estructura JerÃ¡rquica
                 </h4>
 
                 {empresa.areas.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>No hay áreas definidas</p>
+                    <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>No hay Ã¡reas definidas</p>
                 ) : (
                     <div style={{ paddingLeft: '1rem' }}>
                         {empresa.areas.map((area, areaIndex) => (
@@ -798,3 +815,4 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
 };
 
 export default EmpresaWizard;
+

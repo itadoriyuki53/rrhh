@@ -1,0 +1,131 @@
+﻿/**
+ * @fileoverview Custom hooks de React para lÃ³gica reutilizable entre pÃ¡ginas y componentes.
+ * Encapsula comportamientos comunes: observaciÃ³n del tema, debounce de filtros
+ * y resoluciÃ³n de permisos por mÃ³dulo.
+ * @module helpers/hooks
+ */
+
+import { useState, useEffect, useRef } from 'react';
+
+// ===== TEMA =====
+
+/**
+ * Observa la clase `dark` en `<html>` y retorna un booleano reactivo.
+ * Usado en pÃ¡ginas que renderizan componentes de terceros (react-select) que
+ * necesitan saber el tema actual para aplicar sus propios estilos.
+ *
+ * @returns {boolean} `true` si el tema oscuro estÃ¡ activo.
+ * @example
+ * const isDark = useIsDark();
+ * const selectStyles = buildSelectStyles(isDark);
+ */
+export const useIsDark = () => {
+    const [isDark, setIsDark] = useState(
+        () => document.documentElement.classList.contains('dark')
+    );
+
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            setIsDark(document.documentElement.classList.contains('dark'));
+        });
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+        return () => observer.disconnect();
+    }, []);
+
+    return isDark;
+};
+
+// ===== DEBOUNCE =====
+
+/**
+ * Retrasa la actualizaciÃ³n de un valor hasta que el usuario deja de escribir.
+ * Evita disparar peticiones al servidor en cada pulsaciÃ³n de tecla.
+ *
+ * @template T
+ * @param {T} value - Valor a "debouncear".
+ * @param {number} [delay=300] - Tiempo de espera en milisegundos.
+ * @returns {T} El valor retrasado.
+ * @example
+ * const [searchInput, setSearchInput] = useState('');
+ * const debouncedSearch = useDebounce(searchInput, 300);
+ * useEffect(() => { loadItems(debouncedSearch); }, [debouncedSearch]);
+ */
+export const useDebounce = (value, delay = 300) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedValue(value), delay);
+        return () => clearTimeout(timer);
+    }, [value, delay]);
+
+    return debouncedValue;
+};
+
+// ===== PERMISOS DE MÃ“DULO =====
+
+/**
+ * Resuelve los permisos CRUD del usuario autenticado para un mÃ³dulo especÃ­fico.
+ * Un administrador siempre tiene todos los permisos.
+ * Un empleado no-admin solo tiene los permisos que su rol le otorgue.
+ * Un usuario no-empleado (owner) tambiÃ©n tiene todos los permisos.
+ *
+ * @param {Object|null} user - Objeto de usuario del contexto de autenticaciÃ³n.
+ * @param {string} modulo - Nombre del mÃ³dulo a verificar (ej: 'empleados', 'contratos').
+ * @returns {{ canRead: boolean, canCreate: boolean, canEdit: boolean, canDelete: boolean }}
+ * @example
+ * const { canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'empleados');
+ */
+export const useModulePermissions = (user, modulo) => {
+    const isEmpleadoUser = Boolean(user?.esEmpleado && !user?.esAdministrador);
+    const permisos = user?.rol?.permisos || [];
+
+    /**
+     * Verifica si el usuario tiene un permiso especÃ­fico para el mÃ³dulo.
+     * @param {string} accion - 'leer' | 'crear' | 'actualizar' | 'eliminar'
+     * @returns {boolean}
+     */
+    const tienePermiso = (accion) =>
+        !isEmpleadoUser ||
+        user?.esAdministrador ||
+        permisos.some(p => p.modulo === modulo && p.accion === accion);
+
+    return {
+        isEmpleadoUser,
+        canRead: tienePermiso('leer'),
+        canCreate: tienePermiso('crear'),
+        canEdit: tienePermiso('actualizar'),
+        canDelete: tienePermiso('eliminar'),
+    };
+};
+
+// ===== CLICK FUERA DE ELEMENTO =====
+
+/**
+ * Detecta clicks fuera de un elemento referenciado y ejecuta un callback.
+ * Ãštil para cerrar dropdowns y menÃºs contextuales.
+ *
+ * @param {Function} callback - FunciÃ³n a ejecutar cuando se hace click fuera.
+ * @returns {React.RefObject} Ref para asignar al elemento a observar.
+ * @example
+ * const dropdownRef = useClickOutside(() => setOpen(false));
+ * <div ref={dropdownRef}>...</div>
+ */
+export const useClickOutside = (callback) => {
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const handleClick = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) {
+                callback();
+            }
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [callback]);
+
+    return ref;
+};
+

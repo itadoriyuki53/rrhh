@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Módulo de visualización y control de evaluaciones de desempeño.
+ * @module pages/Evaluaciones
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -14,19 +19,9 @@ import {
 import EvaluacionWizard from '../components/EvaluacionWizard';
 import EvaluacionDetail from '../components/EvaluacionDetail';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { truncateText } from '../utils/formatters';
-
-const buildSelectStyles = (isDark) => ({
-    control: (b, s) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', borderColor: s.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'), boxShadow: 'none', '&:hover': { borderColor: '#0d9488' }, minHeight: '36px', fontSize: '0.875rem', borderRadius: '0.5rem' }),
-    menu: (b) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 9999 }),
-    option: (b, s) => ({ ...b, backgroundColor: s.isSelected ? '#0d9488' : s.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent', color: s.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'), fontSize: '0.875rem', cursor: 'pointer' }),
-    groupHeading: (b) => ({ ...b, fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.7rem', color: '#64748b' }),
-    input: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b', fontSize: '0.875rem' }),
-    singleValue: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (b) => ({ ...b, color: '#94a3b8', fontSize: '0.875rem' }),
-    valueContainer: (b) => ({ ...b, padding: '0 8px' }),
-    menuPortal: (b) => ({ ...b, zIndex: 9999 }),
-});
+import { truncateText } from '../helpers/formatters';
+import { useIsDark, useModulePermissions } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
@@ -38,17 +33,17 @@ const PERIODO_LABELS = {
     q2: 'Q2',
     q3: 'Q3',
     q4: 'Q4',
-    cierre_prueba: 'Cierre Período de Prueba',
+    cierre_prueba: 'Cierre PerÃ­odo de Prueba',
     fin_proyecto: 'Fin de Proyecto',
     ad_hoc: 'Ad-hoc / Extraordinaria',
 };
 
 const TIPO_EVALUACION_LABELS = {
-    autoevaluacion: 'Autoevaluación',
-    descendente_90: '90° (Descendente)',
-    pares_jefe_180: '180° (Pares + Jefe)',
-    ascendente_270: '270° (Ascendente)',
-    integral_360: '360° (Integral)',
+    autoevaluacion: 'AutoevaluaciÃ³n',
+    descendente_90: '90Â° (Descendente)',
+    pares_jefe_180: '180Â° (Pares + Jefe)',
+    ascendente_270: '270Â° (Ascendente)',
+    integral_360: '360Â° (Integral)',
     competencias: 'Por Competencias',
     objetivos: 'Por Objetivos',
     mixta: 'Mixta',
@@ -89,7 +84,7 @@ const PERIODO_FILTER = [
     { value: 'q2', label: 'Q2' },
     { value: 'q3', label: 'Q3' },
     { value: 'q4', label: 'Q4' },
-    { value: 'cierre_prueba', label: 'Cierre Período de Prueba' },
+    { value: 'cierre_prueba', label: 'Cierre PerÃ­odo de Prueba' },
     { value: 'fin_proyecto', label: 'Fin de Proyecto' },
     { value: 'ad_hoc', label: 'Ad-hoc' },
 ];
@@ -101,17 +96,21 @@ const ESTADO_FILTER = [
     { value: 'firmada', label: 'Firmada' },
 ];
 
+/**
+ * Componente Evaluaciones
+ * 
+ * Módulo para gestionar evaluaciones de desempeño. Incluye métricas,
+ * estados de firma y asignación de evaluadores/evaluados. Controla
+ * permisos mediante useModulePermissions e interface react-select con
+ * buildSelectStyles interactuando dinámicamente con useIsDark.
+ * 
+ * @returns {JSX.Element}
+ */
 const Evaluaciones = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    // Permisos del módulo empresas
-    const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
-    const userPermisos = user?.rol?.permisos || [];
-    const canRead = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'evaluaciones' && p.accion === 'leer');
-    const canCreate = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'evaluaciones' && p.accion === 'crear');
-    const canEdit = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'evaluaciones' && p.accion === 'actualizar');
-    const canDelete = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'evaluaciones' && p.accion === 'eliminar');
+    const { isEmpleadoUser, canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'evaluaciones');
 
     // Data State
     const [items, setItems] = useState([]);
@@ -138,7 +137,7 @@ const Evaluaciones = () => {
     // Filter lists
     const [empleadosList, setEmpleadosList] = useState([]);
     const [espaciosList, setEspaciosList] = useState([]);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const isDark = useIsDark();
 
     // Selection
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -163,12 +162,7 @@ const Evaluaciones = () => {
     const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
-    // Theme observer
-    useEffect(() => {
-        const obs = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
-        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => obs.disconnect();
-    }, []);
+
 
     // Redirigir si no tiene permiso de lectura
     useEffect(() => {
@@ -235,6 +229,13 @@ const Evaluaciones = () => {
     const selectStyles = buildSelectStyles(isDark);
 
     // Load Items
+    /**
+     * Reconstruye y refresca los datos de las evaluaciones consultando `getEvaluaciones`.
+     * Filtra por periodo, estado, espacio y puntajes obtenidos.
+     * 
+     * @async
+     * @returns {Promise<void>}
+     */
     const loadItems = useCallback(async () => {
         try {
             setLoading(true);
@@ -265,6 +266,11 @@ const Evaluaciones = () => {
     useEffect(() => { loadItems(); }, [loadItems]);
 
     // Handlers
+    /**
+     * Restablece activamente y elimina todos los filtros aplicados a la vista de datos.
+     * 
+     * @returns {void}
+     */
     const clearFilters = () => {
         setFilterActivo('true');
         setFilterPeriodo('');
@@ -345,9 +351,9 @@ const Evaluaciones = () => {
     const handleFormSuccess = () => {
         handleCloseForm();
         if (editingItem) {
-            setSuccess('Evaluación actualizada correctamente');
+            setSuccess('EvaluaciÃ³n actualizada correctamente');
         } else {
-            setSuccess('Evaluación creada correctamente');
+            setSuccess('EvaluaciÃ³n creada correctamente');
         }
         loadItems();
     };
@@ -361,7 +367,7 @@ const Evaluaciones = () => {
         if (!itemToDelete) return;
         try {
             await deleteEvaluacion(itemToDelete.id);
-            setSuccess('Evaluación desactivada correctamente');
+            setSuccess('EvaluaciÃ³n desactivada correctamente');
             loadItems();
         } catch (err) {
             setError(err.message);
@@ -384,7 +390,7 @@ const Evaluaciones = () => {
     const handleConfirmBulkDelete = async () => {
         try {
             await deleteEvaluacionesBulk(Array.from(selectedIds));
-            setSuccess(`${selectedIds.size} evaluación(es) desactivada(s) correctamente`);
+            setSuccess(`${selectedIds.size} evaluaciÃ³n(es) desactivada(s) correctamente`);
             setSelectedIds(new Set());
             loadItems();
         } catch (err) {
@@ -397,7 +403,7 @@ const Evaluaciones = () => {
     const handleReactivate = async (item) => {
         try {
             await reactivateEvaluacion(item.id);
-            setSuccess('Evaluación reactivada correctamente');
+            setSuccess('EvaluaciÃ³n reactivada correctamente');
             loadItems();
         } catch (err) {
             setError(err.message);
@@ -418,7 +424,7 @@ const Evaluaciones = () => {
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Evaluaciones</h1>
-                    <p className="page-subtitle">Gestiona las evaluaciones de desempeño</p>
+                    <p className="page-subtitle">Gestiona las evaluaciones de desempeÃ±o</p>
                 </div>
             </div>
 
@@ -426,13 +432,13 @@ const Evaluaciones = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                 </div>
             )}
 
@@ -459,7 +465,7 @@ const Evaluaciones = () => {
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                 </svg>
-                                Nueva Evaluación
+                                Nueva EvaluaciÃ³n
                             </button>
                         )}
                     </div>
@@ -476,7 +482,7 @@ const Evaluaciones = () => {
                         </div>
                         <div className="filter-group">
                             <select className="filter-input" value={filterPeriodo} onChange={(e) => { setFilterPeriodo(e.target.value); setPage(1); }}>
-                                <option value="">Todos los períodos</option>
+                                <option value="">Todos los perÃ­odos</option>
                                 {PERIODO_FILTER.map(p => (
                                     <option key={p.value} value={p.value}>{p.label}</option>
                                 ))}
@@ -499,10 +505,10 @@ const Evaluaciones = () => {
                             </select>
                         </div>
                         <div className="filter-group">
-                            <input type="number" className="filter-input" placeholder="Puntaje mín." value={filterPuntajeMin} onChange={e => { setFilterPuntajeMin(e.target.value); setPage(1); }} style={{ width: '200px' }} min="0" max="100" />
+                            <input type="number" className="filter-input" placeholder="Puntaje mÃ­n." value={filterPuntajeMin} onChange={e => { setFilterPuntajeMin(e.target.value); setPage(1); }} style={{ width: '200px' }} min="0" max="100" />
                         </div>
                         <div className="filter-group">
-                            <input type="number" className="filter-input" placeholder="Puntaje máx." value={filterPuntajeMax} onChange={e => { setFilterPuntajeMax(e.target.value); setPage(1); }} style={{ width: '200px' }} min="0" max="100" />
+                            <input type="number" className="filter-input" placeholder="Puntaje mÃ¡x." value={filterPuntajeMax} onChange={e => { setFilterPuntajeMax(e.target.value); setPage(1); }} style={{ width: '200px' }} min="0" max="100" />
                         </div>
                         <div className="filter-group">
                             <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }}>
@@ -551,7 +557,7 @@ const Evaluaciones = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
                         </svg>
                         <h3>No hay evaluaciones {showingInactive ? 'inactivas' : ''}</h3>
-                        <p>{showingInactive ? 'No hay evaluaciones desactivadas' : 'Crea una nueva evaluación para comenzar'}</p>
+                        <p>{showingInactive ? 'No hay evaluaciones desactivadas' : 'Crea una nueva evaluaciÃ³n para comenzar'}</p>
                     </div>
                 ) : (
                     <>
@@ -562,7 +568,7 @@ const Evaluaciones = () => {
                                         <th style={{ width: '40px' }}>
                                             <input type="checkbox" checked={allSelected} ref={input => { if (input) input.indeterminate = someSelected; }} onChange={handleSelectAll} />
                                         </th>
-                                        <th>Período</th>
+                                        <th>PerÃ­odo</th>
                                         <th>Tipo</th>
                                         {visibleColumns.empleadoEvaluado && <th>Evaluado</th>}
                                         {visibleColumns.espacio && <th>Espacio</th>}
@@ -683,7 +689,7 @@ const Evaluaciones = () => {
                         {/* Pagination */}
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por página:</span>
+                                <span>Filas por pÃ¡gina:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                     {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
@@ -692,11 +698,11 @@ const Evaluaciones = () => {
                                 </span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
-                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
+                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
                             </div>
                         </div>
                     </>
@@ -723,8 +729,8 @@ const Evaluaciones = () => {
 
             <ConfirmDialog
                 isOpen={confirmOpen}
-                title="Desactivar evaluación"
-                message={itemToDelete ? `¿Estás seguro de desactivar esta evaluación? Podrás reactivarla más tarde.` : ''}
+                title="Desactivar evaluaciÃ³n"
+                message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar esta evaluaciÃ³n? PodrÃ¡s reactivarla mÃ¡s tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -734,7 +740,7 @@ const Evaluaciones = () => {
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
                 title="Desactivar evaluaciones"
-                message={`¿Estás seguro de desactivar ${selectedIds.size} evaluación(es)? Podrás reactivarlas más tarde.`}
+                message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} evaluaciÃ³n(es)? PodrÃ¡s reactivarlas mÃ¡s tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todos"
@@ -745,3 +751,4 @@ const Evaluaciones = () => {
 };
 
 export default Evaluaciones;
+

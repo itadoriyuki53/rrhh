@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Gestión central y configuración de perfiles/roles de acceso.
+ * @module pages/Roles
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import Select from 'react-select';
 import {
@@ -12,34 +17,28 @@ import {
 import RolWizard from '../components/RolWizard';
 import RolDetail from '../components/RolDetail';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { truncateText } from '../utils/formatters';
+import { truncateText } from '../helpers/formatters';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
-const buildSelectStyles = (isDark) => ({
-    control: (b, s) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', borderColor: s.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'), boxShadow: 'none', '&:hover': { borderColor: '#0d9488' }, minHeight: '36px', fontSize: '0.875rem', borderRadius: '0.5rem' }),
-    menu: (b) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 9999 }),
-    option: (b, s) => ({ ...b, backgroundColor: s.isSelected ? '#0d9488' : s.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent', color: s.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'), fontSize: '0.875rem', cursor: 'pointer' }),
-    input: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b', fontSize: '0.875rem' }),
-    singleValue: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (b) => ({ ...b, color: '#94a3b8', fontSize: '0.875rem' }),
-    valueContainer: (b) => ({ ...b, padding: '0 8px' }),
-});
+import { useIsDark, useModulePermissions } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
+/**
+ * Componente Roles
+ * 
+ * Gestión central de Roles y permisos granulares de la aplicación.
+ * Permite abm y asignaciones a los trabajadores que usan la plataforma.
+ * Conexión central a theme hooks de selectStyles. 
+ * 
+ * @returns {JSX.Element}
+ */
 const Roles = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    // Permisos del módulo empresas
-    const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
-    const userPermisos = user?.rol?.permisos || [];
-    const canRead = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'roles' && p.accion === 'leer');
-    const canCreate = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'roles' && p.accion === 'crear');
-    const canEdit = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'roles' && p.accion === 'actualizar');
-    const canDelete = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'roles' && p.accion === 'eliminar');
-
+    const { isEmpleadoUser, canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'roles');
     // Data State
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -62,7 +61,7 @@ const Roles = () => {
 
     // Filter lists
     const [espaciosList, setEspaciosList] = useState([]);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const isDark = useIsDark();
     const [currentUser, setCurrentUser] = useState(null);
 
     // Selection
@@ -88,12 +87,7 @@ const Roles = () => {
     const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
-    // Theme observer
-    useEffect(() => {
-        const obs = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
-        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => obs.disconnect();
-    }, []);
+
 
     // Redirigir si no tiene permiso de lectura
     useEffect(() => {
@@ -114,7 +108,7 @@ const Roles = () => {
                 setEspaciosList(espaciosRes.data || []);
                 setCurrentUser(userMe);
 
-                // Lógica de preselección de espacio SOLO SI ES EMPLEADO
+                // LÃ³gica de preselecciÃ³n de espacio SOLO SI ES EMPLEADO
                 if (userMe && userMe.esEmpleado) {
                     const espacios = espaciosRes.data || [];
                     if (userMe.espacioTrabajoId) {
@@ -149,7 +143,13 @@ const Roles = () => {
         return () => clearTimeout(timer);
     }, [descripcionInput]);
 
-    // Load Items
+    /**
+     * Reconstruye y refresca la lista de roles consultando el servicio API `getRoles`.
+     * Aplica filtros de nombre, descripción y estatus de activación.
+     * 
+     * @async
+     * @returns {Promise<void>}
+     */
     const loadItems = useCallback(async () => {
         try {
             setLoading(true);
@@ -179,6 +179,11 @@ const Roles = () => {
     }, [loadItems]);
 
     // Handlers
+    /**
+     * Restablece activamente y elimina todos los filtros aplicados a la vista de datos.
+     * 
+     * @returns {void}
+     */
     const clearFilters = () => {
         setSearchInput('');
         setFilterNombre('');
@@ -333,13 +338,13 @@ const Roles = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                 </div>
             )}
 
@@ -391,7 +396,7 @@ const Roles = () => {
                             <input type="text" className="filter-input" placeholder="Buscar por nombre..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} style={{ minWidth: '200px' }} />
                         </div>
                         <div className="filter-group">
-                            <input type="text" className="filter-input" placeholder="Descripción" value={descripcionInput} onChange={(e) => setDescripcionInput(e.target.value)} style={{ minWidth: '200px' }} />
+                            <input type="text" className="filter-input" placeholder="DescripciÃ³n" value={descripcionInput} onChange={(e) => setDescripcionInput(e.target.value)} style={{ minWidth: '200px' }} />
                         </div>
                         <div className="filter-group">
                             <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }}>
@@ -413,7 +418,7 @@ const Roles = () => {
                                 <div className="column-selector-dropdown">
                                     {Object.entries({
                                         espacio: 'Espacio',
-                                        descripcion: 'Descripción',
+                                        descripcion: 'DescripciÃ³n',
                                         usuarios: 'Usuarios',
                                         permisos: 'Permisos',
                                     }).map(([key, label]) => (
@@ -462,7 +467,7 @@ const Roles = () => {
                                         </th>
                                         <th>Nombre</th>
                                         {visibleColumns.espacio && <th>Espacio</th>}
-                                        {visibleColumns.descripcion && <th>Descripción</th>}
+                                        {visibleColumns.descripcion && <th>DescripciÃ³n</th>}
                                         {visibleColumns.usuarios && <th>Usuarios</th>}
                                         {visibleColumns.permisos && <th>Permisos</th>}
                                         <th>Acciones</th>
@@ -540,7 +545,7 @@ const Roles = () => {
                         {/* Pagination */}
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por página:</span>
+                                <span>Filas por pÃ¡gina:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                     {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
@@ -549,11 +554,11 @@ const Roles = () => {
                                 </span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
-                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
+                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
                             </div>
                         </div>
                     </>
@@ -585,7 +590,7 @@ const Roles = () => {
             <ConfirmDialog
                 isOpen={confirmOpen}
                 title="Desactivar rol"
-                message={itemToDelete ? `¿Estás seguro de desactivar el rol "${itemToDelete.nombre}"? Podrás reactivarlo más tarde.` : ''}
+                message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar el rol "${itemToDelete.nombre}"? PodrÃ¡s reactivarlo mÃ¡s tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -595,7 +600,7 @@ const Roles = () => {
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
                 title="Desactivar roles"
-                message={`¿Estás seguro de desactivar ${selectedIds.size} rol(es)? Podrás reactivarlos más tarde.`}
+                message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} rol(es)? PodrÃ¡s reactivarlos mÃ¡s tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todos"
@@ -606,3 +611,4 @@ const Roles = () => {
 };
 
 export default Roles;
+

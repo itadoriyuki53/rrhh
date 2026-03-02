@@ -1,13 +1,20 @@
+﻿/**
+ * @fileoverview Orquestador para la creación y edición de registros de salud mediante un proceso guiado.
+ * @module components/RegistroSaludWizard
+ */
+
 import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import StepTracker from './StepTracker';
 import { getEmpleados, createRegistroSalud, updateRegistroSalud } from '../services/api';
-import { validarDiaHabil } from '../utils/diasHabiles';
-import { getTodayStr, formatFullName } from '../utils/formatters';
+import { validarDiaHabil } from '../helpers/diasHabiles';
+import { getTodayStr, formatFullName } from '../helpers/formatters';
+import { useIsDark } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 
 const TIPOS_EXAMEN = [
     { value: 'pre_ocupacional', label: 'Pre-Ocupacional' },
-    { value: 'periodico', label: 'Periódico' },
+    { value: 'periodico', label: 'PeriÃ³dico' },
     { value: 'post_ocupacional', label: 'Post-Ocupacional' },
     { value: 'retorno_trabajo', label: 'Retorno al Trabajo' },
 ];
@@ -19,8 +26,8 @@ const RESULTADOS = [
 ];
 
 // Tooltip content for medical certificate
-const TOOLTIP_COMPROBANTE = `El comprobante médico sirve para **justificar una licencia o inasistencia** laboral.
-Cuando la inasistencia está debidamente justificada con un comprobante médico, el empleado puede solicitar licencia o inasistencia y continuar percibiendo su salario, conforme a la normativa vigente de la ART.`;
+const TOOLTIP_COMPROBANTE = `El comprobante mÃ©dico sirve para **justificar una licencia o inasistencia** laboral.
+Cuando la inasistencia estÃ¡ debidamente justificada con un comprobante mÃ©dico, el empleado puede solicitar licencia o inasistencia y continuar percibiendo su salario, conforme a la normativa vigente de la ART.`;
 
 // Field error component
 const FieldError = ({ message }) => {
@@ -28,56 +35,20 @@ const FieldError = ({ message }) => {
     return <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}</span>;
 };
 
-// Custom styles for react-select - Green selected items like ContratoWizard
-const getSelectStyles = (isDark) => ({
-    control: (base, state) => ({
-        ...base,
-        backgroundColor: isDark ? '#1e293b' : 'white',
-        borderColor: state.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'),
-        boxShadow: state.isFocused ? '0 0 0 2px rgba(13, 148, 136, 0.2)' : 'none',
-        '&:hover': { borderColor: '#0d9488' },
-        minHeight: '42px',
-        borderRadius: '0.5rem',
-    }),
-    menu: (base) => ({
-        ...base,
-        backgroundColor: isDark ? '#1e293b' : 'white',
-        border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-        borderRadius: '0.5rem',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        zIndex: 9999,
-    }),
-    menuPortal: (base) => ({
-        ...base,
-        zIndex: 9999,
-    }),
-    option: (base, state) => ({
-        ...base,
-        backgroundColor: state.isSelected ? '#0d9488' : state.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent',
-        color: state.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'),
-        cursor: 'pointer',
-        '&:active': { backgroundColor: '#0d9488' },
-    }),
-    multiValue: (base) => ({
-        ...base,
-        backgroundColor: '#0d9488',
-        borderRadius: '0.375rem',
-    }),
-    multiValueLabel: (base) => ({
-        ...base,
-        color: 'white',
-        padding: '4px 8px',
-    }),
-    multiValueRemove: (base) => ({
-        ...base,
-        color: 'white',
-        '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' },
-    }),
-    input: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    singleValue: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (base) => ({ ...base, color: '#94a3b8' }),
-});
 
+
+/**
+ * Componente RegistroSaludWizard
+ * 
+ * Gestiona el alta y modificación de exámenes de salud, permitiendo
+ * la carga de múltiples comprobantes y validando fechas en 2 pasos.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.registro] - Objeto registro a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @returns {JSX.Element}
+ */
 const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
     const isEditing = !!registro;
     const [currentStep, setCurrentStep] = useState(1);
@@ -99,21 +70,14 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [showTooltip, setShowTooltip] = useState(false);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const isDark = useIsDark();
 
     const steps = [
-        { number: 1, title: 'Información Básica' },
-        { number: 2, title: 'Documentación Médica' },
+        { number: 1, title: 'InformaciÃ³n BÃ¡sica' },
+        { number: 2, title: 'DocumentaciÃ³n MÃ©dica' },
     ];
 
-    // Detect theme changes
-    useEffect(() => {
-        const observer = new MutationObserver(() => {
-            setIsDark(document.documentElement.classList.contains('dark'));
-        });
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => observer.disconnect();
-    }, []);
+
 
     // Load empleados
     useEffect(() => {
@@ -192,17 +156,17 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
         validateStep();
     };
 
-    const handleChange = (field, value) => { // ✅ Síncrono ahora
+    const handleChange = (field, value) => { // âœ… SÃ­ncrono ahora
         setFormData(prev => ({ ...prev, [field]: value }));
         setError('');
 
-        // Validar días hábiles en tiempo real SÍNCRONO
+        // Validar dÃ­as hÃ¡biles en tiempo real SÃNCRONO
         if ((field === 'fechaRealizacion' || field === 'fechaVencimiento') && value) {
             try {
                 const nombreCampo = field === 'fechaRealizacion'
-                    ? 'La fecha de realización'
+                    ? 'La fecha de realizaciÃ³n'
                     : 'La fecha de vencimiento';
-                validarDiaHabil(value, nombreCampo); // ✅ Síncrono
+                validarDiaHabil(value, nombreCampo); // âœ… SÃ­ncrono
                 setFieldErrors(prev => ({ ...prev, [field]: null }));
             } catch (error) {
                 setFieldErrors(prev => ({ ...prev, [field]: error.message }));
@@ -223,7 +187,7 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
 
         files.forEach(file => {
             if (!validTypes.includes(file.type)) {
-                setFieldErrors(prev => ({ ...prev, comprobantes: 'Solo se permiten archivos PDF o imágenes' }));
+                setFieldErrors(prev => ({ ...prev, comprobantes: 'Solo se permiten archivos PDF o imÃ¡genes' }));
                 hasError = true;
                 return;
             }
@@ -264,31 +228,31 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
             if (!formData.tipoExamen) errors.tipoExamen = 'El tipo de examen es requerido';
             if (!formData.resultado) errors.resultado = 'El resultado es requerido';
             if (!formData.fechaRealizacion) {
-                errors.fechaRealizacion = 'La fecha de realización es requerida';
+                errors.fechaRealizacion = 'La fecha de realizaciÃ³n es requerida';
             } else if (new Date(formData.fechaRealizacion) > new Date()) {
-                errors.fechaRealizacion = 'La fecha de realización no puede ser mayor a la fecha actual';
+                errors.fechaRealizacion = 'La fecha de realizaciÃ³n no puede ser mayor a la fecha actual';
             }
             if (!formData.fechaVencimiento) {
                 errors.fechaVencimiento = 'La fecha de vencimiento es requerida';
             } else if (formData.fechaRealizacion && new Date(formData.fechaVencimiento) < new Date(formData.fechaRealizacion)) {
-                errors.fechaVencimiento = 'La fecha de vencimiento no puede ser anterior a la fecha de realización';
+                errors.fechaVencimiento = 'La fecha de vencimiento no puede ser anterior a la fecha de realizaciÃ³n';
             }
         }
         // Step 2 has no required fields (comprobantes are optional)
 
-        // Preservar solo los errores de días hábiles de campos de fecha
+        // Preservar solo los errores de dÃ­as hÃ¡biles de campos de fecha
         setFieldErrors(prev => {
             const camposFecha = ['fechaRealizacion', 'fechaVencimiento'];
             const erroresDiasHabiles = {};
 
-            // Preservar errores de días hábiles en campos de fecha
+            // Preservar errores de dÃ­as hÃ¡biles en campos de fecha
             camposFecha.forEach(campo => {
-                if (prev[campo] && prev[campo].includes('día hábil')) {
+                if (prev[campo] && prev[campo].includes('dÃ­a hÃ¡bil')) {
                     erroresDiasHabiles[campo] = prev[campo];
                 }
             });
 
-            // Combinar: errores de la validación actual + errores de días hábiles preservados
+            // Combinar: errores de la validaciÃ³n actual + errores de dÃ­as hÃ¡biles preservados
             return { ...erroresDiasHabiles, ...errors };
         });
 
@@ -352,7 +316,7 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
                     onBlur={() => handleBlur('empleadoId')}
                     placeholder="Buscar y seleccionar empleado..."
                     noOptionsMessage={() => "No se encontraron empleados"}
-                    styles={getSelectStyles(isDark)}
+                    styles={buildSelectStyles(isDark)}
                     formatGroupLabel={data => (
                         <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
                             {data.label}
@@ -402,7 +366,7 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
             {/* Fechas - 2 columns */}
             <div className="form-grid-stacked">
                 <div className="form-group">
-                    <label className="form-label">Fecha de Realización *</label>
+                    <label className="form-label">Fecha de RealizaciÃ³n *</label>
                     <input
                         type="date"
                         className={`form-input ${touched.fechaRealizacion && fieldErrors.fechaRealizacion ? 'input-error' : ''}`}
@@ -432,7 +396,7 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
             {/* Comprobantes - Multiple files */}
             <div className="form-group">
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    Comprobantes Médicos
+                    Comprobantes MÃ©dicos
                     <span
                         className="tooltip-icon"
                         onClick={() => setShowTooltip(!showTooltip)}
@@ -522,7 +486,7 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
                         Haz clic o arrastra archivos para subir
                     </p>
                     <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        PDF o imágenes • Máximo 10MB cada uno
+                        PDF o imÃ¡genes â€¢ MÃ¡ximo 10MB cada uno
                     </p>
                 </div>
                 <input
@@ -558,8 +522,8 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
                             {steps[currentStep - 1].title}
                         </h3>
                         <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                            {currentStep === 1 && 'Ingresa los datos básicos del registro de salud'}
-                            {currentStep === 2 && 'Adjunta los comprobantes médicos (opcional)'}
+                            {currentStep === 1 && 'Ingresa los datos bÃ¡sicos del registro de salud'}
+                            {currentStep === 2 && 'Adjunta los comprobantes mÃ©dicos (opcional)'}
                         </p>
                     </div>
 
@@ -602,3 +566,4 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
 };
 
 export default RegistroSaludWizard;
+

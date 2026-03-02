@@ -1,6 +1,18 @@
+﻿/**
+ * @fileoverview Formulario autónomo para el registro autogestionado de nuevos usuarios administradores.
+ * @module components/RegistroPublicoForm
+ */
+
 import { useState } from 'react';
 import { register, login } from '../services/api';
 
+/**
+ * Componente RegistroPublicoForm
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Function} props.onSuccess - Callback ejecutado tras el registro y login exitoso.
+ * @returns {JSX.Element}
+ */
 const RegistroPublicoForm = ({ onSuccess }) => {
     const [form, setForm] = useState({
         nombre: '',
@@ -20,14 +32,14 @@ const RegistroPublicoForm = ({ onSuccess }) => {
         if (!form.nombre.trim()) e.nombre = 'El nombre es requerido';
         if (!form.apellido.trim()) e.apellido = 'El apellido es requerido';
         if (!form.email.trim()) e.email = 'El email es requerido';
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Email inválido';
-        if (!form.contrasena) e.contrasena = 'La contraseña es requerida';
-        else if (form.contrasena.length < 8) e.contrasena = 'Mínimo 8 caracteres';
-        else if (!/[A-Z]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos una mayúscula';
-        else if (!/[0-9]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos un número';
-        else if (!/[@$!%*?&#]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos un carácter especial (@$!%*?&#)';
-        if (!form.confirmarContrasena) e.confirmarContrasena = 'Debes confirmar la contraseña';
-        else if (form.contrasena !== form.confirmarContrasena) e.confirmarContrasena = 'Las contraseñas no coinciden';
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Email invÃ¡lido';
+        if (!form.contrasena) e.contrasena = 'La contraseÃ±a es requerida';
+        else if (form.contrasena.length < 8) e.contrasena = 'MÃ­nimo 8 caracteres';
+        else if (!/[A-Z]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos una mayÃºscula';
+        else if (!/[0-9]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos un nÃºmero';
+        else if (!/[@$!%*?&#]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos un carÃ¡cter especial (@$!%*?&#)';
+        if (!form.confirmarContrasena) e.confirmarContrasena = 'Debes confirmar la contraseÃ±a';
+        else if (form.contrasena !== form.confirmarContrasena) e.confirmarContrasena = 'Las contraseÃ±as no coinciden';
         return e;
     };
 
@@ -93,7 +105,7 @@ const RegistroPublicoForm = ({ onSuccess }) => {
         <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1.25rem' }} noValidate>
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>Crear cuenta</h2>
-                <p style={{ color: 'var(--neutral-500)', fontSize: '0.875rem' }}>Completá tus datos para registrarte</p>
+                <p style={{ color: 'var(--neutral-500)', fontSize: '0.875rem' }}>CompletÃ¡ tus datos para registrarte</p>
             </div>
 
             {globalError && (
@@ -127,7 +139,7 @@ const RegistroPublicoForm = ({ onSuccess }) => {
                         className={`form-input${errors.apellido ? ' input-error' : ''}`}
                         value={form.apellido}
                         onChange={handleChange}
-                        placeholder="Pérez"
+                        placeholder="PÃ©rez"
                         autoComplete="family-name"
                     />
                     <FieldError msg={errors.apellido} />
@@ -150,7 +162,7 @@ const RegistroPublicoForm = ({ onSuccess }) => {
 
             <div className="form-grid-stacked">
                 <div className="form-group">
-                    <label className="form-label">Contraseña *</label>
+                    <label className="form-label">ContraseÃ±a *</label>
                     <div style={{ position: 'relative', display: 'flex' }}>
                         <input
                             type={showPassword ? 'text' : 'password'}
@@ -158,11 +170,11 @@ const RegistroPublicoForm = ({ onSuccess }) => {
                             className={`form-input${errors.contrasena ? ' input-error' : ''}`}
                             value={form.contrasena}
                             onChange={handleChange}
-                            placeholder="Mínimo 8 caracteres"
+                            placeholder="MÃ­nimo 8 caracteres"
                             style={{ paddingRight: '3rem', width: '100%' }}
                             autoComplete="new-password"
                         />
-                        <button type="button" style={eyeBtnStyle} onClick={() => setShowPassword(p => !p)} aria-label="Mostrar contraseña">
+                        <button type="button" style={eyeBtnStyle} onClick={() => setShowPassword(p => !p)} aria-label="Mostrar contraseÃ±a">
                             <EyeIcon visible={showPassword} />
                         </button>
                     </div>
@@ -170,7 +182,7 @@ const RegistroPublicoForm = ({ onSuccess }) => {
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">Confirmar contraseña *</label>
+                    <label className="form-label">Confirmar contraseÃ±a *</label>
                     <div style={{ position: 'relative', display: 'flex' }}>
                         <input
                             type={showConfirm ? 'text' : 'password'}
@@ -178,11 +190,11 @@ const RegistroPublicoForm = ({ onSuccess }) => {
                             className={`form-input${errors.confirmarContrasena ? ' input-error' : ''}`}
                             value={form.confirmarContrasena}
                             onChange={handleChange}
-                            placeholder="Repetir contraseña"
+                            placeholder="Repetir contraseÃ±a"
                             style={{ paddingRight: '3rem', width: '100%' }}
                             autoComplete="new-password"
                         />
-                        <button type="button" style={eyeBtnStyle} onClick={() => setShowConfirm(p => !p)} aria-label="Mostrar contraseña">
+                        <button type="button" style={eyeBtnStyle} onClick={() => setShowConfirm(p => !p)} aria-label="Mostrar contraseÃ±a">
                             <EyeIcon visible={showConfirm} />
                         </button>
                     </div>
@@ -203,3 +215,4 @@ const RegistroPublicoForm = ({ onSuccess }) => {
 };
 
 export default RegistroPublicoForm;
+

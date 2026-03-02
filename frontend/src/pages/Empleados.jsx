@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Tabla principal e interfaz de gestión de empleados (ABM).
+ * @module pages/Empleados
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -15,37 +20,26 @@ import EmpleadoWizard from '../components/EmpleadoWizard';
 import EmpleadoDetail from '../components/EmpleadoDetail';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ubicaciones from '../data/ubicaciones.json';
-import { truncateText } from '../utils/formatters';
-
-const buildSelectStyles = (isDark) => ({
-    control: (b, s) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', borderColor: s.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'), boxShadow: 'none', '&:hover': { borderColor: '#0d9488' }, minHeight: '36px', fontSize: '0.875rem', borderRadius: '0.5rem' }),
-    menu: (b) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 9999 }),
-    option: (b, s) => ({ ...b, backgroundColor: s.isSelected ? '#0d9488' : s.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent', color: s.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'), fontSize: '0.875rem', cursor: 'pointer' }),
-    input: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b', fontSize: '0.875rem' }),
-    singleValue: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (b) => ({ ...b, color: '#94a3b8', fontSize: '0.875rem' }),
-    valueContainer: (b) => ({ ...b, padding: '0 8px' }),
-    menuPortal: (b) => ({ ...b, zIndex: 9999 }),
-});
-
-const NACIONALIDADES_COMUNES = [
-    'Argentina', 'Brasil', 'Chile', 'Uruguay', 'Paraguay', 'Bolivia', 'Perú', 'Colombia', 'Venezuela', 'Ecuador', 'México', 'España', 'Italia', 'Estados Unidos', 'Otra'
-];
+import { truncateText } from '../helpers/formatters';
+import { useIsDark, useModulePermissions } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
+/**
+ * Componente Empleados
+ * 
+ * Tabla principal para lista de Empleados. Gestiona operaciones CRUD, validaciones 
+ * y usa helpers para estandarizar estilos oscuros y accesibilidad.
+ * 
+ * @returns {JSX.Element}
+ */
 const Empleados = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useAuth();
 
-    // Permisos del módulo empleados
-    const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
-    const userPermisos = user?.rol?.permisos || [];
-    const canRead = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'empleados' && p.accion === 'leer');
-    const canCreate = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'empleados' && p.accion === 'crear');
-    const canEdit = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'empleados' && p.accion === 'actualizar');
-    const canDelete = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'empleados' && p.accion === 'eliminar');
+    const { isEmpleadoUser, canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'empleados');
 
     // Data State
     const [items, setItems] = useState([]);
@@ -77,7 +71,7 @@ const Empleados = () => {
 
     // Filter lists
     const [espaciosList, setEspaciosList] = useState([]);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const isDark = useIsDark();
 
     // Selection
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -114,12 +108,7 @@ const Empleados = () => {
         }
     }, [user, isEmpleadoUser, canRead, navigate]);
 
-    // Theme observer
-    useEffect(() => {
-        const obs = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
-        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => obs.disconnect();
-    }, []);
+
 
     // Load filter data
     // Load Initial Data
@@ -134,7 +123,7 @@ const Empleados = () => {
                 setEspaciosList(espaciosRes.data || []);
                 setCurrentUser(userMe);
 
-                // Lógica de preselección de espacio SOLO SI ES EMPLEADO
+                // LÃ³gica de preselecciÃ³n de espacio SOLO SI ES EMPLEADO
                 if (userMe && userMe.esEmpleado) {
                     const espacios = espaciosRes.data || [];
                     // Si el usuario tiene un espacio asignado, priorizar ese
@@ -179,7 +168,13 @@ const Empleados = () => {
         return () => clearTimeout(timer);
     }, [emailInput]);
 
-    // Load Items
+    /**
+     * Refresca la vista de la grilla de empleados consultando `getEmpleados`.
+     * Considera estados activos/inactivos, búsqueda por nombre/documento y paginado.
+     * 
+     * @async
+     * @returns {Promise<void>}
+     */
     const loadItems = useCallback(async () => {
         try {
             setLoading(true);
@@ -213,7 +208,11 @@ const Empleados = () => {
     }, [loadItems]);
 
 
-
+    /**
+     * Restablece activamente y elimina todos los filtros aplicados a la vista de datos.
+     * 
+     * @returns {void}
+     */
     const clearFilters = () => {
         setSearchInput('');
         setFilterNombre('');
@@ -384,7 +383,7 @@ const Empleados = () => {
                 <div className="page-header">
                     <div>
                         <h1 className="page-title">Empleados</h1>
-                        <p className="page-subtitle">Gestiona los empleados de la organización</p>
+                        <p className="page-subtitle">Gestiona los empleados de la organizaciÃ³n</p>
                     </div>
                 </div>
 
@@ -392,13 +391,13 @@ const Empleados = () => {
                 {error && (
                     <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                         {error}
-                        <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                        <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                     </div>
                 )}
                 {success && (
                     <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                         {success}
-                        <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                        <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                     </div>
                 )}
 
@@ -591,7 +590,7 @@ const Empleados = () => {
                             {/* Pagination */}
                             <div className="pagination-bar">
                                 <div className="pagination-info">
-                                    <span>Filas por página:</span>
+                                    <span>Filas por pÃ¡gina:</span>
                                     <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                         {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                     </select>
@@ -600,11 +599,11 @@ const Empleados = () => {
                                     </span>
                                 </div>
                                 <div className="pagination-controls">
-                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
-                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
-                                    <span className="pagination-page">Página {page} de {totalPages || 1}</span>
-                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
-                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
+                                    <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
+                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
+                                    <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
                                 </div>
                             </div>
                         </>
@@ -632,7 +631,7 @@ const Empleados = () => {
                 <ConfirmDialog
                     isOpen={confirmOpen}
                     title="Desactivar empleado"
-                    message={itemToDelete ? `¿Estás seguro de desactivar al empleado "${itemToDelete.nombre} ${itemToDelete.apellido}"? Podrás reactivarlo más tarde.` : ''}
+                    message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar al empleado "${itemToDelete.nombre} ${itemToDelete.apellido}"? PodrÃ¡s reactivarlo mÃ¡s tarde.` : ''}
                     onConfirm={handleConfirmDelete}
                     onCancel={handleCancelDelete}
                     confirmText="Desactivar"
@@ -642,22 +641,22 @@ const Empleados = () => {
                 <ConfirmDialog
                     isOpen={confirmBulkOpen}
                     title="Desactivar empleados"
-                    message={`¿Estás seguro de desactivar ${selectedIds.size} empleado(s)? Podrás reactivarlos más tarde.`}
+                    message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} empleado(s)? PodrÃ¡s reactivarlos mÃ¡s tarde.`}
                     onConfirm={handleConfirmBulkDelete}
                     onCancel={() => setConfirmBulkOpen(false)}
                     confirmText="Desactivar todos"
                     variant="danger"
                 />
 
-                {/* Prompt para crear contrato después de crear empleado */}
+                {/* Prompt para crear contrato despuÃ©s de crear empleado */}
                 <ConfirmDialog
                     isOpen={showContratoPrompt}
-                    title="¿Registrar contrato?"
-                    message={nuevoEmpleado ? `El empleado "${nuevoEmpleado.nombre} ${nuevoEmpleado.apellido}" fue creado exitosamente. ¿Deseas registrar un contrato para este empleado ahora?` : ''}
+                    title="Â¿Registrar contrato?"
+                    message={nuevoEmpleado ? `El empleado "${nuevoEmpleado.nombre} ${nuevoEmpleado.apellido}" fue creado exitosamente. Â¿Deseas registrar un contrato para este empleado ahora?` : ''}
                     onConfirm={handleContratoPromptYes}
                     onCancel={handleContratoPromptNo}
-                    confirmText="Sí, crear contrato"
-                    cancelText="No, más tarde"
+                    confirmText="SÃ­, crear contrato"
+                    cancelText="No, mÃ¡s tarde"
                 />
             </div>
         </>
@@ -665,3 +664,4 @@ const Empleados = () => {
 };
 
 export default Empleados;
+

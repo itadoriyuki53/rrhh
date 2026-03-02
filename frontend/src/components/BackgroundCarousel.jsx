@@ -1,5 +1,16 @@
+﻿/**
+ * @fileoverview Carrusel de imágenes de fondo para pantallas de autenticación.
+ * @module components/BackgroundCarousel
+ */
+
 import { useState, useEffect } from 'react';
 
+/**
+ * Componente BackgroundCarousel
+ * Muestra una transición suave de imágenes de fondo en loop (login/register).
+ * 
+ * @returns {JSX.Element}
+ */
 const BackgroundCarousel = () => {
     const [currentSlide, setCurrentSlide] = useState(0);
     const images = ['/carrusel/foto1.jpeg', '/carrusel/foto2.jpg', '/carrusel/foto3.jpeg'];
@@ -27,3 +38,4 @@ const BackgroundCarousel = () => {
 };
 
 export default BackgroundCarousel;
+

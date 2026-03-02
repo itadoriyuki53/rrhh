@@ -1,3 +1,8 @@
+﻿/**
+ * @fileoverview Orquestador de alta y modificación de empleados mediante un proceso guiado (Wizard).
+ * @module components/EmpleadoWizard
+ */
+
 import { useState, useEffect } from 'react';
 import StepTracker from './StepTracker';
 import EspacioTrabajoSelector from './EspacioTrabajoSelector';
@@ -18,23 +23,42 @@ const ESTADOS_CIVILES = [
 ];
 
 const TIPOS_DOCUMENTO = [
-    { value: 'cedula', label: 'Cédula' },
+    { value: 'cedula', label: 'CÃ©dula' },
     { value: 'pasaporte', label: 'Pasaporte' },
 ];
 
 // Tooltip content for Argentine labor law
-const TOOLTIP_EDAD_MINIMA = `En Argentina, la edad mínima para trabajar es 16 años, según la Ley 26.390 de Prohibición del Trabajo Infantil y Protección del Trabajo Adolescente.
+const TOOLTIP_EDAD_MINIMA = `En Argentina, la edad mÃ­nima para trabajar es 16 aÃ±os, segÃºn la Ley 26.390 de ProhibiciÃ³n del Trabajo Infantil y ProtecciÃ³n del Trabajo Adolescente.
 
-Entre 16 y 18 años, los adolescentes pueden trabajar con autorización de sus padres o tutores, en una jornada reducida de hasta 6 horas diarias o 36 horas semanales, y sin realizar tareas nocturnas, peligrosas o insalubres.
+Entre 16 y 18 aÃ±os, los adolescentes pueden trabajar con autorizaciÃ³n de sus padres o tutores, en una jornada reducida de hasta 6 horas diarias o 36 horas semanales, y sin realizar tareas nocturnas, peligrosas o insalubres.
 
-Como excepción, los adolescentes de 14 a 16 años solo pueden trabajar en empresas familiares, en jornadas más reducidas (máximo 3 horas diarias y 15 horas semanales), con autorización administrativa y siempre que no se vea afectada su escolaridad.`;
+Como excepciÃ³n, los adolescentes de 14 a 16 aÃ±os solo pueden trabajar en empresas familiares, en jornadas mÃ¡s reducidas (mÃ¡ximo 3 horas diarias y 15 horas semanales), con autorizaciÃ³n administrativa y siempre que no se vea afectada su escolaridad.`;
 
-// Componente de error de campo
+/**
+ * Componente interno FieldError
+ * Renderiza un mensaje de error estilizado para campos de formulario.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {string} props.message - El mensaje a mostrar.
+ */
 const FieldError = ({ message }) => {
     if (!message) return null;
     return <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}</span>;
 };
 
+/**
+ * Componente EmpleadoWizard
+ * 
+ * Gestiona la creación y edición de empleados, validando datos personales,
+ * legales y dirección en múltiples pasos. Asegura el cumplimiento de reglas
+ * de negocio como edad mínima y unicidad de campos sensibles.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.empleado] - Objeto empleado a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras una operación exitosa.
+ * @returns {JSX.Element}
+ */
 const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
     const isEditMode = !!empleadoToEdit;
     const [currentStep, setCurrentStep] = useState(1);
@@ -56,7 +80,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
     const [provincias, setProvincias] = useState([]);
     const [ciudades, setCiudades] = useState([]);
 
-    // Form data - Paso 1: Información básica
+    // Form data - Paso 1: InformaciÃ³n bÃ¡sica
     const [info, setInfo] = useState({
         nombre: '',
         apellido: '',
@@ -73,7 +97,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
         confirmarContrasena: '',
     });
 
-    // Form data - Paso 2: Dirección
+    // Form data - Paso 2: DirecciÃ³n
     const [direccion, setDireccion] = useState({
         calle: '',
         numero: '',
@@ -87,8 +111,8 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
     });
 
     const steps = [
-        { number: 1, title: 'Información Básica' },
-        { number: 2, title: 'Dirección' },
+        { number: 1, title: 'InformaciÃ³n BÃ¡sica' },
+        { number: 2, title: 'DirecciÃ³n' },
     ];
 
     // Cargar datos iniciales
@@ -96,7 +120,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
         loadInitialData();
     }, []);
 
-    // Cargar datos del empleado si es edición
+    // Cargar datos del empleado si es ediciÃ³n
     useEffect(() => {
         if (empleadoToEdit) {
             setInfo({
@@ -190,7 +214,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
 
         if (field === 'email') {
             if (!info.email?.trim()) errors.email = 'El email es requerido';
-            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.email)) errors.email = 'Email inválido';
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.email)) errors.email = 'Email invÃ¡lido';
             else delete errors.email;
         }
 
@@ -203,7 +227,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
         if (field === 'nacionalidadId' && !info.nacionalidadId?.trim()) errors.nacionalidadId = 'La nacionalidad es requerida';
         else if (field === 'nacionalidadId') delete errors.nacionalidadId;
 
-        if (field === 'genero' && !info.genero?.trim()) errors.genero = 'El género es requerido';
+        if (field === 'genero' && !info.genero?.trim()) errors.genero = 'El gÃ©nero es requerido';
         else if (field === 'genero') delete errors.genero;
 
         if (field === 'estadoCivil' && !info.estadoCivil?.trim()) errors.estadoCivil = 'El estado civil es requerido';
@@ -213,7 +237,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
         if (field === 'calle' && !direccion.calle?.trim()) errors.calle = 'La calle es requerida';
         else if (field === 'calle') delete errors.calle;
 
-        if (field === 'numero' && !direccion.numero?.trim()) errors.numero = 'El número es requerido';
+        if (field === 'numero' && !direccion.numero?.trim()) errors.numero = 'El nÃºmero es requerido';
         else if (field === 'numero') delete errors.numero;
 
         if (field === 'provinciaId' && !direccion.provinciaId) errors.provinciaId = 'La provincia es requerida';
@@ -264,16 +288,16 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
             if (!info.nombre?.trim()) errors.nombre = 'El nombre es requerido';
             if (!info.apellido?.trim()) errors.apellido = 'El apellido es requerido';
             if (!info.email?.trim()) errors.email = 'El email es requerido';
-            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.email)) errors.email = 'Email inválido';
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.email)) errors.email = 'Email invÃ¡lido';
 
-            // Validación de documento
+            // ValidaciÃ³n de documento
             if (!info.numeroDocumento?.trim()) {
                 errors.numeroDocumento = 'El documento es requerido';
             } else if (!/^(\d{8}|[MF]\d{7})$/.test(info.numeroDocumento)) {
-                errors.numeroDocumento = 'El documento debe ser 8 números o comenzar con M/F seguido de 7 números';
+                errors.numeroDocumento = 'El documento debe ser 8 nÃºmeros o comenzar con M/F seguido de 7 nÃºmeros';
             }
 
-            // Validación de fecha de nacimiento
+            // ValidaciÃ³n de fecha de nacimiento
             if (!info.fechaNacimiento?.trim()) {
                 errors.fechaNacimiento = 'La fecha es requerida';
             } else {
@@ -292,42 +316,42 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                         age--;
                     }
                     if (age < 14) {
-                        errors.fechaNacimiento = 'El empleado debe tener al menos 14 años';
+                        errors.fechaNacimiento = 'El empleado debe tener al menos 14 aÃ±os';
                     }
                 }
             }
 
             if (!info.nacionalidadId?.trim()) errors.nacionalidadId = 'La nacionalidad es requerida';
-            if (!info.genero?.trim()) errors.genero = 'El género es requerido';
+            if (!info.genero?.trim()) errors.genero = 'El gÃ©nero es requerido';
             if (!info.estadoCivil?.trim()) errors.estadoCivil = 'El estado civil es requerido';
 
-            // Validación de contraseña (opcional en edición si no se cambia)
+            // ValidaciÃ³n de contraseÃ±a (opcional en ediciÃ³n si no se cambia)
             const passwordEntered = !!info.contrasena?.trim();
             const passwordRequired = !isEditMode;
 
             if (passwordRequired || passwordEntered) {
                 if (!info.contrasena?.trim()) {
-                    errors.contrasena = 'La contraseña es requerida';
+                    errors.contrasena = 'La contraseÃ±a es requerida';
                 } else if (info.contrasena.length < 8) {
-                    errors.contrasena = 'La contraseña debe tener al menos 8 caracteres';
+                    errors.contrasena = 'La contraseÃ±a debe tener al menos 8 caracteres';
                 } else if (!/[A-Z]/.test(info.contrasena)) {
-                    errors.contrasena = 'La contraseña debe contener al menos una mayúscula';
+                    errors.contrasena = 'La contraseÃ±a debe contener al menos una mayÃºscula';
                 } else if (!/[0-9]/.test(info.contrasena)) {
-                    errors.contrasena = 'La contraseña debe contener al menos un número';
+                    errors.contrasena = 'La contraseÃ±a debe contener al menos un nÃºmero';
                 } else if (!/[@$!%*?&#]/.test(info.contrasena)) {
-                    errors.contrasena = 'La contraseña debe contener al menos un carácter especial (@$!%*?&#)';
+                    errors.contrasena = 'La contraseÃ±a debe contener al menos un carÃ¡cter especial (@$!%*?&#)';
                 }
             }
 
             if (passwordRequired || !!info.confirmarContrasena?.trim() || passwordEntered) {
                 if (!info.confirmarContrasena?.trim()) {
-                    errors.confirmarContrasena = 'Debes confirmar la contraseña';
+                    errors.confirmarContrasena = 'Debes confirmar la contraseÃ±a';
                 } else if (info.contrasena !== info.confirmarContrasena) {
-                    errors.confirmarContrasena = 'Las contraseñas no coinciden';
+                    errors.confirmarContrasena = 'Las contraseÃ±as no coinciden';
                 }
             }
 
-            // Validación de espacio de trabajo
+            // ValidaciÃ³n de espacio de trabajo
             if (!espacioTrabajoId) {
                 errors.espacioTrabajoId = 'El espacio de trabajo es requerido';
             }
@@ -335,7 +359,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
 
         if (currentStep === 2) {
             if (!direccion.calle?.trim()) errors.calle = 'La calle es requerida';
-            if (!direccion.numero?.trim()) errors.numero = 'El número es requerido';
+            if (!direccion.numero?.trim()) errors.numero = 'El nÃºmero es requerido';
             if (!direccion.provinciaId) errors.provinciaId = 'La provincia es requerida';
         }
 
@@ -378,7 +402,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
             };
 
             if (isEditMode) {
-                // En edición, si la contraseña está vacía, no enviarla para mantener la actual
+                // En ediciÃ³n, si la contraseÃ±a estÃ¡ vacÃ­a, no enviarla para mantener la actual
                 if (!data.contrasena) {
                     delete data.contrasena;
                     delete data.confirmarContrasena;
@@ -392,8 +416,8 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
             }
         } catch (err) {
             const errorMessage = err.message.toLowerCase();
-            // Detect step 1 field errors (nombre, apellido, email, documento, cuil, fecha nacimiento, nacionalidad, género, estado civil)
-            const step1Fields = ['nombre', 'apellido', 'email', 'documento', 'cuil', 'fecha', 'nacimiento', 'nacionalidad', 'nacionalidadId', 'género', 'genero', 'estado civil', 'estadocivil', 'edad', 'años'];
+            // Detect step 1 field errors (nombre, apellido, email, documento, cuil, fecha nacimiento, nacionalidad, gÃ©nero, estado civil)
+            const step1Fields = ['nombre', 'apellido', 'email', 'documento', 'cuil', 'fecha', 'nacimiento', 'nacionalidad', 'nacionalidadId', 'gÃ©nero', 'genero', 'estado civil', 'estadocivil', 'edad', 'aÃ±os'];
             const isStep1Error = step1Fields.some(field => errorMessage.includes(field));
 
             if (isStep1Error) {
@@ -401,9 +425,9 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                 // Set specific field errors based on error message
                 if (errorMessage.includes('email')) {
                     if (errorMessage.includes('unique') || errorMessage.includes('existe') || errorMessage.includes('duplicado') || errorMessage.includes('registrado')) {
-                        setFieldErrors(prev => ({ ...prev, email: 'Este email ya está registrado' }));
+                        setFieldErrors(prev => ({ ...prev, email: 'Este email ya estÃ¡ registrado' }));
                     } else {
-                        setFieldErrors(prev => ({ ...prev, email: 'Debe ser un email válido' }));
+                        setFieldErrors(prev => ({ ...prev, email: 'Debe ser un email vÃ¡lido' }));
                     }
                     setTouched(prev => ({ ...prev, email: true }));
                 }
@@ -423,10 +447,10 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                     setFieldErrors(prev => ({ ...prev, nombre: err.message }));
                     setTouched(prev => ({ ...prev, nombre: true }));
                 }
-                // Handle fechaNacimiento errors (futura, edad, años, nacimiento)
+                // Handle fechaNacimiento errors (futura, edad, aÃ±os, nacimiento)
                 if (errorMessage.includes('fecha') || errorMessage.includes('nacimiento') ||
                     errorMessage.includes('futura') || errorMessage.includes('edad') ||
-                    errorMessage.includes('años') || errorMessage.includes('14')) {
+                    errorMessage.includes('aÃ±os') || errorMessage.includes('14')) {
                     setFieldErrors(prev => ({ ...prev, fechaNacimiento: err.message }));
                     setTouched(prev => ({ ...prev, fechaNacimiento: true }));
                 }
@@ -488,7 +512,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                     <FieldError message={touched.email && fieldErrors.email} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Teléfono</label>
+                    <label className="form-label">TelÃ©fono</label>
                     <input
                         type="text"
                         name="telefono"
@@ -515,7 +539,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                     </select>
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Número de Documento *</label>
+                    <label className="form-label">NÃºmero de Documento *</label>
                     <input
                         type="text"
                         name="numeroDocumento"
@@ -590,7 +614,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
 
             <div className="form-grid-stacked">
                 <div className="form-group">
-                    <label className="form-label">Género *</label>
+                    <label className="form-label">GÃ©nero *</label>
                     <select
                         name="genero"
                         className={`form-input ${touched.genero && fieldErrors.genero ? 'input-error' : ''}`}
@@ -598,7 +622,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                         onChange={handleInfoChange}
                         onBlur={() => handleBlur('genero')}
                     >
-                        <option value="">Seleccionar género</option>
+                        <option value="">Seleccionar gÃ©nero</option>
                         {GENEROS.map(g => (
                             <option key={g.value} value={g.value}>{g.label}</option>
                         ))}
@@ -625,7 +649,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
 
             <div className="form-grid-stacked">
                 <div className="form-group">
-                    <label className="form-label">Contraseña *</label>
+                    <label className="form-label">ContraseÃ±a *</label>
                     <div style={{ position: 'relative', display: 'flex' }}>
                         <input
                             type={showPassword ? 'text' : 'password'}
@@ -634,7 +658,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                             value={info.contrasena}
                             onChange={handleInfoChange}
                             onBlur={() => handleBlur('contrasena')}
-                            placeholder="Mínimo 8 caracteres"
+                            placeholder="MÃ­nimo 8 caracteres"
                             style={{ paddingRight: '3rem', width: '100%' }}
                         />
                         <button
@@ -658,7 +682,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.background = 'var(--neutral-50)'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                            aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                            aria-label={showPassword ? 'Ocultar contraseÃ±a' : 'Mostrar contraseÃ±a'}
                         >
                             {showPassword ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
@@ -675,7 +699,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                     <FieldError message={touched.contrasena && fieldErrors.contrasena} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Confirmar Contraseña *</label>
+                    <label className="form-label">Confirmar ContraseÃ±a *</label>
                     <div style={{ position: 'relative', display: 'flex' }}>
                         <input
                             type={showConfirmPassword ? 'text' : 'password'}
@@ -684,7 +708,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                             value={info.confirmarContrasena}
                             onChange={handleInfoChange}
                             onBlur={() => handleBlur('confirmarContrasena')}
-                            placeholder="Repetir contraseña"
+                            placeholder="Repetir contraseÃ±a"
                             style={{ paddingRight: '3rem', width: '100%' }}
                         />
                         <button
@@ -708,7 +732,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.background = 'var(--neutral-50)'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                            aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                            aria-label={showConfirmPassword ? 'Ocultar contraseÃ±a' : 'Mostrar contraseÃ±a'}
                         >
                             {showConfirmPassword ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
@@ -756,7 +780,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                     <FieldError message={touched.calle && fieldErrors.calle} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Número *</label>
+                    <label className="form-label">NÃºmero *</label>
                     <input
                         type="text"
                         name="numero"
@@ -794,7 +818,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                     />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Código Postal</label>
+                    <label className="form-label">CÃ³digo Postal</label>
                     <input
                         type="text"
                         name="codigoPostal"
@@ -857,8 +881,8 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
                         {steps[currentStep - 1].title}
                     </h3>
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                        {currentStep === 1 && 'Ingresa los datos básicos del empleado'}
-                        {currentStep === 2 && 'Ingresa la dirección del empleado'}
+                        {currentStep === 1 && 'Ingresa los datos bÃ¡sicos del empleado'}
+                        {currentStep === 2 && 'Ingresa la direcciÃ³n del empleado'}
                     </p>
                 </div>
 
@@ -919,3 +943,4 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
 };
 
 export default EmpleadoWizard;
+

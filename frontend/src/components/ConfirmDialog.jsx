@@ -1,3 +1,22 @@
+﻿/**
+ * @fileoverview Modal de confirmación para acciones críticas.
+ * @module components/ConfirmDialog
+ */
+
+/**
+ * Componente ConfirmDialog
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {boolean} props.isOpen - Indica si el diálogo está visible.
+ * @param {string} props.title - Título del diálogo.
+ * @param {string} props.message - Mensaje descriptivo.
+ * @param {Function} props.onConfirm - Callback al confirmar.
+ * @param {Function} props.onCancel - Callback al cancelar/cerrar.
+ * @param {string} [props.confirmText='Confirmar'] - Texto del botón de confirmación.
+ * @param {string} [props.cancelText='Cancelar'] - Texto del botón de cancelación.
+ * @param {'danger'|'primary'} [props.variant='danger'] - Variación de estilo para el botón de confirmación.
+ * @returns {JSX.Element|null}
+ */
 const ConfirmDialog = ({ isOpen, title, message, onConfirm, onCancel, confirmText = 'Confirmar', cancelText = 'Cancelar', variant = 'danger' }) => {
     if (!isOpen) return null;
 
@@ -31,3 +50,4 @@ const ConfirmDialog = ({ isOpen, title, message, onConfirm, onCancel, confirmTex
 };
 
 export default ConfirmDialog;
+

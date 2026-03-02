@@ -1,14 +1,36 @@
+﻿/**
+ * @fileoverview Orquestador para la creación y edición de roles y la gestión granular de sus permisos.
+ * @module components/RolWizard
+ */
+
 import { useState, useEffect } from 'react';
 import StepTracker from './StepTracker';
 import EspacioTrabajoSelector from './EspacioTrabajoSelector';
 import { createRol, updateRol, getPermisosGrouped, canChangeRolWorkspace } from '../services/api';
 
-// Componente de error de campo
+/**
+ * Componente interno de error de campo.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {string} [props.message] - Mensaje de error.
+ */
 const FieldError = ({ message }) => {
     if (!message) return null;
     return <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}</span>;
 };
 
+/**
+ * Componente RolWizard
+ * 
+ * Gestiona el nombre, descripción y la selección de permisos por módulo
+ * mediante una matriz de selección masiva o individual.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.rol] - Objeto rol a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @returns {JSX.Element}
+ */
 const RolWizard = ({ rol, onClose, onSuccess }) => {
     const isEditMode = !!rol;
     const [currentStep, setCurrentStep] = useState(1);
@@ -19,7 +41,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
     const [fieldErrors, setFieldErrors] = useState({});
     const [permisosAgrupados, setPermisosAgrupados] = useState({});
 
-    // Form data - Paso 1: Información básica
+    // Form data - Paso 1: InformaciÃ³n bÃ¡sica
     const [info, setInfo] = useState({
         nombre: '',
         descripcion: '',
@@ -34,7 +56,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
     const [permisos, setPermisos] = useState([]);
 
     const steps = [
-        { number: 1, title: 'Información Básica' },
+        { number: 1, title: 'InformaciÃ³n BÃ¡sica' },
         { number: 2, title: 'Permisos' },
     ];
 
@@ -54,7 +76,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
         loadPermisos();
     }, []);
 
-    // Cargar datos del rol en modo edición
+    // Cargar datos del rol en modo ediciÃ³n
     useEffect(() => {
         if (rol) {
             setInfo({
@@ -235,13 +257,13 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
             </div>
 
             <div className="form-group">
-                <label className="form-label">Descripción</label>
+                <label className="form-label">DescripciÃ³n</label>
                 <textarea
                     name="descripcion"
                     className="form-input"
                     value={info.descripcion}
                     onChange={handleInfoChange}
-                    placeholder="Descripción del rol y sus responsabilidades..."
+                    placeholder="DescripciÃ³n del rol y sus responsabilidades..."
                     rows={4}
                     style={{ resize: 'vertical', minHeight: '100px' }}
                     maxLength={1000}
@@ -267,7 +289,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
         // Definir el orden de las acciones
         const accionesOrdenadas = ['crear', 'leer', 'actualizar', 'eliminar'];
 
-        // Calcular si todos los permisos están seleccionados
+        // Calcular si todos los permisos estÃ¡n seleccionados
         const todosLosPermisos = Object.values(permisosAgrupados).flat().map(p => p.id);
         const todosSeleccionados = todosLosPermisos.length > 0 && todosLosPermisos.every(id => permisos.includes(id));
         const algunosSeleccionados = todosLosPermisos.some(id => permisos.includes(id)) && !todosSeleccionados;
@@ -352,7 +374,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
                                             background: 'var(--bg-secondary)',
                                             zIndex: 1
                                         }}>
-                                            Módulo
+                                            MÃ³dulo
                                         </th>
                                         {accionesOrdenadas.map(accion => (
                                             <th key={accion} style={{
@@ -482,8 +504,8 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
                         {steps[currentStep - 1].title}
                     </h3>
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                        {currentStep === 1 && 'Define el nombre y descripción del rol'}
-                        {currentStep === 2 && 'Selecciona los permisos que tendrá este rol'}
+                        {currentStep === 1 && 'Define el nombre y descripciÃ³n del rol'}
+                        {currentStep === 2 && 'Selecciona los permisos que tendrÃ¡ este rol'}
                     </p>
                 </div>
 
@@ -543,3 +565,4 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
 };
 
 export default RolWizard;
+

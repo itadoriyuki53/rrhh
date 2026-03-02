@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Bandeja y administrador individual de licencias y solicitudes de días libres.
+ * @module pages/Solicitudes
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -14,19 +19,9 @@ import {
 import SolicitudWizard from '../components/SolicitudWizard';
 import SolicitudDetail from '../components/SolicitudDetail';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { truncateText } from '../utils/formatters';
-
-const buildSelectStyles = (isDark) => ({
-    control: (b, s) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', borderColor: s.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'), boxShadow: 'none', '&:hover': { borderColor: '#0d9488' }, minHeight: '36px', fontSize: '0.875rem', borderRadius: '0.5rem' }),
-    menu: (b) => ({ ...b, backgroundColor: isDark ? '#1e293b' : 'white', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 9999 }),
-    option: (b, s) => ({ ...b, backgroundColor: s.isSelected ? '#0d9488' : s.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent', color: s.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'), fontSize: '0.875rem', cursor: 'pointer' }),
-    groupHeading: (b) => ({ ...b, fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.7rem', color: '#64748b' }),
-    input: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b', fontSize: '0.875rem' }),
-    singleValue: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (b) => ({ ...b, color: '#94a3b8', fontSize: '0.875rem' }),
-    valueContainer: (b) => ({ ...b, padding: '0 8px' }),
-    menuPortal: (b) => ({ ...b, zIndex: 9999 }),
-});
+import { truncateText } from '../helpers/formatters';
+import { useIsDark, useModulePermissions } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
@@ -54,17 +49,35 @@ const ESTADO_STYLES = {
     procesada: { bg: '#f3e8ff', color: '#6b21a8', label: 'Procesada' },
 };
 
+/**
+ * Da formato legible a una cadena de fecha a formato local ES-AR.
+ *
+ * @param {string} dateString - Cadena de texto o ISO de la fecha.
+ * @returns {string} Fecha formateada o '-' si es inválida.
+ */
 const formatDate = (dateString) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
     return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
+/**
+ * Extrae de forma segura el estado de una solicitud revisando la nested data correspondiente.
+ *
+ * @param {Object} sol - Objeto de la solicitud.
+ * @returns {string} El estado de la misma, por defecto 'pendiente'.
+ */
 const getEstado = (sol) => {
     const typeData = sol.licencia || sol.vacaciones || sol.horasExtras || sol.renuncia;
     return typeData?.estado || 'pendiente';
 };
 
+/**
+ * Obtiene el nombre completo formateado del empleado asociado a una solicitud.
+ *
+ * @param {Object} sol - Objeto de la solicitud.
+ * @returns {string} Nombre formateado "Apellido, Nombre" o '-'.
+ */
 const getEmpleadoNombre = (sol) => {
     const emp = sol.contrato?.empleado;
     return emp ? `${emp.usuario.apellido}, ${emp.usuario.nombre}` : '-';
@@ -74,19 +87,21 @@ const getEmpleadoDoc = (sol) => {
     return sol.contrato?.empleado?.numeroDocumento || '';
 };
 
+/**
+ * Componente Solicitudes
+ * 
+ * ABM para la gestión de Solicitudes (Vacaciones, licencias, horas extras, etc).
+ * Implementa vistas detalladas y modales de edición utilizando hooks unificados
+ * (useIsDark, useModulePermissions).
+ * 
+ * @returns {JSX.Element}
+ */
 const Solicitudes = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    // Permisos del módulo empresas
-    const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
-    const userPermisos = user?.rol?.permisos || [];
-    const canRead = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'solicitudes' && p.accion === 'leer');
-    const canCreate = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'solicitudes' && p.accion === 'crear');
-    const canEdit = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'solicitudes' && p.accion === 'actualizar');
-    const canDelete = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'solicitudes' && p.accion === 'eliminar');
-
+    const { isEmpleadoUser, canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'solicitudes');
     // Data State
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -111,7 +126,7 @@ const Solicitudes = () => {
     // Filter lists
     const [empleadosList, setEmpleadosList] = useState([]);
     const [espaciosList, setEspaciosList] = useState([]);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const isDark = useIsDark();
 
     // Selection
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -136,12 +151,7 @@ const Solicitudes = () => {
     const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
-    // Theme observer
-    useEffect(() => {
-        const obs = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
-        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => obs.disconnect();
-    }, []);
+
 
     // Redirigir si no tiene permiso de lectura
     useEffect(() => {
@@ -217,6 +227,13 @@ const Solicitudes = () => {
     const selectStyles = buildSelectStyles(isDark);
 
     // Load Items
+    /**
+     * Carga y refresca el listado de solicitudes consumiendo el servicio API `getSolicitudes`.
+     * Considera paginado, filtros de estado, tipo, empleado y búsqueda textual.
+     * 
+     * @async
+     * @returns {Promise<void>}
+     */
     const loadItems = useCallback(async () => {
         try {
             setLoading(true);
@@ -423,13 +440,13 @@ const Solicitudes = () => {
             {error && (
                 <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
                     {error}
-                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                    <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                 </div>
             )}
             {success && (
                 <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
                     {success}
-                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                    <button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button>
                 </div>
             )}
 
@@ -653,7 +670,7 @@ const Solicitudes = () => {
                         {/* Pagination */}
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por página:</span>
+                                <span>Filas por pÃ¡gina:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
                                     {ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
@@ -662,11 +679,11 @@ const Solicitudes = () => {
                                 </span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
-                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
+                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
                             </div>
                         </div>
                     </>
@@ -694,7 +711,7 @@ const Solicitudes = () => {
             <ConfirmDialog
                 isOpen={confirmOpen}
                 title="Desactivar solicitud"
-                message={itemToDelete ? `¿Estás seguro de desactivar esta solicitud? Podrás reactivarla más tarde.` : ''}
+                message={itemToDelete ? `Â¿EstÃ¡s seguro de desactivar esta solicitud? PodrÃ¡s reactivarla mÃ¡s tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -704,7 +721,7 @@ const Solicitudes = () => {
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
                 title="Desactivar solicitudes"
-                message={`¿Estás seguro de desactivar ${selectedIds.size} solicitud(es)? Podrás reactivarlas más tarde.`}
+                message={`Â¿EstÃ¡s seguro de desactivar ${selectedIds.size} solicitud(es)? PodrÃ¡s reactivarlas mÃ¡s tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todos"
@@ -715,3 +732,4 @@ const Solicitudes = () => {
 };
 
 export default Solicitudes;
+

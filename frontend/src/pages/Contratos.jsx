@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Panel de administración y visualización de contratos laborales.
+ * @module pages/Contratos
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -7,7 +12,9 @@ import {
     getContratoById, reactivateContrato,
     getEmpleados, getEspaciosTrabajo, getCurrentUser,
 } from '../services/api';
-import { formatDateOnly, formatCurrency, truncateText } from '../utils/formatters';
+import { formatDateOnly, formatCurrency, truncateText } from '../helpers/formatters';
+import { useIsDark, useModulePermissions } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 import ContratoWizard from '../components/ContratoWizard';
 import ContratoDetail from '../components/ContratoDetail';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -15,55 +22,32 @@ import ConfirmDialog from '../components/ConfirmDialog';
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
 const TIPOS_CONTRATO_LABELS = {
-    tiempo_indeterminado: 'Tiempo Indeterminado', periodo_prueba: 'Período de Prueba',
+    tiempo_indeterminado: 'Tiempo Indeterminado', periodo_prueba: 'PerÃ­odo de Prueba',
     plazo_fijo: 'Plazo Fijo', eventual: 'Eventual', teletrabajo: 'Teletrabajo',
-    locacion_servicios: 'Locación de Servicios', monotributista: 'Monotributista',
+    locacion_servicios: 'LocaciÃ³n de Servicios', monotributista: 'Monotributista',
     responsable_inscripto: 'Responsable Inscripto', honorarios: 'Honorarios',
-    contrato_obra: 'Contrato de Obra', pasantia_educativa: 'Pasantía Educativa',
+    contrato_obra: 'Contrato de Obra', pasantia_educativa: 'PasantÃ­a Educativa',
     beca: 'Beca', ad_honorem: 'Ad honorem',
 };
 
 const TIPOS_CONTRATO_FILTER = Object.entries(TIPOS_CONTRATO_LABELS).map(([value, label]) => ({ value, label }));
 
-const buildSelectStyles = (isDark) => ({
-    control: (b, s) => ({
-        ...b,
-        backgroundColor: isDark ? '#1e293b' : 'white',
-        borderColor: s.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'),
-        boxShadow: 'none', '&:hover': { borderColor: '#0d9488' },
-        minHeight: '36px', fontSize: '0.875rem', borderRadius: '0.5rem',
-    }),
-    menu: (b) => ({
-        ...b, backgroundColor: isDark ? '#1e293b' : 'white',
-        border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-        borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 9999,
-    }),
-    option: (b, s) => ({
-        ...b,
-        backgroundColor: s.isSelected ? '#0d9488' : s.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent',
-        color: s.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'),
-        fontSize: '0.875rem', cursor: 'pointer',
-    }),
-    groupHeading: (b) => ({ ...b, fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.7rem', color: '#64748b' }),
-    input: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b', fontSize: '0.875rem' }),
-    singleValue: (b) => ({ ...b, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (b) => ({ ...b, color: '#94a3b8', fontSize: '0.875rem' }),
-    valueContainer: (b) => ({ ...b, padding: '0 8px' }),
-    menuPortal: (b) => ({ ...b, zIndex: 9999 }),
-});
 
+
+/**
+ * Componente Contratos
+ * 
+ * Panel de administración de contratos de la plataforma. Configuración de hooks como useIsDark base, 
+ * useModulePermissions para lecto/escritura y callbacks para control del flujo de estados.
+ * 
+ * @returns {JSX.Element}
+ */
 const Contratos = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useAuth();
 
-    // Permisos del módulo empresas
-    const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
-    const userPermisos = user?.rol?.permisos || [];
-    const canRead = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'contratos' && p.accion === 'leer');
-    const canCreate = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'contratos' && p.accion === 'crear');
-    const canEdit = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'contratos' && p.accion === 'actualizar');
-    const canDelete = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'contratos' && p.accion === 'eliminar');
+    const { isEmpleadoUser, canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'contratos');
 
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -85,7 +69,7 @@ const Contratos = () => {
     const [empleadosList, setEmpleadosList] = useState([]);
     const [espaciosList, setEspaciosList] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const isDark = useIsDark();
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [visibleColumns, setVisibleColumns] = useState({ espacio: false, tipoContrato: true, estado: true, salario: true });
     const [showColumnSelector, setShowColumnSelector] = useState(false);
@@ -99,11 +83,7 @@ const Contratos = () => {
     const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
-    useEffect(() => {
-        const obs = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
-        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => obs.disconnect();
-    }, []);
+
 
     // Redirigir si no tiene permiso de lectura
     useEffect(() => {
@@ -178,6 +158,13 @@ const Contratos = () => {
         return () => clearTimeout(timer);
     }, [salarioMaxInput]);
 
+    /**
+     * Refresca la vista de contratos llamando al servicio `getContratos`.
+     * Aplica filtros de visibilidad, espacios, salarios y paginado activo.
+     * 
+     * @async
+     * @returns {Promise<void>}
+     */
     const loadItems = useCallback(async () => {
         try {
             setLoading(true);
@@ -201,6 +188,11 @@ const Contratos = () => {
 
     useEffect(() => { loadItems(); }, [loadItems]);
 
+    /**
+     * Restablece activamente y elimina todos los filtros aplicados a la vista de datos.
+     * 
+     * @returns {void}
+     */
     const clearFilters = () => {
         setFilterActivo('true'); setFilterTipoContrato('');
         if (!currentUser || !currentUser.esEmpleado) {
@@ -284,8 +276,8 @@ const Contratos = () => {
                     <p className="page-subtitle">Gestiona los contratos laborales de los empleados</p>
                 </div>
             </div>
-            {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}<button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button></div>}
-            {success && <div className="alert alert-success" style={{ marginBottom: '1rem' }}>{success}<button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button></div>}
+            {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}<button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button></div>}
+            {success && <div className="alert alert-success" style={{ marginBottom: '1rem' }}>{success}<button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>âœ•</button></div>}
             <div className="card">
                 <div className="card-header">
                     <div className="header-left">
@@ -341,10 +333,10 @@ const Contratos = () => {
                             </select>
                         </div>
                         <div className="filter-group">
-                            <input type="number" className="filter-input" placeholder="Salario mín." value={salarioMinInput} onChange={e => setSalarioMinInput(e.target.value)} style={{ width: '200px' }} min="0" />
+                            <input type="number" className="filter-input" placeholder="Salario mÃ­n." value={salarioMinInput} onChange={e => setSalarioMinInput(e.target.value)} style={{ width: '200px' }} min="0" />
                         </div>
                         <div className="filter-group">
-                            <input type="number" className="filter-input" placeholder="Salario máx." value={salarioMaxInput} onChange={e => setSalarioMaxInput(e.target.value)} style={{ width: '200px' }} min="0" />
+                            <input type="number" className="filter-input" placeholder="Salario mÃ¡x." value={salarioMaxInput} onChange={e => setSalarioMaxInput(e.target.value)} style={{ width: '200px' }} min="0" />
                         </div>
                         <div className="filter-group">
                             <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }} style={{ width: '200px' }}>
@@ -453,16 +445,16 @@ const Contratos = () => {
                         </div>
                         <div className="pagination-bar">
                             <div className="pagination-info">
-                                <span>Filas por página:</span>
+                                <span>Filas por pÃ¡gina:</span>
                                 <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">{ROWS_PER_PAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select>
                                 <span className="pagination-total">{((page - 1) * limit) + 1}-{Math.min(page * limit, total)} de {total}</span>
                             </div>
                             <div className="pagination-controls">
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</button>
-                                <span className="pagination-page">Página {page} de {totalPages || 1}</span>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›</button>
-                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>Â«</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>â€¹</button>
+                                <span className="pagination-page">PÃ¡gina {page} de {totalPages || 1}</span>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>â€º</button>
+                                <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>Â»</button>
                             </div>
                         </div>
                     </>
@@ -472,10 +464,11 @@ const Contratos = () => {
             {showDetail && selectedItem && (
                 <ContratoDetail contrato={selectedItem} onClose={() => { setShowDetail(false); setSelectedItem(null); }} onEdit={(c) => { setShowDetail(false); setSelectedItem(null); setEditingItem(c); setModoMultiple(false); setShowWizard(true); }} />
             )}
-            <ConfirmDialog isOpen={confirmOpen} title="Desactivar contrato" message="¿Estás seguro de desactivar este contrato? Podrás reactivarlo más tarde." onConfirm={handleConfirmDelete} onCancel={() => { setConfirmOpen(false); setItemToDelete(null); }} confirmText="Desactivar" variant="danger" />
-            <ConfirmDialog isOpen={confirmBulkOpen} title="Desactivar contratos" message={`¿Desactivar ${selectedIds.size} contrato(s)? Podrás reactivarlos más tarde.`} onConfirm={handleConfirmBulkDelete} onCancel={() => setConfirmBulkOpen(false)} confirmText="Desactivar todos" variant="danger" />
+            <ConfirmDialog isOpen={confirmOpen} title="Desactivar contrato" message="Â¿EstÃ¡s seguro de desactivar este contrato? PodrÃ¡s reactivarlo mÃ¡s tarde." onConfirm={handleConfirmDelete} onCancel={() => { setConfirmOpen(false); setItemToDelete(null); }} confirmText="Desactivar" variant="danger" />
+            <ConfirmDialog isOpen={confirmBulkOpen} title="Desactivar contratos" message={`Â¿Desactivar ${selectedIds.size} contrato(s)? PodrÃ¡s reactivarlos mÃ¡s tarde.`} onConfirm={handleConfirmBulkDelete} onCancel={() => setConfirmBulkOpen(false)} confirmText="Desactivar todos" variant="danger" />
         </div>
     );
 };
 
 export default Contratos;
+

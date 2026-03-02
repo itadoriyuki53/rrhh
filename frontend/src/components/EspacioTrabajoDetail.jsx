@@ -1,4 +1,9 @@
-import { formatDateOnly, formatDateTime } from '../utils/formatters';
+﻿/**
+ * @fileoverview Vista detallada de un espacio de trabajo, mostrando sus métricas básicas y propietarios.
+ * @module components/EspacioTrabajoDetail
+ */
+
+import { formatDateOnly, formatDateTime } from '../helpers/formatters';
 
 // Icons SVG components
 const Icons = {
@@ -39,6 +44,15 @@ const Icons = {
     ),
 };
 
+/**
+ * Componente EspacioTrabajoDetail
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} props.espacio - Objeto espacio de trabajo poblado.
+ * @param {Function} props.onClose - Callback para cerrar la vista.
+ * @param {Function} [props.onEdit] - Callback para abrir el editor del espacio.
+ * @returns {JSX.Element|null}
+ */
 const EspacioTrabajoDetail = ({ espacio, onClose, onEdit }) => {
     if (!espacio) return null;
 
@@ -63,7 +77,7 @@ const EspacioTrabajoDetail = ({ espacio, onClose, onEdit }) => {
         if (diffMinutes < 1) return 'menos de un minuto';
         if (diffMinutes < 60) return `${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
         if (diffHours < 24) return `${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-        return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
+        return `${diffDays} dÃ­a${diffDays !== 1 ? 's' : ''}`;
     };
 
     // Field component with icon
@@ -176,7 +190,7 @@ const EspacioTrabajoDetail = ({ espacio, onClose, onEdit }) => {
 
                     {/* Registro de Actividad Section */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(espacio.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Ãšltimos cambios hace ${getRelativeTime(espacio.updatedAt)}`} />
                         <div className="activity-log-grid">
                             <div style={{
                                 display: 'flex',
@@ -188,7 +202,7 @@ const EspacioTrabajoDetail = ({ espacio, onClose, onEdit }) => {
                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0 }}>{Icons.calendar}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Fecha de Creación
+                                        Fecha de CreaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(espacio.createdAt)}
@@ -231,7 +245,7 @@ const EspacioTrabajoDetail = ({ espacio, onClose, onEdit }) => {
                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0 }}>{Icons.clock}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Última Modificación
+                                        Ãšltima ModificaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(espacio.updatedAt)}
@@ -245,7 +259,7 @@ const EspacioTrabajoDetail = ({ espacio, onClose, onEdit }) => {
                     <div className="detail-grid-2col">
                         {/* Column 1: Resumen */}
                         <div>
-                            <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(espacio.updatedAt)}`} />
+                            <SectionHeader title="Resumen" subtitle={`Ãšltimos cambios hace ${getRelativeTime(espacio.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -261,10 +275,10 @@ const EspacioTrabajoDetail = ({ espacio, onClose, onEdit }) => {
                             </div>
                         </div>
 
-                        {/* Column 2: Descripción */}
+                        {/* Column 2: DescripciÃ³n */}
                         <div>
-                            {/* Descripción Section */}
-                            <SectionHeader title="Descripción" subtitle={`Últimos cambios hace ${getRelativeTime(espacio.updatedAt)}`} />
+                            {/* DescripciÃ³n Section */}
+                            <SectionHeader title="DescripciÃ³n" subtitle={`Ãšltimos cambios hace ${getRelativeTime(espacio.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -272,7 +286,7 @@ const EspacioTrabajoDetail = ({ espacio, onClose, onEdit }) => {
                                 padding: '1rem'
                             }}>
                                 <p style={{ margin: 0, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                                    {espacio.descripcion || 'Sin descripción'}
+                                    {espacio.descripcion || 'Sin descripciÃ³n'}
                                 </p>
                             </div>
                         </div>
@@ -295,3 +309,4 @@ const EspacioTrabajoDetail = ({ espacio, onClose, onEdit }) => {
 };
 
 export default EspacioTrabajoDetail;
+

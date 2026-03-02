@@ -1,3 +1,8 @@
+﻿/**
+ * @fileoverview Barra de navegación principal con menú de usuario y selector de contrato.
+ * @module components/Navbar
+ */
+
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -8,7 +13,16 @@ import PerfilUsuarioModal from './PerfilUsuarioModal';
 import ConfirmDialog from './ConfirmDialog';
 import Alert from './Alert';
 
-// ─── Custom Contract Select ───────────────────────────────────────────────────
+/**
+ * Componente interno ContractSelect
+ * Renderiza un selector personalizado para cambiar entre los diferentes contratos del empleado.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Array} props.contratos - Lista de objetos de contrato.
+ * @param {number|string} props.selectedId - ID del contrato actualmente seleccionado.
+ * @param {Function} props.onChange - Callback al cambiar la selección.
+ * @returns {JSX.Element}
+ */
 const ContractSelect = ({ contratos, selectedId, onChange }) => {
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
@@ -64,7 +78,7 @@ const ContractSelect = ({ contratos, selectedId, onChange }) => {
                     {sel ? (
                         <>
                             <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {sel.puesto}{sel.empresa ? ` · ${sel.empresa}` : ''}
+                                {sel.puesto}{sel.empresa ? ` Â· ${sel.empresa}` : ''}
                             </div>
                             {sel.rol && (
                                 <div style={{ marginTop: '0.2rem' }}>
@@ -140,7 +154,7 @@ const ContractSelect = ({ contratos, selectedId, onChange }) => {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.82rem', fontWeight: isSelected ? 700 : 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {puesto}{empresa ? ` · ${empresa}` : ''}
+                                        {puesto}{empresa ? ` Â· ${empresa}` : ''}
                                     </div>
                                     {rol && (
                                         <div style={{ marginTop: '0.2rem' }}>
@@ -168,7 +182,13 @@ const ContractSelect = ({ contratos, selectedId, onChange }) => {
     );
 };
 
-// ─── Navbar ───────────────────────────────────────────────────────────────────
+/**
+ * Componente Navbar
+ * Barra superior que contiene el disparador del sidebar móvil, 
+ * información del usuario, selector de contrato y cierre de sesión.
+ * 
+ * @returns {JSX.Element}
+ */
 const Navbar = () => {
     const navigate = useNavigate();
     const { user, logout, checkAuth, seleccionarContrato } = useAuth();
@@ -210,6 +230,13 @@ const Navbar = () => {
         }
     }, [user]);
 
+    /**
+     * Gestiona el cambio de contrato activo del usuario empleado.
+     * 
+     * @async
+     * @param {number|string} id - ID del contrato a seleccionar.
+     * @returns {Promise<void>}
+     */
     const handleContractChange = async (id) => {
         try {
             await seleccionarContrato(id);
@@ -218,6 +245,13 @@ const Navbar = () => {
         }
     };
 
+    /**
+     * Trunca un nombre largo para evitar desbordes en la UI.
+     * 
+     * @param {string} name - Nombre completo.
+     * @param {number} [maxLength=20] - Longitud máxima permitida.
+     * @returns {string} Nombre truncado.
+     */
     const truncateName = (name, maxLength = 20) => {
         if (!name) return '';
         return name.length > maxLength ? `${name.substring(0, maxLength)}...` : name;
@@ -231,10 +265,10 @@ const Navbar = () => {
     const handleEditProfile = () => {
         setShowProfile(false);
         if (user.esEmpleado) {
-            // Empleado → wizard de empleado
+            // Empleado â†’ wizard de empleado
             setShowEditWizard(true);
         } else {
-            // Propietario (no empleado) → modal de edición de perfil
+            // Propietario (no empleado) â†’ modal de ediciÃ³n de perfil
             setShowPerfilModal(true);
         }
     };
@@ -250,9 +284,14 @@ const Navbar = () => {
     const handleLogoutClick = () => { setShowMenu(false); setShowLogoutConfirm(true); };
     const handleConfirmLogout = async () => {
         try { await logout(); navigate('/login'); }
-        catch (error) { console.error('Error al cerrar sesión:', error); }
+        catch (error) { console.error('Error al cerrar sesiÃ³n:', error); }
     };
 
+    /**
+     * Dispara un evento personalizado para alternar la visibilidad del sidebar en móviles.
+     * 
+     * @returns {void}
+     */
     const toggleSidebar = () => {
         // Dispatch custom event for sidebar toggle on mobile
         window.dispatchEvent(new CustomEvent('toggle-sidebar'));
@@ -274,7 +313,7 @@ const Navbar = () => {
                         <button
                             className="navbar-menu-btn"
                             onClick={toggleSidebar}
-                            aria-label="Abrir menú"
+                            aria-label="Abrir menÃº"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
@@ -287,7 +326,7 @@ const Navbar = () => {
                             <button
                                 className="user-menu-trigger"
                                 onClick={() => setShowMenu(!showMenu)}
-                                aria-label="Menú de usuario"
+                                aria-label="MenÃº de usuario"
                             >
                                 <img
                                     src={avatarPath}
@@ -323,14 +362,14 @@ const Navbar = () => {
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                                         </svg>
-                                        Ver información
+                                        Ver informaciÃ³n
                                     </button>
                                     <div className="menu-divider"></div>
                                     <button className="menu-item menu-item-danger" onClick={handleLogoutClick}>
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                                         </svg>
-                                        Cerrar sesión
+                                        Cerrar sesiÃ³n
                                     </button>
                                 </div>
                             )}
@@ -366,11 +405,11 @@ const Navbar = () => {
 
             <ConfirmDialog
                 isOpen={showLogoutConfirm}
-                title="Cerrar sesión"
-                message="¿Estás seguro de que deseas cerrar sesión?"
+                title="Cerrar sesiÃ³n"
+                message="Â¿EstÃ¡s seguro de que deseas cerrar sesiÃ³n?"
                 onConfirm={handleConfirmLogout}
                 onCancel={() => setShowLogoutConfirm(false)}
-                confirmText="Cerrar sesión"
+                confirmText="Cerrar sesiÃ³n"
                 variant="danger"
             />
         </>
@@ -378,3 +417,4 @@ const Navbar = () => {
 };
 
 export default Navbar;
+

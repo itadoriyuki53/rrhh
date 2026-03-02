@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Formulario de inicio de sesión público.
+ * @module pages/Login
+ */
+
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -5,6 +10,14 @@ import BackgroundCarousel from '../components/BackgroundCarousel';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
 
+/**
+ * Componente Login
+ * 
+ * Renderiza el formulario de inicio de sesión de usuario y maneja su estado
+ * de validación delegando todo payload de autenticación en AuthContext.
+ * 
+ * @returns {JSX.Element}
+ */
 const Login = () => {
     const navigate = useNavigate();
     const { login } = useAuth();
@@ -19,6 +32,13 @@ const Login = () => {
     const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
+    /**
+     * Maneja el cambio en los inputs del formulario y actualiza el estado `formData`.
+     * Soporta inputs tipo `checkbox` y standard (`text`, `email`, `password`).
+     *
+     * @param {React.ChangeEvent<HTMLInputElement>} e - Evento de cambio reactivo.
+     * @returns {void}
+     */
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData(prev => ({
@@ -27,6 +47,13 @@ const Login = () => {
         }));
     };
 
+    /**
+     * Intercepta el submit del formulario de login. Realiza el reseteo de validaciones
+     * locales, setea variables en transcurso y consumé la API asíncrona a través del AuthContext.
+     *
+     * @param {React.FormEvent<HTMLFormElement>} e - Evento submit del formulario.
+     * @returns {Promise<void>}
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -40,11 +67,17 @@ const Login = () => {
                 recordarme: formData.recordarme,
             });
         } catch (err) {
-            setError(err.message || 'Error al iniciar sesión');
+            setError(err.message || 'Error al iniciar sesiÃ³n');
             setLoading(false);
         }
     };
 
+    /**
+     * Detiene el flujo base y despliega el Modal instructivo 
+     * indicándole al usuario los pasos para recuperación de password.
+     * 
+     * @returns {void}
+     */
     const handleForgotPassword = () => {
         setShowForgotPasswordModal(true);
     };
@@ -61,7 +94,7 @@ const Login = () => {
                         <div className="auth-header">
                             <img src="/logo.png" alt="CataratasRH" className="auth-logo" />
                             <h1 className="auth-title">Cataratas<span>RH</span></h1>
-                            <p className="auth-subtitle">Sistema de Gestión de Recursos Humanos</p>
+                            <p className="auth-subtitle">Sistema de GestiÃ³n de Recursos Humanos</p>
                         </div>
 
                         <form onSubmit={handleSubmit} className="auth-form">
@@ -82,7 +115,7 @@ const Login = () => {
                             </div>
 
                             <div className="form-group">
-                                <label htmlFor="contrasena">Contraseña</label>
+                                <label htmlFor="contrasena">ContraseÃ±a</label>
                                 <div className="password-input-wrapper">
                                     <input
                                         id="contrasena"
@@ -90,7 +123,7 @@ const Login = () => {
                                         type={showPassword ? 'text' : 'password'}
                                         value={formData.contrasena}
                                         onChange={handleChange}
-                                        placeholder="••••••••"
+                                        placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                                         required
                                         autoComplete="current-password"
                                     />
@@ -98,7 +131,7 @@ const Login = () => {
                                         type="button"
                                         className="password-toggle"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                        aria-label={showPassword ? 'Ocultar contraseÃ±a' : 'Mostrar contraseÃ±a'}
                                     >
                                         {showPassword ? (
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -129,7 +162,7 @@ const Login = () => {
                                     className="link-button"
                                     onClick={handleForgotPassword}
                                 >
-                                    ¿Te olvidaste tu contraseña?
+                                    Â¿Te olvidaste tu contraseÃ±a?
                                 </button>
                             </div>
 
@@ -138,14 +171,14 @@ const Login = () => {
                                 className="auth-button"
                                 disabled={loading}
                             >
-                                {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+                                {loading ? 'Iniciando sesiÃ³n...' : 'Iniciar sesiÃ³n'}
                             </button>
                         </form>
 
                         {/* Mobile-only: link to register (auth-right is hidden on mobile) */}
                         <div className="auth-mobile-link">
                             <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)', marginBottom: '0.5rem' }}>
-                                ¿Primera vez aquí?
+                                Â¿Primera vez aquÃ­?
                             </p>
                             <Link to="/register" style={{
                                 display: 'inline-flex',
@@ -167,7 +200,7 @@ const Login = () => {
                     {/* Right side - Register prompt */}
                     <div className="auth-right">
                         <div className="auth-promo">
-                            <h2>¿Primera vez aquí?</h2>
+                            <h2>Â¿Primera vez aquÃ­?</h2>
                             <p>Registrate para gestionar tus contratos y liquidaciones</p>
                             <Link to="/register" className="register-button">
                                 Crear cuenta nueva
@@ -180,7 +213,7 @@ const Login = () => {
             <Modal
                 isOpen={showForgotPasswordModal}
                 onClose={() => setShowForgotPasswordModal(false)}
-                title="¿Olvidaste tu contraseña?"
+                title="Â¿Olvidaste tu contraseÃ±a?"
             >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{
@@ -206,11 +239,11 @@ const Login = () => {
                             fontWeight: 'bold',
                             fontSize: '1rem'
                         }}>
-                            ℹ
+                            â„¹
                         </div>
                         <div style={{ flex: 1 }}>
                             <p style={{ margin: '0 0 0.5rem 0', color: 'var(--neutral-800)', fontSize: '0.875rem', lineHeight: '1.6' }}>
-                                Para restablecer tu contraseña, comunicate con el departamento de <strong>Recursos Humanos</strong> de tu empresa.
+                                Para restablecer tu contraseÃ±a, comunicate con el departamento de <strong>Recursos Humanos</strong> de tu empresa.
                             </p>
                             {formData.email && (
                                 <p style={{
@@ -227,7 +260,7 @@ const Login = () => {
                         </div>
                     </div>
                     <p style={{ fontSize: '0.75rem', color: 'var(--neutral-500)', margin: 0 }}>
-                        Ellos podrán ayudarte a recuperar el acceso a tu cuenta de forma segura.
+                        Ellos podrÃ¡n ayudarte a recuperar el acceso a tu cuenta de forma segura.
                     </p>
                     <div className="modal-actions">
                         <button
@@ -244,3 +277,4 @@ const Login = () => {
 };
 
 export default Login;
+

@@ -1,4 +1,9 @@
-import { formatDateOnly, formatDateTime, formatFullName } from '../utils/formatters';
+﻿/**
+ * @fileoverview Vista detallada de un registro de salud (examen médico), mostrando resultados y comprobantes.
+ * @module components/RegistroSaludDetail
+ */
+
+import { formatDateOnly, formatDateTime, formatFullName } from '../helpers/formatters';
 import { useAuth } from '../context/AuthContext';
 
 // Icons SVG components
@@ -47,7 +52,7 @@ const Icons = {
 
 const TIPOS_EXAMEN_LABELS = {
     pre_ocupacional: 'Pre-Ocupacional',
-    periodico: 'Periódico',
+    periodico: 'PeriÃ³dico',
     post_ocupacional: 'Post-Ocupacional',
     retorno_trabajo: 'Retorno al Trabajo',
 };
@@ -64,10 +69,20 @@ const RESULTADO_COLORS = {
     no_apto: '#ef4444',
 };
 
+/**
+ * Componente RegistroSaludDetail
+ * Muestra el detalle de exámenes preocupacionales, periódicos o de retorno.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} props.registro - Objeto de salud poblado.
+ * @param {Function} props.onClose - Callback para cerrar la vista.
+ * @param {Function} [props.onEdit] - Callback para abrir la edición.
+ * @returns {JSX.Element|null}
+ */
 const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
     if (!registro) return null;
 
-    // Permisos del módulo registros de salud
+    // Permisos del mÃ³dulo registros de salud
     const { user } = useAuth();
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
@@ -85,7 +100,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
         if (diffMinutes < 1) return 'menos de un minuto';
         if (diffMinutes < 60) return `${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
         if (diffHours < 24) return `${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-        return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
+        return `${diffDays} dÃ­a${diffDays !== 1 ? 's' : ''}`;
     };
 
     // Check if vencimiento is close (within 30 days) or expired
@@ -194,7 +209,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
 
                     {/* Registro de Actividad Section */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(registro.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Ãšltimos cambios hace ${getRelativeTime(registro.updatedAt)}`} />
                         <div className="activity-log-grid">
                             <div style={{
                                 display: 'flex',
@@ -206,7 +221,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0 }}>{Icons.calendar}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Fecha de Creación
+                                        Fecha de CreaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(registro.createdAt)}
@@ -249,7 +264,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0 }}>{Icons.clock}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Última Modificación
+                                        Ãšltima ModificaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(registro.updatedAt)}
@@ -263,7 +278,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
                     <div className="detail-grid-2col">
                         {/* Column 1: Resumen */}
                         <div>
-                            <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(registro.updatedAt)}`} />
+                            <SectionHeader title="Resumen" subtitle={`Ãšltimos cambios hace ${getRelativeTime(registro.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -298,7 +313,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
                                         </span>
                                     </div>
                                 </div>
-                                <Field icon={Icons.calendar} label="Fecha de Realización" value={formatDateOnly(registro.fechaRealizacion)} />
+                                <Field icon={Icons.calendar} label="Fecha de RealizaciÃ³n" value={formatDateOnly(registro.fechaRealizacion)} />
                                 <div style={{
                                     display: 'flex',
                                     alignItems: 'flex-start',
@@ -338,7 +353,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
                         <div>
                             {/* Datos del Empleado */}
                             <div style={{ marginBottom: '1.5rem' }}>
-                                <SectionHeader title="Datos del Empleado" subtitle={`Últimos cambios hace ${getRelativeTime(registro.empleado?.updatedAt || registro.updatedAt)}`} />
+                                <SectionHeader title="Datos del Empleado" subtitle={`Ãšltimos cambios hace ${getRelativeTime(registro.empleado?.updatedAt || registro.updatedAt)}`} />
                                 <div style={{
                                     background: 'var(--card-bg)',
                                     borderRadius: '0.5rem',
@@ -368,7 +383,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
 
                                 return (
                                     <div>
-                                        <SectionHeader title="Comprobantes Médicos" subtitle={`Últimos cambios hace ${getRelativeTime(registro.empleado?.updatedAt || registro.updatedAt)}`} />
+                                        <SectionHeader title="Comprobantes MÃ©dicos" subtitle={`Ãšltimos cambios hace ${getRelativeTime(registro.empleado?.updatedAt || registro.updatedAt)}`} />
                                         <div style={{
                                             background: 'var(--card-bg)',
                                             borderRadius: '0.5rem',
@@ -384,7 +399,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
                                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0, marginTop: '2px' }}>{Icons.document}</div>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                                                        Comprobantes Médicos ({allComprobantes.length})
+                                                        Comprobantes MÃ©dicos ({allComprobantes.length})
                                                     </div>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                         {allComprobantes.map((file, index) => (
@@ -440,3 +455,4 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
 };
 
 export default RegistroSaludDetail;
+

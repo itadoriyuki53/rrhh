@@ -1,9 +1,25 @@
+﻿/**
+ * @fileoverview Vista detallada del perfil de un empleado, incluyendo datos personales, legales y de desempeño.
+ * @module components/EmpleadoDetail
+ */
+
 import { useState, useEffect } from 'react';
-import { formatDateOnly, formatDateTime } from '../utils/formatters';
+import { formatDateOnly, formatDateTime } from '../helpers/formatters';
 import { useAuth } from '../context/AuthContext';
 import { getEvaluaciones } from '../services/api';
 import ubicaciones from '../data/ubicaciones.json';
-// Icons SVG components
+
+/**
+ * Componente EmpleadoDetail
+ * Muestra la ficha completa de un empleado organizada en secciones (Resumen, Identificación, Datos Personales, Dirección).
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} props.empleado - Objeto empleado con toda su data.
+ * @param {Function} props.onClose - Callback para cerrar la vista.
+ * @param {Function} [props.onEdit] - Callback para abrir el editor del empleado.
+ * @param {boolean} [props.hideEditButton=false] - Indica si se debe ocultar proactivamente el botón de edición.
+ * @returns {JSX.Element|null}
+ */
 const Icons = {
     calendar: (
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
@@ -96,7 +112,7 @@ const Icons = {
 const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) => {
     if (!empleado) return null;
 
-    // Permisos del módulo empleados
+    // Permisos del mÃ³dulo empleados
     const { user } = useAuth();
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
@@ -139,7 +155,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
         }
     }, [empleado.id, empleado.esEmpleado]);
 
-    // Calculate relative time (hace X minutos/horas/días)
+    // Calculate relative time (hace X minutos/horas/dÃ­as)
     const getRelativeTime = (dateString) => {
         if (!dateString) return 'fecha desconocida';
         const date = new Date(dateString);
@@ -152,7 +168,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
         if (diffMinutes < 1) return 'menos de un minuto';
         if (diffMinutes < 60) return `${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
         if (diffHours < 24) return `${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-        return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
+        return `${diffDays} dÃ­a${diffDays !== 1 ? 's' : ''}`;
     };
 
     const getGeneroLabel = (genero) => {
@@ -166,7 +182,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
     };
 
     const getTipoDocLabel = (tipo) => {
-        const labels = { cedula: 'Cédula', pasaporte: 'Pasaporte' };
+        const labels = { cedula: 'CÃ©dula', pasaporte: 'Pasaporte' };
         return labels[tipo] || tipo || '-';
     };
 
@@ -345,9 +361,9 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
 
                     {/* Registro de Actividad Section */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Ãšltimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
                         <div className="activity-log-grid">
-                            {/* Fecha de Creación */}
+                            {/* Fecha de CreaciÃ³n */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -360,7 +376,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Fecha de Creación
+                                        Fecha de CreaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(empleado.createdAt)}
@@ -395,7 +411,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
                                     </span>
                                 </div>
                             </div>
-                            {/* Última Modificación */}
+                            {/* Ãšltima ModificaciÃ³n */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -407,7 +423,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Última Modificación
+                                        Ãšltima ModificaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(empleado.updatedAt)}
@@ -421,7 +437,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
                     <div className="detail-grid-2col">
                         {/* Column 1: Resumen */}
                         <div>
-                            <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
+                            <SectionHeader title="Resumen" subtitle={`Ãšltimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -431,13 +447,13 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
                                 <Field icon={Icons.user} label="Nombre Completo" value={`${empleado.apellido}, ${empleado.nombre}`} />
                                 <Field icon={Icons.mail} label="Email" value={empleado.email} />
                                 {empleado.esEmpleado && (
-                                    <Field icon={Icons.star} label="Promedio de Desempeño Laboral" value={renderPromedioBadge()} />
+                                    <Field icon={Icons.star} label="Promedio de DesempeÃ±o Laboral" value={renderPromedioBadge()} />
                                 )}
                             </div>
 
                             {empleado.esEmpleado && (
                                 <div style={{ marginTop: '1.5rem' }}>
-                                    <SectionHeader title="Identificación" subtitle={`Últimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
+                                    <SectionHeader title="IdentificaciÃ³n" subtitle={`Ãšltimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
                                     <div style={{
                                         background: 'var(--card-bg)',
                                         borderRadius: '0.5rem',
@@ -453,7 +469,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
 
                             {empleado.esEmpleado && (
                                 <div style={{ marginTop: '1.5rem' }}>
-                                    <SectionHeader title="Datos Personales" subtitle={`Últimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
+                                    <SectionHeader title="Datos Personales" subtitle={`Ãšltimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
                                     <div style={{
                                         background: 'var(--card-bg)',
                                         borderRadius: '0.5rem',
@@ -461,17 +477,17 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
                                         padding: '0 1rem'
                                     }}>
                                         <Field icon={Icons.calendar} label="Fecha de Nacimiento" value={formatDateOnly(empleado.fechaNacimiento)} />
-                                        <Field icon={Icons.users} label="Género" value={getGeneroLabel(empleado.genero)} />
+                                        <Field icon={Icons.users} label="GÃ©nero" value={getGeneroLabel(empleado.genero)} />
                                         <Field icon={Icons.heart} label="Estado Civil" value={getEstadoCivilLabel(empleado.estadoCivil)} />
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* Column 2: Dirección Legal */}
+                        {/* Column 2: DirecciÃ³n Legal */}
                         {empleado.esEmpleado && (
                             <div>
-                                <SectionHeader title="Dirección Legal" subtitle={`Últimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
+                                <SectionHeader title="DirecciÃ³n Legal" subtitle={`Ãšltimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
                                 <div style={{
                                     background: 'var(--card-bg)',
                                     borderRadius: '0.5rem',
@@ -479,24 +495,24 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
                                     padding: '0 1rem'
                                 }}>
                                     <Field icon={Icons.home} label="Calle" value={empleado.calle} />
-                                    <Field icon={Icons.building} label="Número" value={empleado.numero} />
+                                    <Field icon={Icons.building} label="NÃºmero" value={empleado.numero} />
                                     <Field icon={Icons.building} label="Piso" value={empleado.piso} />
                                     <Field icon={Icons.building} label="Departamento" value={empleado.departamento} />
                                     <Field icon={Icons.mapPin} label="Provincia" value={getProvinciaNombre(empleado.provinciaId || empleado.provinciaNombre)} />
                                     <Field icon={Icons.location} label="Ciudad" value={getCiudadNombre(empleado.provinciaId, empleado.ciudadId || empleado.ciudadNombre)} />
-                                    <Field icon={Icons.document} label="Código Postal" value={empleado.codigoPostal} />
+                                    <Field icon={Icons.document} label="CÃ³digo Postal" value={empleado.codigoPostal} />
                                 </div>
 
                                 {empleado.esEmpleado && (
                                     <div style={{ marginTop: '1.5rem' }}>
-                                        <SectionHeader title="Contacto" subtitle={`Últimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
+                                        <SectionHeader title="Contacto" subtitle={`Ãšltimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
                                         <div style={{
                                             background: 'var(--card-bg)',
                                             borderRadius: '0.5rem',
                                             border: '1px solid var(--border-color)',
                                             padding: '0 1rem'
                                         }}>
-                                            <Field icon={Icons.phone} label="Teléfono" value={empleado.telefono} />
+                                            <Field icon={Icons.phone} label="TelÃ©fono" value={empleado.telefono} />
                                         </div>
                                     </div>
                                 )}
@@ -521,3 +537,4 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit, hideEditButton = false }) =
 };
 
 export default EmpleadoDetail;
+

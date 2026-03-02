@@ -1,9 +1,16 @@
+﻿/**
+ * @fileoverview Orquestador multi-paso para la creación y edición de cualquier tipo de solicitud.
+ * @module components/SolicitudWizard
+ */
+
 import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import StepTracker from './StepTracker';
 import { getContratos, getRegistrosSalud, createSolicitud, updateSolicitud, getDiasDisponiblesVacaciones, getDiasSolicitadosVacaciones } from '../services/api';
-import { validarDiaHabil, esDiaHabilSincrono } from '../utils/diasHabiles';
-import { getTodayStr, formatFullName } from '../utils/formatters';
+import { validarDiaHabil, esDiaHabilSincrono } from '../helpers/diasHabiles';
+import { getTodayStr, formatFullName } from '../helpers/formatters';
+import { useIsDark } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
 
 // Constants
 const TIPOS_SOLICITUD = [
@@ -24,19 +31,19 @@ const TIPOS_RELACION_DEPENDENCIA = [
 const MOTIVOS_LEGALES = [
     { value: 'matrimonio', label: 'Matrimonio (LCT Art. 168)' },
     { value: 'nacimiento_hijo', label: 'Nacimiento de hijo (Paternidad)' },
-    { value: 'fallecimiento_conyugue_hijo_padres', label: 'Fallecimiento de cónyuge, hijo o padres' },
+    { value: 'fallecimiento_conyugue_hijo_padres', label: 'Fallecimiento de cÃ³nyuge, hijo o padres' },
     { value: 'fallecimiento_hermano', label: 'Fallecimiento de hermano' },
     { value: 'examen_estudio', label: 'Examen / Estudio' },
     { value: 'accidente_trabajo_art', label: 'Accidente de trabajo / Enfermedad profesional (ART)' },
     { value: 'enfermedad_inculpable', label: 'Enfermedad inculpable' },
     { value: 'maternidad', label: 'Maternidad' },
     { value: 'excedencia', label: 'Estado de excedencia' },
-    { value: 'donacion_sangre', label: 'Donación de sangre' },
-    { value: 'citacion_judicial', label: 'Citación judicial' },
+    { value: 'donacion_sangre', label: 'DonaciÃ³n de sangre' },
+    { value: 'citacion_judicial', label: 'CitaciÃ³n judicial' },
     { value: 'presidente_mesa', label: 'Presidente de mesa (electoral)' },
     { value: 'mudanza', label: 'Mudanza' },
-    { value: 'cumpleanos', label: 'Día de cumpleaños' },
-    { value: 'tramites_personales', label: 'Trámites personales' },
+    { value: 'cumpleanos', label: 'DÃ­a de cumpleaÃ±os' },
+    { value: 'tramites_personales', label: 'TrÃ¡mites personales' },
     { value: 'compensatorio_franco', label: 'Compensatorio / Franco' },
 ];
 
@@ -44,7 +51,7 @@ const MOTIVOS_SALUD = ['accidente_trabajo_art', 'enfermedad_inculpable'];
 
 const TIPO_EXAMEN_LABELS = {
     pre_ocupacional: 'Pre-ocupacional',
-    periodico: 'Periódico',
+    periodico: 'PeriÃ³dico',
     post_ocupacional: 'Post-ocupacional',
     retorno_trabajo: 'Retorno al trabajo',
 };
@@ -75,56 +82,35 @@ const ESTADOS_RENUNCIA = [
 ];
 
 const TIPOS_HORAS_EXTRA = [
-    { value: '50', label: '50% (días hábiles)' },
+    { value: '50', label: '50% (dÃ­as hÃ¡biles)' },
     { value: '100', label: '100% (fines de semana / feriados)' },
 ];
 
-const TOOLTIP_VACACIONES = `Según la **Ley de Contrato de Trabajo de Argentina (LCT)**, los días de vacaciones se determinan por la antigüedad del trabajador:
+const TOOLTIP_VACACIONES = `SegÃºn la **Ley de Contrato de Trabajo de Argentina (LCT)**, los dÃ­as de vacaciones se determinan por la antigÃ¼edad del trabajador:
 
-• Hasta 5 años de antigüedad: **14 días corridos**
-• Más de 5 y hasta 10 años: **21 días corridos**
-• Más de 10 y hasta 20 años: **28 días corridos**
-• Más de 20 años: **35 días corridos**
+â€¢ Hasta 5 aÃ±os de antigÃ¼edad: **14 dÃ­as corridos**
+â€¢ MÃ¡s de 5 y hasta 10 aÃ±os: **21 dÃ­as corridos**
+â€¢ MÃ¡s de 10 y hasta 20 aÃ±os: **28 dÃ­as corridos**
+â€¢ MÃ¡s de 20 aÃ±os: **35 dÃ­as corridos**
 
-Si el trabajador no hubiere prestado servicios durante la mitad de los días hábiles del año calendario, tendrá derecho a **1 día de vacaciones por cada 20 días de trabajo efectivo**. 
+Si el trabajador no hubiere prestado servicios durante la mitad de los dÃ­as hÃ¡biles del aÃ±o calendario, tendrÃ¡ derecho a **1 dÃ­a de vacaciones por cada 20 dÃ­as de trabajo efectivo**. 
 
-Los días se calculan como días hábiles (excluyendo fines de semana y feriados nacionales).`;
+Los dÃ­as se calculan como dÃ­as hÃ¡biles (excluyendo fines de semana y feriados nacionales).`;
 
-const TOOLTIP_RENUNCIA = `Según la Ley de Contrato de Trabajo de Argentina (LCT), el **preaviso** es obligatorio y debe ser de 15 días, con el fin de que la empresa busque reemplazo.`;
+const TOOLTIP_RENUNCIA = `SegÃºn la Ley de Contrato de Trabajo de Argentina (LCT), el **preaviso** es obligatorio y debe ser de 15 dÃ­as, con el fin de que la empresa busque reemplazo.`;
 
+/**
+ * Componente interno de error de campo.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {string} [props.message] - Mensaje de error.
+ */
 const FieldError = ({ message }) => {
     if (!message) return null;
     return <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}</span>;
 };
 
-const getSelectStyles = (isDark) => ({
-    control: (base, state) => ({
-        ...base,
-        backgroundColor: isDark ? '#1e293b' : 'white',
-        borderColor: state.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'),
-        boxShadow: state.isFocused ? '0 0 0 2px rgba(13, 148, 136, 0.2)' : 'none',
-        '&:hover': { borderColor: '#0d9488' },
-        minHeight: '42px',
-        borderRadius: '0.5rem',
-    }),
-    menu: (base) => ({
-        ...base,
-        backgroundColor: isDark ? '#1e293b' : 'white',
-        border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-        borderRadius: '0.5rem',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        zIndex: 9999,
-    }),
-    option: (base, state) => ({
-        ...base,
-        backgroundColor: state.isSelected ? '#0d9488' : state.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent',
-        color: state.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'),
-        cursor: 'pointer',
-    }),
-    input: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    singleValue: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#1e293b' }),
-    placeholder: (base) => ({ ...base, color: '#94a3b8' }),
-});
+
 
 // Helper to format decimal hours (e.g., 2.50) to human readable time (e.g., 2:30)
 const formatDecimalToTime = (decimalValue) => {
@@ -135,12 +121,25 @@ const formatDecimalToTime = (decimalValue) => {
     return `${hours}:${minutes.toString().padStart(2, '0')} hs`;
 };
 
+/**
+ * Componente SolicitudWizard
+ * 
+ * Gestiona el proceso de alta y modificación de solicitudes, 
+ * incluyendo validaciones de días hábiles, cálculo de vacaciones
+ * y adjunto de comprobantes según el tipo.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.solicitud] - Objeto solicitud a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @returns {JSX.Element}
+ */
 const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
     const isEditing = !!solicitud;
     const [currentStep, setCurrentStep] = useState(isEditing ? 2 : 1);
     const [contratos, setContratos] = useState([]);
     const [loadingContratos, setLoadingContratos] = useState(true);
-    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+    const isDark = useIsDark();
 
     const [selectedContrato, setSelectedContrato] = useState(null);
     const [selectedTipo, setSelectedTipo] = useState('');
@@ -185,14 +184,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         { number: 2, title: 'Datos de la Solicitud' },
     ];
 
-    useEffect(() => {
-        const observer = new MutationObserver(() => {
-            setIsDark(document.documentElement.classList.contains('dark'));
-        });
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-        return () => observer.disconnect();
-    }, []);
-
+    // Obtener contratos disponibles
     useEffect(() => {
         const loadData = async () => {
             try {
@@ -320,7 +312,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         }
     }, [selectedTipo, formData.fecha]);
 
-    // Cargar información de vacaciones (días disponibles, correspondientes, tomados)
+    // Cargar informaciÃ³n de vacaciones (dÃ­as disponibles, correspondientes, tomados)
     useEffect(() => {
         const loadVacationInfo = async () => {
             if (selectedTipo === 'vacaciones' && selectedContrato?.value && formData.periodo) {
@@ -342,7 +334,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         loadVacationInfo();
     }, [selectedTipo, selectedContrato, formData.periodo]);
 
-    // Calcular días solicitados y fecha de regreso (Vacaciones y Licencias)
+    // Calcular dÃ­as solicitados y fecha de regreso (Vacaciones y Licencias)
     useEffect(() => {
         const calculateDays = async () => {
             if (!formData.fechaInicio || !formData.fechaFin) return;
@@ -442,7 +434,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         });
         setError('');
 
-        // Validar día hábil en tiempo real SÍNCRONO
+        // Validar dÃ­a hÃ¡bil en tiempo real SÃNCRONO
         const camposFecha = ['fechaInicio', 'fechaFin', 'fecha', 'fechaNotificacion', 'fechaBajaEfectiva', 'notificadoEl'];
         const esHorasExtrasFecha = selectedTipo === 'horas_extras' && field === 'fecha';
 
@@ -452,18 +444,18 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                     fechaInicio: 'La fecha de inicio',
                     fechaFin: 'La fecha de fin',
                     fecha: 'La fecha',
-                    fechaNotificacion: 'La fecha de notificación',
+                    fechaNotificacion: 'La fecha de notificaciÃ³n',
                     fechaBajaEfectiva: 'La fecha de baja',
-                    notificadoEl: 'La fecha de notificación'
+                    notificadoEl: 'La fecha de notificaciÃ³n'
                 };
-                validarDiaHabil(value, nombresCampos[field]); // ✅ Síncrono
+                validarDiaHabil(value, nombresCampos[field]); // âœ… SÃ­ncrono
                 setFieldErrors(prev => ({ ...prev, [field]: null }));
             } catch (error) {
                 setFieldErrors(prev => ({ ...prev, [field]: error.message }));
                 setTouched(prev => ({ ...prev, [field]: true })); // Marcar como touched para mostrar error
             }
         } else if (esHorasExtrasFecha) {
-            // Limpiar error de día hábil si existiera (aunque ya no se valida)
+            // Limpiar error de dÃ­a hÃ¡bil si existiera (aunque ya no se valida)
             setFieldErrors(prev => ({ ...prev, [field]: null }));
         }
 
@@ -509,10 +501,10 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 errors.fechaFin = 'La fecha de fin no puede ser anterior a la de inicio';
             }
             if (formData.descripcion && formData.descripcion.length > 500) {
-                errors.descripcion = 'La descripción no puede exceder los 500 caracteres';
+                errors.descripcion = 'La descripciÃ³n no puede exceder los 500 caracteres';
             }
         } else if (selectedTipo === 'vacaciones') {
-            if (!formData.periodo) errors.periodo = 'El período es requerido';
+            if (!formData.periodo) errors.periodo = 'El perÃ­odo es requerido';
             if (!formData.fechaInicio) errors.fechaInicio = 'La fecha de inicio es requerida';
             if (!formData.fechaFin) errors.fechaFin = 'La fecha de fin es requerida';
             // Today IS valid - only reject strictly past dates
@@ -523,25 +515,25 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 errors.fechaFin = 'La fecha de fin no puede ser anterior a la de inicio';
             }
 
-            // Validar rango por período (1 de Mayo año X al 30 de Abril año X+1)
+            // Validar rango por perÃ­odo (1 de Mayo aÃ±o X al 30 de Abril aÃ±o X+1)
             if (formData.periodo && (formData.fechaInicio || formData.fechaFin)) {
                 const anio = parseInt(formData.periodo);
                 const minFecha = `${anio}-05-01`;
                 const maxFecha = `${anio + 1}-04-30`;
 
                 if (formData.fechaInicio && (formData.fechaInicio < minFecha || formData.fechaInicio > maxFecha)) {
-                    errors.fechaInicio = `Para el período ${anio}, la fecha debe ser entre el 01/05/${anio} y el 30/04/${anio + 1}`;
+                    errors.fechaInicio = `Para el perÃ­odo ${anio}, la fecha debe ser entre el 01/05/${anio} y el 30/04/${anio + 1}`;
                 }
                 if (formData.fechaFin && (formData.fechaFin < minFecha || formData.fechaFin > maxFecha)) {
-                    errors.fechaFin = `Para el período ${anio}, la fecha debe ser entre el 01/05/${anio} y el 30/04/${anio + 1}`;
+                    errors.fechaFin = `Para el perÃ­odo ${anio}, la fecha debe ser entre el 01/05/${anio} y el 30/04/${anio + 1}`;
                 }
             }
 
             if (formData.diasSolicitud && formData.diasDisponibles && formData.diasSolicitud > formData.diasDisponibles) {
-                errors.fechaFin = `Los días solicitados (${formData.diasSolicitud}) exceden los disponibles (${formData.diasDisponibles})`;
+                errors.fechaFin = `Los dÃ­as solicitados (${formData.diasSolicitud}) exceden los disponibles (${formData.diasDisponibles})`;
             }
             if (formData.descripcion && formData.descripcion.length > 500) {
-                errors.descripcion = 'La descripción no puede exceder los 500 caracteres';
+                errors.descripcion = 'La descripciÃ³n no puede exceder los 500 caracteres';
             }
         } else if (selectedTipo === 'horas_extras') {
             if (!formData.fecha) errors.fecha = 'La fecha es requerida';
@@ -560,30 +552,30 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         } else if (selectedTipo === 'renuncia') {
             // Usar valor de formData o valor por defecto (hoy)
             const fechaNot = formData.fechaNotificacion || getTodayStr();
-            if (!fechaNot) errors.fechaNotificacion = 'La fecha de notificación es requerida';
+            if (!fechaNot) errors.fechaNotificacion = 'La fecha de notificaciÃ³n es requerida';
             if (formData.motivo && formData.motivo.length > 500) {
                 errors.motivo = 'El motivo no puede exceder los 500 caracteres';
             }
         }
 
-        // Preservar solo los errores de días hábiles de campos que NO están siendo validados ahora
+        // Preservar solo los errores de dÃ­as hÃ¡biles de campos que NO estÃ¡n siendo validados ahora
         const allErrors = setFieldErrors(prev => {
             const camposFecha = ['fechaInicio', 'fechaFin', 'fecha', 'fechaNotificacion', 'fechaBajaEfectiva', 'notificadoEl'];
             const erroresDiasHabiles = {};
 
-            // Preservar solo errores de días hábiles en campos de fecha
+            // Preservar solo errores de dÃ­as hÃ¡biles en campos de fecha
             camposFecha.forEach(campo => {
-                if (prev[campo] && prev[campo].includes('día hábil')) {
+                if (prev[campo] && prev[campo].includes('dÃ­a hÃ¡bil')) {
                     erroresDiasHabiles[campo] = prev[campo];
                 }
             });
 
-            // Combinar: errores de la validación actual + errores de días hábiles preservados
+            // Combinar: errores de la validaciÃ³n actual + errores de dÃ­as hÃ¡biles preservados
             const combined = { ...erroresDiasHabiles, ...errors };
             return combined;
         });
 
-        // Retornar false si hay CUALQUIER error (validación básica O días hábiles)
+        // Retornar false si hay CUALQUIER error (validaciÃ³n bÃ¡sica O dÃ­as hÃ¡biles)
         return Object.keys(errors).length === 0 && !Object.values(fieldErrors).some(err => err !== null);
     };
 
@@ -657,7 +649,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         onBlur={() => setTouched(prev => ({ ...prev, contrato: true }))}
                         placeholder="Buscar contrato por empleado..."
                         noOptionsMessage={() => "No se encontraron contratos"}
-                        styles={getSelectStyles(isDark)}
+                        styles={buildSelectStyles(isDark)}
                         isDisabled={isEditing}
                         isClearable={!isEditing}
                         formatGroupLabel={data => (
@@ -773,7 +765,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         <FieldError message={touched.fechaFin && fieldErrors.fechaFin} />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Días Solicitados</label>
+                        <label className="form-label">DÃ­as Solicitados</label>
                         <input
                             type="number"
                             className="form-input"
@@ -809,10 +801,10 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">Descripción</label>
+                    <label className="form-label">DescripciÃ³n</label>
                     <textarea
                         className="form-input"
-                        placeholder="Información adicional sobre la licencia..."
+                        placeholder="InformaciÃ³n adicional sobre la licencia..."
                         value={formData.descripcion || ''}
                         onChange={e => handleChange('descripcion', e.target.value)}
                         rows={2}
@@ -838,7 +830,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 {/* Row 1: Period and days info */}
                 <div className="form-grid-stacked">
                     <div className="form-group">
-                        <label className="form-label">Período *</label>
+                        <label className="form-label">PerÃ­odo *</label>
                         <select
                             className={`form-input ${touched.periodo && fieldErrors.periodo ? 'input-error' : ''}`}
                             value={formData.periodo || ''}
@@ -846,14 +838,14 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                             onBlur={() => handleBlur('periodo')}
                             disabled={isReadOnly()}
                         >
-                            <option value="">Año...</option>
+                            <option value="">AÃ±o...</option>
                             {periodos.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                         </select>
                         <FieldError message={touched.periodo && fieldErrors.periodo} />
                     </div>
                     <div className="form-group">
                         <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            Días Corresp.
+                            DÃ­as Corresp.
                             <span
                                 className="tooltip-icon"
                                 onClick={() => setShowTooltipVacaciones(!showTooltipVacaciones)}
@@ -874,11 +866,11 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 )}
                 <div className="form-grid-stacked">
                     <div className="form-group">
-                        <label className="form-label">Días Tomados</label>
+                        <label className="form-label">DÃ­as Tomados</label>
                         <input type="number" className="form-input" value={formData.diasTomados || 0} disabled />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Días Disponibles</label>
+                        <label className="form-label">DÃ­as Disponibles</label>
                         <input type="number" className="form-input" value={formData.diasDisponibles || 0} disabled />
                     </div>
                 </div>
@@ -914,7 +906,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         <input type="date" className="form-input" value={formData.fechaRegreso || ''} disabled />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Días Solic.</label>
+                        <label className="form-label">DÃ­as Solic.</label>
                         <input type="number" className="form-input" value={formData.diasSolicitud || 0} disabled />
                     </div>
                 </div>
@@ -932,7 +924,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                             disabled={true}
                         />
                         <small style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', display: 'block' }}>
-                            Se completa automáticamente al aprobar la solicitud
+                            Se completa automÃ¡ticamente al aprobar la solicitud
                         </small>
                     </div>
                     <div className="form-group">
@@ -948,10 +940,10 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">Descripción</label>
+                    <label className="form-label">DescripciÃ³n</label>
                     <textarea
                         className="form-input"
-                        placeholder="Información adicional sobre las vacaciones..."
+                        placeholder="InformaciÃ³n adicional sobre las vacaciones..."
                         value={formData.descripcion || ''}
                         onChange={e => handleChange('descripcion', e.target.value)}
                         rows={2}
@@ -1080,7 +1072,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         <div style={{ display: 'grid', gap: '1rem' }}>
             <div className="form-grid-stacked">
                 <div className="form-group">
-                    <label className="form-label">Fecha Notificación *</label>
+                    <label className="form-label">Fecha NotificaciÃ³n *</label>
                     <input
                         type="date"
                         className={`form-input ${touched.fechaNotificacion && fieldErrors.fechaNotificacion ? 'input-error' : ''}`}
@@ -1109,7 +1101,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         value={formData.fechaBajaEfectiva || ''}
                         disabled
                     />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Se calcula automáticamente: 15 días desde la notificación (preaviso)</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Se calcula automÃ¡ticamente: 15 dÃ­as desde la notificaciÃ³n (preaviso)</span>
                 </div>
             </div>
 
@@ -1200,7 +1192,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
 
                     {/* isReadOnly() && (
                         <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
-                            No podés editar los datos de la solicitud porque no está pendiente. Solo podés cambiar su estado.
+                            No podÃ©s editar los datos de la solicitud porque no estÃ¡ pendiente. Solo podÃ©s cambiar su estado.
                         </div>
                     )*/}
 
@@ -1233,3 +1225,4 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
 };
 
 export default SolicitudWizard;
+

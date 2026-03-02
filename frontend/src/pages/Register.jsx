@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Punto de registro autónomo para nuevos administradores o empresas.
+ * @module pages/Register
+ */
+
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -5,11 +10,26 @@ import RegistroPublicoForm from '../components/RegistroPublicoForm';
 import BackgroundCarousel from '../components/BackgroundCarousel';
 import Alert from '../components/Alert';
 
+/**
+ * Componente Register
+ * 
+ * Punto de entrada para el registro público de nuevos espacios de trabajo / empresas.
+ * Envuelve el componente RegistroPublicoForm adaptándose a la estructura del Landing.
+ * 
+ * @returns {JSX.Element}
+ */
 const Register = () => {
     const navigate = useNavigate();
     const { checkAuth } = useAuth();
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
+    /**
+     * Intercepta la conclusión exitosa del form. Fija banderas de sesión
+     * y fuerza la reconexión de contexto en AuthProvider mediante checkAuth.
+     * 
+     * @async
+     * @returns {Promise<void>}
+     */
     const handleSuccess = async () => {
         sessionStorage.setItem('justLoggedIn', 'true');
         await checkAuth();
@@ -28,7 +48,7 @@ const Register = () => {
                             <h2>Cataratas<span>RH</span></h2>
                             <p>Registrate en el sistema</p>
                             <Link to="/login" className="register-back-link">
-                                ← Iniciar sesión
+                                â† Iniciar sesiÃ³n
                             </Link>
                         </div>
                     </div>
@@ -40,7 +60,7 @@ const Register = () => {
                         {/* Mobile-only: link back to login (left sidebar is hidden on mobile) */}
                         <div className="auth-mobile-link">
                             <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)', marginBottom: '0.5rem' }}>
-                                ¿Ya tenés cuenta?
+                                Â¿Ya tenÃ©s cuenta?
                             </p>
                             <Link to="/login" style={{
                                 display: 'inline-flex',
@@ -54,7 +74,7 @@ const Register = () => {
                                 fontWeight: 600,
                                 textDecoration: 'none'
                             }}>
-                                ← Volver al Login
+                                â† Volver al Login
                             </Link>
                         </div>
                     </div>
@@ -65,3 +85,4 @@ const Register = () => {
 };
 
 export default Register;
+

@@ -1,4 +1,9 @@
-import { formatDateOnly, formatCurrency, formatFullName, formatDateTime } from '../utils/formatters';
+﻿/**
+ * @fileoverview Vista detallada de una liquidación de sueldo, incluyendo conceptos remunerativos y retenciones.
+ * @module components/LiquidacionDetail
+ */
+
+import { formatDateOnly, formatCurrency, formatFullName, formatDateTime } from '../helpers/formatters';
 import { useAuth } from '../context/AuthContext';
 
 // Icons SVG components
@@ -55,10 +60,20 @@ const Icons = {
     ),
 };
 
+/**
+ * Componente LiquidacionDetail
+ * Proporciona un desglose detallado de todos los conceptos que integran una liquidación.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} props.liquidacion - Objeto liquidación con relaciones pobladas.
+ * @param {Function} props.onClose - Callback para cerrar el modal.
+ * @param {Function} [props.onEdit] - Callback para editar (solo si no está pagada).
+ * @returns {JSX.Element|null}
+ */
 const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
     if (!liquidacion) return null;
 
-    // Permisos del módulo liquidaciones
+    // Permisos del mÃ³dulo liquidaciones
     const { user } = useAuth();
     const isEmpleadoUser = user?.esEmpleado && !user?.esAdministrador;
     const userPermisos = user?.rol?.permisos || [];
@@ -76,7 +91,7 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
         if (diffMinutes < 1) return 'menos de un minuto';
         if (diffMinutes < 60) return `${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
         if (diffHours < 24) return `${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
-        return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
+        return `${diffDays} dÃ­a${diffDays !== 1 ? 's' : ''}`;
     };
 
     const SectionHeader = ({ title, subtitle }) => (
@@ -157,7 +172,7 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
                 flexDirection: 'column'
             }}>
                 <div className="modal-header">
-                    <h2 className="modal-title">Detalle de Liquidación</h2>
+                    <h2 className="modal-title">Detalle de LiquidaciÃ³n</h2>
                     <button className="modal-close" onClick={onClose}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -202,7 +217,7 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
 
                     {/* Registro de Actividad Section */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(liquidacion.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Ãšltimos cambios hace ${getRelativeTime(liquidacion.updatedAt)}`} />
                         <div className="activity-log-grid">
                             <div style={{
                                 display: 'flex',
@@ -214,7 +229,7 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0 }}>{Icons.calendar}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Fecha de Creación
+                                        Fecha de CreaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(liquidacion.createdAt)}
@@ -257,7 +272,7 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
                                 <div style={{ color: 'var(--primary-color)', flexShrink: 0 }}>{Icons.clock}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                                        Última Modificación
+                                        Ãšltima ModificaciÃ³n
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                         {formatDateTime(liquidacion.updatedAt)}
@@ -273,7 +288,7 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
                         {/* Column 1: Resumen y Conceptos Remunerativos */}
                         <div>
                             {/* Resumen */}
-                            <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(liquidacion.updatedAt)}`} />
+                            <SectionHeader title="Resumen" subtitle={`Ãšltimos cambios hace ${getRelativeTime(liquidacion.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -283,7 +298,7 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
                             }}>
                                 <Field
                                     icon={Icons.calendar}
-                                    label="Período"
+                                    label="PerÃ­odo"
                                     value={`${formatDateOnly(liquidacion.fechaInicio)} - ${formatDateOnly(liquidacion.fechaFin)}`}
                                 />
                                 <div style={{
@@ -321,11 +336,11 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
                                 <table className="table" style={{ margin: 0, border: 'none', minWidth: '100%' }}>
                                     <tbody>
                                         <tr>
-                                            <td style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Básico</td>
+                                            <td style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>BÃ¡sico</td>
                                             <td style={{ textAlign: 'right', padding: '0.75rem 1rem', fontWeight: 600, color: '#10b981' }}>+ {formatCurrency(liquidacion?.basico)}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Antigüedad</td>
+                                            <td style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>AntigÃ¼edad</td>
                                             <td style={{ textAlign: 'right', padding: '0.75rem 1rem', fontWeight: 600, color: '#10b981' }}>+ {formatCurrency(liquidacion?.antiguedad)}</td>
                                         </tr>
                                         <tr>
@@ -367,8 +382,8 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
                                 </table>
                             </div>
 
-                            {/* Resumen de Liquidación */}
-                            <SectionHeader title="Resumen de Liquidación" subtitle={`Total Neto: ${formatCurrency(liquidacion?.neto)}`} />
+                            {/* Resumen de LiquidaciÃ³n */}
+                            <SectionHeader title="Resumen de LiquidaciÃ³n" subtitle={`Total Neto: ${formatCurrency(liquidacion?.neto)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -414,7 +429,7 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
                         {/* Column 2: Datos del Empleado y Resumen de Totales */}
                         <div>
                             {/* Datos del Empleado */}
-                            <SectionHeader title="Datos del Empleado" subtitle={`Últimos cambios hace ${getRelativeTime(liquidacion?.contrato?.empleado?.updatedAt)}`} />
+                            <SectionHeader title="Datos del Empleado" subtitle={`Ãšltimos cambios hace ${getRelativeTime(liquidacion?.contrato?.empleado?.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
@@ -472,7 +487,7 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
                                 ) : (
                                     <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', margin: 'auto' }}>
                                         <div style={{ opacity: 0.5, marginBottom: '0.5rem' }}>{Icons.shield}</div>
-                                        <div style={{ fontSize: '0.85rem' }}>Sin deducciones en este período</div>
+                                        <div style={{ fontSize: '0.85rem' }}>Sin deducciones en este perÃ­odo</div>
                                     </div>
                                 )}
                             </div>
@@ -496,3 +511,4 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
 };
 
 export default LiquidacionDetail;
+

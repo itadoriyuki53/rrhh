@@ -1,3 +1,8 @@
+﻿/**
+ * @fileoverview Modal de configuración para los parámetros laborales globales del sistema.
+ * @module components/ParametrosLaboralesModal
+ */
+
 import { useState, useEffect } from 'react';
 import EspacioTrabajoSelector from './EspacioTrabajoSelector';
 import { getParametrosLaborales, updateParametrosLaborales } from '../services/api';
@@ -20,8 +25,18 @@ const TooltipContent = ({ content, isOpen }) => {
     );
 };
 
-const TOOLTIP_LIMITE_AUSENCIA = `**Cantidad máxima de días de ausencia injustificada** permitidos en un mes sin perder el presentismo. Si el empleado supera este límite, no cobrará el presentismo correspondiente al período.`;
+const TOOLTIP_LIMITE_AUSENCIA = `**Cantidad mÃ¡xima de dÃ­as de ausencia injustificada** permitidos en un mes sin perder el presentismo. Si el empleado supera este lÃ­mite, no cobrarÃ¡ el presentismo correspondiente al perÃ­odo.`;
 
+/**
+ * Componente ParametrosLaboralesModal
+ * 
+ * Permite a los administradores ajustar límites y reglas de negocio
+ * transversales, como el máximo de inasistencias para el presentismo.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Function} props.onClose - Callback para cerrar el modal.
+ * @returns {JSX.Element}
+ */
 const ParametrosLaboralesModal = ({ onClose }) => {
     const [parametros, setParametros] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -63,7 +78,7 @@ const ParametrosLaboralesModal = ({ onClose }) => {
             setSaving(true);
             setError('');
             await updateParametrosLaborales({ ...formData, espacioTrabajoId: parseInt(espacioTrabajoId) });
-            setSuccess('Parámetros actualizados correctamente');
+            setSuccess('ParÃ¡metros actualizados correctamente');
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
             setError(err.message);
@@ -78,7 +93,7 @@ const ParametrosLaboralesModal = ({ onClose }) => {
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
                 <div className="modal-header">
-                    <h2 className="modal-title">Configuración de Parámetros Laborales</h2>
+                    <h2 className="modal-title">ConfiguraciÃ³n de ParÃ¡metros Laborales</h2>
                     <button className="modal-close" onClick={onClose}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -91,13 +106,13 @@ const ParametrosLaboralesModal = ({ onClose }) => {
                 ) : (
                     <form onSubmit={handleSubmit}>
                         <div className="modal-body" style={{ padding: '2rem' }}>
-                            {/* Título y subtítulo dentro del body */}
+                            {/* TÃ­tulo y subtÃ­tulo dentro del body */}
                             <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
                                 <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                                    Parámetros del Sistema
+                                    ParÃ¡metros del Sistema
                                 </h3>
                                 <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                                    Configura los parámetros que afectan el cálculo de liquidaciones
+                                    Configura los parÃ¡metros que afectan el cÃ¡lculo de liquidaciones
                                 </p>
                             </div>
 
@@ -121,7 +136,7 @@ const ParametrosLaboralesModal = ({ onClose }) => {
                             {espacioTrabajoId && parametros && (
                                 <div className="form-group">
                                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        Límite de Ausencia Injustificada *
+                                        LÃ­mite de Ausencia Injustificada *
                                         <TooltipIcon content={TOOLTIP_LIMITE_AUSENCIA} isOpen={activeTooltip === 'limite'} onToggle={() => toggleTooltip('limite')} />
                                     </label>
                                     <TooltipContent content={TOOLTIP_LIMITE_AUSENCIA} isOpen={activeTooltip === 'limite'} />
@@ -135,14 +150,14 @@ const ParametrosLaboralesModal = ({ onClose }) => {
                                         onChange={(e) => setFormData({ ...formData, limiteAusenciaInjustificada: parseInt(e.target.value) })}
                                     />
                                     <small style={{ display: 'block', marginTop: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                                        Cantidad máxima de días permitidos sin perder presentismo (0-10 días)
+                                        Cantidad mÃ¡xima de dÃ­as permitidos sin perder presentismo (0-10 dÃ­as)
                                     </small>
                                 </div>
                             )}
 
                             {!espacioTrabajoId && (
                                 <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-                                    <p>Selecciona un espacio de trabajo para gestionar sus parámetros laborales</p>
+                                    <p>Selecciona un espacio de trabajo para gestionar sus parÃ¡metros laborales</p>
                                 </div>
                             )}
                         </div>
@@ -163,3 +178,4 @@ const ParametrosLaboralesModal = ({ onClose }) => {
 };
 
 export default ParametrosLaboralesModal;
+

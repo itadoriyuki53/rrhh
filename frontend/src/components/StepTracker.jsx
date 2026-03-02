@@ -1,5 +1,19 @@
+﻿/**
+ * @fileoverview Visualizador de progreso para formularios multi-paso (Wizards).
+ * @module components/StepTracker
+ */
+
 import React from 'react';
 
+/**
+ * Componente StepTracker
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {number} props.currentStep - El paso activo actual.
+ * @param {Array<{title: string}>} [props.steps=[]] - Metadatos de cada paso.
+ * @param {number} [props.totalSteps] - Cantidad total de pasos (alternativa a props.steps).
+ * @returns {JSX.Element}
+ */
 const StepTracker = ({ currentStep, steps = [], totalSteps }) => {
     // Usar steps.length si hay steps, sino totalSteps, sino 3
     const total = steps.length || totalSteps || 3;
@@ -45,7 +59,7 @@ const StepTracker = ({ currentStep, steps = [], totalSteps }) => {
                                 position: 'relative'
                             }}
                         >
-                            {/* Círculo del paso */}
+                            {/* CÃ­rculo del paso */}
                             <div
                                 style={{
                                     width: '32px',
@@ -79,7 +93,7 @@ const StepTracker = ({ currentStep, steps = [], totalSteps }) => {
                                 )}
                             </div>
 
-                            {/* Línea conectora - NO mostrar después del último paso */}
+                            {/* LÃ­nea conectora - NO mostrar despuÃ©s del Ãºltimo paso */}
                             {!isLast && (
                                 <div style={{
                                     flex: 1,
@@ -99,3 +113,4 @@ const StepTracker = ({ currentStep, steps = [], totalSteps }) => {
 };
 
 export default StepTracker;
+

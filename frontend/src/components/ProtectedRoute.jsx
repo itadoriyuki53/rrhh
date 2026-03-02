@@ -1,6 +1,18 @@
+﻿/**
+ * @fileoverview Componente para proteger rutas privadas que requieren autenticación.
+ * @module components/ProtectedRoute
+ */
+
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+/**
+ * Componente ProtectedRoute
+ * Renderiza el Outlet (rutas anidadas) si el usuario está autenticado, 
+ * de lo contrario redirige al /login.
+ * 
+ * @returns {JSX.Element}
+ */
 const ProtectedRoute = () => {
     const { isAuthenticated, loading } = useAuth();
 
@@ -23,3 +35,4 @@ const ProtectedRoute = () => {
 };
 
 export default ProtectedRoute;
+
