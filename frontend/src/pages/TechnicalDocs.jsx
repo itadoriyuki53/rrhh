@@ -73,7 +73,7 @@ const TechnicalDocs = () => {
                     <div className="landing-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
                         {/* Frontend Card */}
                         <a
-                            href="http://localhost:3000/docs/frontend/index.html"
+                            href="/docs/frontend/index.html"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="landing-feature-card visible"
@@ -93,7 +93,7 @@ const TechnicalDocs = () => {
 
                         {/* Backend Card */}
                         <a
-                            href="http://localhost:3000/docs/backend/index.html"
+                            href="/docs/backend/index.html"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="landing-feature-card visible"
