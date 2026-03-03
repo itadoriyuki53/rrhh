@@ -10,6 +10,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const session = require('express-session');
+const SequelizeStore = require('connect-session-sequelize')(session.Store);
 const sequelize = require('./config/database');
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -58,18 +59,29 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Configuración de sesiones
 const isProd = process.env.NODE_ENV === 'production';
+const sessionStore = new SequelizeStore({
+    db: sequelize,
+    tableName: 'Sessions',
+    checkExpirationInterval: 15 * 60 * 1000, // 15 minutos
+    expiration: 24 * 60 * 60 * 1000  // 24 horas
+});
+
 app.use(session({
     secret: process.env.SESSION_SECRET || 'cataratas-rh-secret-key-change-in-production',
+    store: sessionStore,
     resave: false,
     saveUninitialized: false,
     name: 'connect.sid',
     cookie: {
-        secure: isProd,    // True en producción para requerir HTTPS
+        secure: isProd,
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: isProd ? 'none' : 'lax', // 'none' permite cross-site cookies con secure: true
+        sameSite: isProd ? 'none' : 'lax'
     },
 }));
+
+// Exportar el store para que index.js lo sincronice
+app.sessionStore = sessionStore;
 
 // Servir documentación técnica
 app.use('/docs', express.static(path.join(__dirname, '../../docs')));
