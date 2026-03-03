@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: helpers/formatters.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: helpers/formatters.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Funciones de formateo para presentación de datos en la UI.
+ * Maneja fechas, moneda, texto y nombres sin dependencias externas.
+ * @module helpers/formatters
+ */
+
+/**
+ * Formatea una fecha DATEONLY (YYYY-MM-DD) a formato legible en español argentino,
+ * evitando errores de zona horaria al parsear la fecha como local.
+ *
+ * @param {string|null} dateString - Fecha en formato YYYY-MM-DD o ISO.
+ * @returns {string} Fecha formateada como "dd de mmm de yyyy" o '-' si está vacía.
+ * @example
+ * formatDateOnly('1990-12-04'); // "04 de dic de 1990"
+ */
+export const formatDateOnly = (dateString) => {
+    if (!dateString) return '-';
+
+    const [year, month, day] = dateString.split('T')[0].split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+
+    const dayStr = date.toLocaleDateString('es-AR', { day: '2-digit' });
+    const monthStr = date.toLocaleDateString('es-AR', { month: 'short' });
+    const yearStr = date.toLocaleDateString('es-AR', { year: 'numeric' });
+
+    return `${dayStr} de ${monthStr} de ${yearStr}`;
+};
+
+/**
+ * Formatea un timestamp ISO a fecha y hora local en español argentino.
+ *
+ * @param {string|null} dateString - Fecha ISO con hora (ej: "2024-01-15T10:30:00Z").
+ * @returns {string} Fecha formateada como "dd/mm/yyyy, hh:mm" o '-' si está vacía.
+ */
+export const formatDateTime = (dateString) => {
+    if (!dateString) return '-';
+
+    return new Date(dateString).toLocaleDateString('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
+/**
+ * Formatea un valor numérico como moneda en pesos argentinos (ARS).
+ *
+ * @param {number|string|null} value - Valor numérico a formatear.
+ * @returns {string} Valor formateado como "$1.234,56" o '-' si está vacío.
+ * @example
+ * formatCurrency(15000); // "$15.000,00"
+ */
+export const formatCurrency = (value) => {
+    if (value === null || value === undefined || value === '') return '-';
+    return new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency: 'ARS',
+    }).format(value);
+};
+
+/**
+ * Trunca una cadena de texto a un largo máximo, agregando "..." al final.
+ *
+ * @param {string|null} text - Texto a truncar.
+ * @param {number} [maxLength=15] - Longitud máxima antes de truncar.
+ * @returns {string} Texto truncado o '-' si está vacío.
+ * @example
+ * truncateText('Administración General', 15); // "Administración ..."
+ */
+export const truncateText = (text, maxLength = 15) => {
+    if (!text) return '-';
+    if (text.length &lt;= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+};
+
+/**
+ * Obtiene la fecha actual como string en formato YYYY-MM-DD (zona horaria local).
+ *
+ * @returns {string} Fecha de hoy en formato "YYYY-MM-DD".
+ */
+export const getTodayStr = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+/**
+ * Formatea el nombre completo de un empleado o usuario en formato "Apellido, Nombre".
+ * Compatible con objetos anidados (ej: `contrato.empleado.usuario`) y planos.
+ *
+ * @param {Object|null} person - Objeto con campos nombre/apellido o con sub-objeto usuario.
+ * @param {Object} [person.usuario] - Sub-objeto usuario con nombre y apellido.
+ * @param {string} [person.nombre] - Nombre directo del objeto.
+ * @param {string} [person.apellido] - Apellido directo del objeto.
+ * @returns {string} Nombre formateado o '-' si el objeto es nulo.
+ * @example
+ * formatFullName({ apellido: 'García', nombre: 'Juan' }); // "García, Juan"
+ * formatFullName({ usuario: { apellido: 'López', nombre: 'Ana' } }); // "López, Ana"
+ */
+export const formatFullName = (person) => {
+    if (!person) return '-';
+    const u = person.usuario || person;
+    const apellido = u.apellido || person.apellido || 'Desconocido';
+    const nombre = u.nombre || person.nombre || '';
+    return nombre ? `${apellido}, ${nombre}` : apellido;
+};
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

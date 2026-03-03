@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages/Evaluaciones.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages/Evaluaciones.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Módulo de visualización y control de evaluaciones de desempeño.
+ * @module pages/Evaluaciones
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import Select from 'react-select';
+import {
+    getEvaluaciones,
+    deleteEvaluacion,
+    deleteEvaluacionesBulk,
+    getEvaluacionById,
+    reactivateEvaluacion,
+    getEmpleados,
+    getEspaciosTrabajo,
+} from '../services/api';
+import EvaluacionWizard from '../components/EvaluacionWizard';
+import EvaluacionDetail from '../components/EvaluacionDetail';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { truncateText } from '../helpers/formatters';
+import { useIsDark, useModulePermissions } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
+
+const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
+
+const PERIODO_LABELS = {
+    anual: 'Anual',
+    semestre_1: '1er Semestre',
+    semestre_2: '2do Semestre',
+    q1: 'Q1',
+    q2: 'Q2',
+    q3: 'Q3',
+    q4: 'Q4',
+    cierre_prueba: 'Cierre Período de Prueba',
+    fin_proyecto: 'Fin de Proyecto',
+    ad_hoc: 'Ad-hoc / Extraordinaria',
+};
+
+const TIPO_EVALUACION_LABELS = {
+    autoevaluacion: 'Autoevaluación',
+    descendente_90: '90° (Descendente)',
+    pares_jefe_180: '180° (Pares + Jefe)',
+    ascendente_270: '270° (Ascendente)',
+    integral_360: '360° (Integral)',
+    competencias: 'Por Competencias',
+    objetivos: 'Por Objetivos',
+    mixta: 'Mixta',
+    potencial: 'Potencial',
+};
+
+const ESTADO_LABELS = {
+    pendiente: 'Pendiente',
+    en_curso: 'En curso',
+    finalizada: 'Finalizada',
+    firmada: 'Firmada',
+};
+
+const ESTADO_COLORS = {
+    pendiente: '#6b7280',
+    en_curso: '#3b82f6',
+    finalizada: '#22c55e',
+    firmada: '#8b5cf6',
+};
+
+const ESCALA_LABELS = {
+    supera_expectativas: 'Supera Expectativas',
+    cumple: 'Cumple',
+    necesita_mejora: 'Necesita Mejora',
+};
+
+const ESCALA_COLORS = {
+    supera_expectativas: '#22c55e',
+    cumple: '#3b82f6',
+    necesita_mejora: '#ef4444',
+};
+
+const PERIODO_FILTER = [
+    { value: 'anual', label: 'Anual' },
+    { value: 'semestre_1', label: '1er Semestre' },
+    { value: 'semestre_2', label: '2do Semestre' },
+    { value: 'q1', label: 'Q1' },
+    { value: 'q2', label: 'Q2' },
+    { value: 'q3', label: 'Q3' },
+    { value: 'q4', label: 'Q4' },
+    { value: 'cierre_prueba', label: 'Cierre Período de Prueba' },
+    { value: 'fin_proyecto', label: 'Fin de Proyecto' },
+    { value: 'ad_hoc', label: 'Ad-hoc' },
+];
+
+const ESTADO_FILTER = [
+    { value: 'pendiente', label: 'Pendiente' },
+    { value: 'en_curso', label: 'En curso' },
+    { value: 'finalizada', label: 'Finalizada' },
+    { value: 'firmada', label: 'Firmada' },
+];
+
+/**
+ * Componente Evaluaciones
+ * 
+ * Módulo para gestionar evaluaciones de desempeño. Incluye métricas,
+ * estados de firma y asignación de evaluadores/evaluados. Controla
+ * permisos mediante useModulePermissions e interface react-select con
+ * buildSelectStyles interactuando dinámicamente con useIsDark.
+ * 
+ * @returns {JSX.Element}
+ */
+const Evaluaciones = () => {
+    const navigate = useNavigate();
+    const { user } = useAuth();
+
+    const { isEmpleadoUser, canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'evaluaciones');
+
+    // Data State
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+
+    // Pagination
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(10);
+    const [totalPages, setTotalPages] = useState(1);
+    const [total, setTotal] = useState(0);
+
+    // Filters
+    const [filterActivo, setFilterActivo] = useState('true');
+    const [filterPeriodo, setFilterPeriodo] = useState('');
+    const [filterEstado, setFilterEstado] = useState('');
+    const [filterEspacio, setFilterEspacio] = useState(null);
+    const [filterEvaluado, setFilterEvaluado] = useState(null);
+    const [filterPuntajeMin, setFilterPuntajeMin] = useState('');
+    const [filterPuntajeMax, setFilterPuntajeMax] = useState('');
+    const [filterEscala, setFilterEscala] = useState('');
+
+    // Filter lists
+    const [empleadosList, setEmpleadosList] = useState([]);
+    const [espaciosList, setEspaciosList] = useState([]);
+    const isDark = useIsDark();
+
+    // Selection
+    const [selectedIds, setSelectedIds] = useState(new Set());
+
+    // Column Visibility
+    const [visibleColumns, setVisibleColumns] = useState({
+        empleadoEvaluado: true,
+        espacio: false,
+        puntaje: false,
+        escala: true,
+    });
+    const [showColumnSelector, setShowColumnSelector] = useState(false);
+
+    // Modal State
+    const [showForm, setShowForm] = useState(false);
+    const [showDetail, setShowDetail] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
+    const [selectedItem, setSelectedItem] = useState(null);
+
+    // Delete Confirmation
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
+
+
+
+    // Redirigir si no tiene permiso de lectura
+    useEffect(() => {
+        if (user &amp;&amp; isEmpleadoUser &amp;&amp; !canRead) {
+            navigate('/dashboard', { replace: true });
+        }
+    }, [user, isEmpleadoUser, canRead, navigate]);
+
+    // Load filter data
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const [empRes, espRes] = await Promise.all([
+                    getEmpleados({ limit: 500, activo: 'true' }),
+                    getEspaciosTrabajo({ limit: 200, activo: 'true' }),
+                ]);
+                setEmpleadosList(empRes.data || []);
+                setEspaciosList(espRes.data || []);
+            } catch (e) { console.error(e); }
+        };
+        load();
+    }, []);
+
+    // Permisos y restricciones
+    const isRestricted = user?.esEmpleado &amp;&amp; !user?.esAdministrador;
+    const hasFullAccess = user?.esAdministrador || (user?.rol?.permisos?.some(p => p.modulo === 'evaluaciones' &amp;&amp; ['crear', 'actualizar', 'eliminar'].includes(p.accion)));
+    const isSingleEmployee = (empleadosList.length === 1 &amp;&amp; isRestricted) || (isRestricted &amp;&amp; !hasFullAccess);
+    const isSingleWorkspace = espaciosList.length === 1 &amp;&amp; isRestricted;
+
+    // Auto-select espacio y evaluado para usuarios restringidos
+    useEffect(() => {
+        if (isRestricted) {
+            if (espaciosList.length === 1 &amp;&amp; !filterEspacio) {
+                setFilterEspacio({ value: espaciosList[0].id, label: espaciosList[0].nombre });
+            }
+            if (!filterEvaluado) {
+                if (empleadosList.length === 1) {
+                    const emp = empleadosList[0];
+                    const label = `${emp.usuario?.apellido || emp.apellido}, ${emp.usuario?.nombre || emp.nombre}`;
+                    setFilterEvaluado({ value: emp.id, label });
+                } else if (!hasFullAccess &amp;&amp; user?.empleadoId) {
+                    const myEmp = empleadosList.find(e => e.id === user.empleadoId);
+                    if (myEmp) {
+                        const label = `${myEmp.usuario?.apellido || myEmp.apellido}, ${myEmp.usuario?.nombre || myEmp.nombre}`;
+                        setFilterEvaluado({ value: myEmp.id, label });
+                    }
+                }
+            }
+        }
+    }, [user, espaciosList, empleadosList, filterEspacio, filterEvaluado, isRestricted, hasFullAccess]);
+
+    // Build select options
+    const empleadoOptions = Object.values(
+        (empleadosList).reduce((acc, emp) => {
+            const ws = emp.espacioTrabajo?.nombre || 'Sin Espacio';
+            if (!acc[ws]) acc[ws] = { label: ws, options: [] };
+            const ap = emp.usuario?.apellido || emp.apellido || '';
+            const nm = emp.usuario?.nombre || emp.nombre || '';
+            acc[ws].options.push({ value: emp.id, label: `${ap}, ${nm}` });
+            return acc;
+        }, {})
+    );
+    const espacioOptions = espaciosList.map(e => ({ value: e.id, label: e.nombre }));
+    const selectStyles = buildSelectStyles(isDark);
+
+    // Load Items
+    /**
+     * Reconstruye y refresca los datos de las evaluaciones consultando `getEvaluaciones`.
+     * Filtra por periodo, estado, espacio y puntajes obtenidos.
+     * 
+     * @async
+     * @returns {Promise&lt;void>}
+     */
+    const loadItems = useCallback(async () => {
+        try {
+            setLoading(true);
+            const params = {
+                periodo: filterPeriodo,
+                estado: filterEstado,
+                activo: filterActivo,
+                page,
+                limit,
+            };
+            if (filterEspacio) params.espacioTrabajoId = filterEspacio.value;
+            if (filterEvaluado) params.evaluadoId = filterEvaluado.value;
+            if (filterPuntajeMin) params.puntajeMin = filterPuntajeMin;
+            if (filterPuntajeMax) params.puntajeMax = filterPuntajeMax;
+            if (filterEscala) params.escala = filterEscala;
+            const result = await getEvaluaciones(params);
+            setItems(result.data);
+            setTotalPages(result.pagination.totalPages);
+            setTotal(result.pagination.total);
+            setSelectedIds(new Set());
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [filterPeriodo, filterEstado, filterActivo, page, limit, filterEspacio, filterEvaluado, filterPuntajeMin, filterPuntajeMax, filterEscala]);
+
+    useEffect(() => { loadItems(); }, [loadItems]);
+
+    // Handlers
+    /**
+     * Restablece activamente y elimina todos los filtros aplicados a la vista de datos.
+     * 
+     * @returns {void}
+     */
+    const clearFilters = () => {
+        setFilterActivo('true');
+        setFilterPeriodo('');
+        setFilterEstado('');
+        if (!isSingleWorkspace) setFilterEspacio(null);
+        if (!isSingleEmployee) setFilterEvaluado(null);
+        setFilterPuntajeMin('');
+        setFilterPuntajeMax('');
+        setFilterEscala('');
+        setPage(1);
+    };
+
+    const hasActiveFilters = filterActivo !== 'true' || filterPeriodo || filterEstado || (!isSingleWorkspace &amp;&amp; filterEspacio) || (!isSingleEmployee &amp;&amp; filterEvaluado) || filterPuntajeMin || filterPuntajeMax || filterEscala;
+
+    // Selection Handlers
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            setSelectedIds(new Set(items.filter(item => item.estado !== 'firmada').map(item => item.id)));
+        } else {
+            setSelectedIds(new Set());
+        }
+    };
+
+    const handleSelectOne = (id) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
+    const selectableItems = items.filter(item => item.estado !== 'firmada');
+    const allSelected = selectableItems.length > 0 &amp;&amp; selectableItems.every(item => selectedIds.has(item.id));
+    const someSelected = items.some(item => selectedIds.has(item.id)) &amp;&amp; !allSelected;
+
+    // Column Toggle
+    const toggleColumn = (col) => {
+        setVisibleColumns(prev => ({ ...prev, [col]: !prev[col] }));
+    };
+
+    // CRUD Handlers
+    const handleCreate = () => {
+        setEditingItem(null);
+        setShowForm(true);
+        setError('');
+        setSuccess('');
+    };
+
+    const handleEdit = async (item) => {
+        try {
+            const fullItem = await getEvaluacionById(item.id);
+            setEditingItem(fullItem);
+            setShowForm(true);
+            setError('');
+            setSuccess('');
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleView = async (item) => {
+        try {
+            const fullItem = await getEvaluacionById(item.id);
+            setSelectedItem(fullItem);
+            setShowDetail(true);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleCloseForm = () => {
+        setShowForm(false);
+        setEditingItem(null);
+    };
+
+    const handleFormSuccess = () => {
+        handleCloseForm();
+        if (editingItem) {
+            setSuccess('Evaluación actualizada correctamente');
+        } else {
+            setSuccess('Evaluación creada correctamente');
+        }
+        loadItems();
+    };
+
+    const handleDeleteClick = (item) => {
+        setItemToDelete(item);
+        setConfirmOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            await deleteEvaluacion(itemToDelete.id);
+            setSuccess('Evaluación desactivada correctamente');
+            loadItems();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setConfirmOpen(false);
+            setItemToDelete(null);
+        }
+    };
+
+    const handleCancelDelete = () => {
+        setConfirmOpen(false);
+        setItemToDelete(null);
+    };
+
+    const handleBulkDeleteClick = () => {
+        if (selectedIds.size === 0) return;
+        setConfirmBulkOpen(true);
+    };
+
+    const handleConfirmBulkDelete = async () => {
+        try {
+            await deleteEvaluacionesBulk(Array.from(selectedIds));
+            setSuccess(`${selectedIds.size} evaluación(es) desactivada(s) correctamente`);
+            setSelectedIds(new Set());
+            loadItems();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setConfirmBulkOpen(false);
+        }
+    };
+
+    const handleReactivate = async (item) => {
+        try {
+            await reactivateEvaluacion(item.id);
+            setSuccess('Evaluación reactivada correctamente');
+            loadItems();
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const showingInactive = filterActivo === 'false';
+
+    const formatDate = (dateString) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    return (
+        &lt;div>
+            {/* Header */}
+            &lt;div className="page-header">
+                &lt;div>
+                    &lt;h1 className="page-title">Evaluaciones&lt;/h1>
+                    &lt;p className="page-subtitle">Gestiona las evaluaciones de desempeño&lt;/p>
+                &lt;/div>
+            &lt;/div>
+
+            {/* Alerts */}
+            {error &amp;&amp; (
+                &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                    {error}
+                    &lt;button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕&lt;/button>
+                &lt;/div>
+            )}
+            {success &amp;&amp; (
+                &lt;div className="alert alert-success" style={{ marginBottom: '1rem' }}>
+                    {success}
+                    &lt;button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕&lt;/button>
+                &lt;/div>
+            )}
+
+            {/* Card */}
+            &lt;div className="card">
+                &lt;div className="card-header">
+                    &lt;div className="header-left">
+                        &lt;h3 className="card-title">Listado de Evaluaciones&lt;/h3>
+                        &lt;span className="selection-indicator">
+                            {selectedIds.size} de {total} seleccionados
+                        &lt;/span>
+                    &lt;/div>
+                    &lt;div className="header-actions">
+                        {selectedIds.size > 0 &amp;&amp; !showingInactive &amp;&amp; canDelete &amp;&amp; (
+                            &lt;button className="btn btn-danger" onClick={handleBulkDeleteClick}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                &lt;/svg>
+                                Desactivar seleccionados
+                            &lt;/button>
+                        )}
+                        {canCreate &amp;&amp; (
+                            &lt;button className="btn btn-primary" onClick={handleCreate}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                &lt;/svg>
+                                Nueva Evaluación
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+
+                {/* Filters */}
+                &lt;div className="filters-bar">
+                    &lt;div className="filters-inputs">
+                        &lt;div className="filter-group" style={{ minWidth: '160px' }}>
+                            &lt;Select isDisabled={isSingleWorkspace} options={espacioOptions} value={filterEspacio} onChange={opt => { setFilterEspacio(opt); setPage(1); }} placeholder="Espacio..." isClearable={!isSingleWorkspace} styles={selectStyles} menuPortalTarget={document.body} noOptionsMessage={() => 'Sin resultados'} />
+                        &lt;/div>
+                        &lt;div className="filter-group" style={{ minWidth: '200px' }}>
+                            &lt;Select isDisabled={isSingleEmployee} options={empleadoOptions} value={filterEvaluado} onChange={opt => { setFilterEvaluado(opt); setPage(1); }} placeholder="Evaluado..." isClearable={!isSingleEmployee} styles={selectStyles} menuPortalTarget={document.body} noOptionsMessage={() => 'Sin resultados'} />
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;select className="filter-input" value={filterPeriodo} onChange={(e) => { setFilterPeriodo(e.target.value); setPage(1); }}>
+                                &lt;option value="">Todos los períodos&lt;/option>
+                                {PERIODO_FILTER.map(p => (
+                                    &lt;option key={p.value} value={p.value}>{p.label}&lt;/option>
+                                ))}
+                            &lt;/select>
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;select className="filter-input" value={filterEstado} onChange={(e) => { setFilterEstado(e.target.value); setPage(1); }}>
+                                &lt;option value="">Todos los estados&lt;/option>
+                                {ESTADO_FILTER.map(e => (
+                                    &lt;option key={e.value} value={e.value}>{e.label}&lt;/option>
+                                ))}
+                            &lt;/select>
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;select className="filter-input" value={filterEscala} onChange={(e) => { setFilterEscala(e.target.value); setPage(1); }}>
+                                &lt;option value="">Escala&lt;/option>
+                                &lt;option value="supera_expectativas">Supera Expectativas&lt;/option>
+                                &lt;option value="cumple">Cumple&lt;/option>
+                                &lt;option value="necesita_mejora">Necesita Mejora&lt;/option>
+                            &lt;/select>
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;input type="number" className="filter-input" placeholder="Puntaje mín." value={filterPuntajeMin} onChange={e => { setFilterPuntajeMin(e.target.value); setPage(1); }} style={{ width: '200px' }} min="0" max="100" />
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;input type="number" className="filter-input" placeholder="Puntaje máx." value={filterPuntajeMax} onChange={e => { setFilterPuntajeMax(e.target.value); setPage(1); }} style={{ width: '200px' }} min="0" max="100" />
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }}>
+                                &lt;option value="true">Activos&lt;/option>
+                                &lt;option value="false">Inactivos&lt;/option>
+                            &lt;/select>
+                        &lt;/div>
+                    &lt;/div>
+                    &lt;div className="filters-actions">
+                        &lt;div className="column-selector-wrapper">
+                            &lt;button className="btn btn-secondary btn-sm" onClick={() => setShowColumnSelector(!showColumnSelector)}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.004.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                &lt;/svg>
+                                Columnas
+                            &lt;/button>
+                            {showColumnSelector &amp;&amp; (
+                                &lt;div className="column-selector-dropdown">
+                                    {Object.entries({ empleadoEvaluado: 'Evaluado', espacio: 'Espacio', puntaje: 'Puntaje', escala: 'Escala' }).map(([key, label]) => (
+                                        &lt;label key={key} className="column-option">
+                                            &lt;input type="checkbox" checked={visibleColumns[key]} onChange={() => toggleColumn(key)} />
+                                            &lt;span>{label}&lt;/span>
+                                        &lt;/label>
+                                    ))}
+                                &lt;/div>
+                            )}
+                        &lt;/div>
+                        {hasActiveFilters &amp;&amp; (
+                            &lt;button className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                &lt;/svg>
+                                Limpiar
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+
+                {/* Content */}
+                {loading ? (
+                    &lt;div className="loading">&lt;div className="spinner">&lt;/div>&lt;/div>
+                ) : items.length === 0 ? (
+                    &lt;div className="empty-state">
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                        &lt;/svg>
+                        &lt;h3>No hay evaluaciones {showingInactive ? 'inactivas' : ''}&lt;/h3>
+                        &lt;p>{showingInactive ? 'No hay evaluaciones desactivadas' : 'Crea una nueva evaluación para comenzar'}&lt;/p>
+                    &lt;/div>
+                ) : (
+                    &lt;>
+                        &lt;div className="table-container">
+                            &lt;table className="table">
+                                &lt;thead>
+                                    &lt;tr>
+                                        &lt;th style={{ width: '40px' }}>
+                                            &lt;input type="checkbox" checked={allSelected} ref={input => { if (input) input.indeterminate = someSelected; }} onChange={handleSelectAll} />
+                                        &lt;/th>
+                                        &lt;th>Período&lt;/th>
+                                        &lt;th>Tipo&lt;/th>
+                                        {visibleColumns.empleadoEvaluado &amp;&amp; &lt;th>Evaluado&lt;/th>}
+                                        {visibleColumns.espacio &amp;&amp; &lt;th>Espacio&lt;/th>}
+                                        &lt;th style={{ textAlign: 'center' }}>Estado&lt;/th>
+                                        {visibleColumns.puntaje &amp;&amp; &lt;th style={{ textAlign: 'center' }}>Puntaje&lt;/th>}
+                                        {visibleColumns.escala &amp;&amp; &lt;th style={{ textAlign: 'center' }}>Escala&lt;/th>}
+                                        &lt;th>Acciones&lt;/th>
+                                    &lt;/tr>
+                                &lt;/thead>
+                                &lt;tbody>
+                                    {items.map((item) => (
+                                        &lt;tr key={item.id} className={`${selectedIds.has(item.id) ? 'row-selected' : ''} ${!item.activo ? 'row-inactive' : ''}`}>
+                                            &lt;td>&lt;input type="checkbox" disabled={item.estado === 'firmada'} checked={selectedIds.has(item.id)} onChange={() => handleSelectOne(item.id)} />&lt;/td>
+                                            &lt;td>
+                                                &lt;strong>{truncateText(PERIODO_LABELS[item.periodo] || item.periodo, 15)}&lt;/strong>
+                                                &lt;div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                    {formatDate(item.fecha)}
+                                                &lt;/div>
+                                            &lt;/td>
+                                            &lt;td>{truncateText(TIPO_EVALUACION_LABELS[item.tipoEvaluacion] || item.tipoEvaluacion, 15)}&lt;/td>
+                                            {visibleColumns.empleadoEvaluado &amp;&amp; (
+                                                &lt;td>
+                                                    {item.contratoEvaluado?.empleado ? (
+                                                        &lt;>
+                                                            &lt;strong>{truncateText(item.contratoEvaluado.empleado.usuario.apellido + ', ' + item.contratoEvaluado.empleado.usuario.nombre, 15)}&lt;/strong>
+                                                            &lt;div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                                {truncateText(item.contratoEvaluado.puestos?.[0]?.nombre || 'Sin puesto', 15)}
+                                                            &lt;/div>
+                                                        &lt;/>
+                                                    ) : (
+                                                        &lt;span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Sin evaluado&lt;/span>
+                                                    )}
+                                                &lt;/td>
+                                            )}
+                                            {visibleColumns.espacio &amp;&amp; &lt;td>{truncateText(item.contratoEvaluado?.empleado?.espacioTrabajo?.nombre || '-')}&lt;/td>}
+                                            &lt;td style={{ textAlign: 'center' }}>
+                                                &lt;span style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.3rem',
+                                                    fontSize: '0.8rem',
+                                                    padding: '0.2rem 0.5rem',
+                                                    borderRadius: '9999px',
+                                                    background: `${ESTADO_COLORS[item.estado]}20`,
+                                                    color: ESTADO_COLORS[item.estado],
+                                                    fontWeight: 600
+                                                }}>
+                                                    {ESTADO_LABELS[item.estado] || item.estado}
+                                                &lt;/span>
+                                            &lt;/td>
+                                            {visibleColumns.puntaje &amp;&amp; (
+                                                &lt;td style={{ textAlign: 'center' }}>
+                                                    &lt;strong>{item.puntaje}&lt;/strong>
+                                                &lt;/td>
+                                            )}
+                                            {visibleColumns.escala &amp;&amp; (
+                                                &lt;td style={{ textAlign: 'center' }}>
+                                                    &lt;span style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        fontSize: '0.8rem',
+                                                        padding: '0.2rem 0.5rem',
+                                                        borderRadius: '9999px',
+                                                        background: `${ESCALA_COLORS[item.escala]}20`,
+                                                        color: ESCALA_COLORS[item.escala],
+                                                        fontWeight: 600
+                                                    }}>
+                                                        {ESCALA_LABELS[item.escala] || item.escala}
+                                                    &lt;/span>
+                                                &lt;/td>
+                                            )}
+                                            &lt;td>
+                                                &lt;div className="table-actions">
+                                                    {showingInactive ? (
+                                                        canEdit &amp;&amp; (
+                                                            &lt;button className="btn btn-success btn-sm" onClick={() => handleReactivate(item)} title="Reactivar">
+                                                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                                                &lt;/svg>
+                                                                Reactivar
+                                                            &lt;/button>
+                                                        )
+                                                    ) : (
+                                                        &lt;>
+                                                            &lt;button className="btn btn-info btn-sm" onClick={() => handleView(item)} title="Ver">
+                                                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                &lt;/svg>
+                                                                Ver
+                                                            &lt;/button>
+                                                            {canEdit &amp;&amp; item.estado !== 'firmada' &amp;&amp; (
+                                                                &lt;button className="btn btn-warning btn-sm" onClick={() => handleEdit(item)} title="Editar">
+                                                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                                                    &lt;/svg>
+                                                                    Editar
+                                                                &lt;/button>
+                                                            )}
+                                                            {canDelete &amp;&amp; item.estado !== 'firmada' &amp;&amp; (
+                                                                &lt;button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(item)} title="Desactivar">
+                                                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                                                    &lt;/svg>
+                                                                    Desactivar
+                                                                &lt;/button>
+                                                            )}
+                                                        &lt;/>
+                                                    )}
+                                                &lt;/div>
+                                            &lt;/td>
+                                        &lt;/tr>
+                                    ))}
+                                &lt;/tbody>
+                            &lt;/table>
+                        &lt;/div>
+
+                        {/* Pagination */}
+                        &lt;div className="pagination-bar">
+                            &lt;div className="pagination-info">
+                                &lt;span>Filas por página:&lt;/span>
+                                &lt;select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
+                                    {ROWS_PER_PAGE_OPTIONS.map(opt => &lt;option key={opt} value={opt}>{opt}&lt;/option>)}
+                                &lt;/select>
+                                &lt;span className="pagination-total">
+                                    {((page - 1) * limit) + 1}-{Math.min(page * limit, total)} de {total}
+                                &lt;/span>
+                            &lt;/div>
+                            &lt;div className="pagination-controls">
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«&lt;/button>
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹&lt;/button>
+                                &lt;span className="pagination-page">Página {page} de {totalPages || 1}&lt;/span>
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›&lt;/button>
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»&lt;/button>
+                            &lt;/div>
+                        &lt;/div>
+                    &lt;/>
+                )}
+            &lt;/div>
+
+            {/* Modals */}
+            {showForm &amp;&amp; (
+                &lt;EvaluacionWizard evaluacion={editingItem} onClose={handleCloseForm} onSuccess={handleFormSuccess} />
+            )}
+
+            {showDetail &amp;&amp; selectedItem &amp;&amp; (
+                &lt;EvaluacionDetail
+                    evaluacion={selectedItem}
+                    onClose={() => { setShowDetail(false); setSelectedItem(null); }}
+                    onEdit={(eval_) => {
+                        setShowDetail(false);
+                        setSelectedItem(null);
+                        setEditingItem(eval_);
+                        setShowForm(true);
+                    }}
+                />
+            )}
+
+            &lt;ConfirmDialog
+                isOpen={confirmOpen}
+                title="Desactivar evaluación"
+                message={itemToDelete ? `¿Estás seguro de desactivar esta evaluación? Podrás reactivarla más tarde.` : ''}
+                onConfirm={handleConfirmDelete}
+                onCancel={handleCancelDelete}
+                confirmText="Desactivar"
+                variant="danger"
+            />
+
+            &lt;ConfirmDialog
+                isOpen={confirmBulkOpen}
+                title="Desactivar evaluaciones"
+                message={`¿Estás seguro de desactivar ${selectedIds.size} evaluación(es)? Podrás reactivarlas más tarde.`}
+                onConfirm={handleConfirmBulkDelete}
+                onCancel={() => setConfirmBulkOpen(false)}
+                confirmText="Desactivar todos"
+                variant="danger"
+            />
+        &lt;/div>
+    );
+};
+
+export default Evaluaciones;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

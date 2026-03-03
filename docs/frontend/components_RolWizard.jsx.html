@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/RolWizard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/RolWizard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Orquestador para la creación y edición de roles y la gestión granular de sus permisos.
+ * @module components/RolWizard
+ */
+
+import { useState, useEffect } from 'react';
+import StepTracker from './StepTracker';
+import EspacioTrabajoSelector from './EspacioTrabajoSelector';
+import { createRol, updateRol, getPermisosGrouped, canChangeRolWorkspace } from '../services/api';
+
+/**
+ * Componente interno de error de campo.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {string} [props.message] - Mensaje de error.
+ */
+const FieldError = ({ message }) => {
+    if (!message) return null;
+    return &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}&lt;/span>;
+};
+
+/**
+ * Componente RolWizard
+ * 
+ * Gestiona el nombre, descripción y la selección de permisos por módulo
+ * mediante una matriz de selección masiva o individual.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.rol] - Objeto rol a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @returns {JSX.Element}
+ */
+const RolWizard = ({ rol, onClose, onSuccess }) => {
+    const isEditMode = !!rol;
+    const [currentStep, setCurrentStep] = useState(1);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [loadingPermisos, setLoadingPermisos] = useState(true);
+    const [touched, setTouched] = useState({});
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [permisosAgrupados, setPermisosAgrupados] = useState({});
+
+    // Form data - Paso 1: Información básica
+    const [info, setInfo] = useState({
+        nombre: '',
+        descripcion: '',
+    });
+
+    // Espacio de Trabajo
+    const [espacioTrabajoId, setEspacioTrabajoId] = useState('');
+    const [canChangeWorkspace, setCanChangeWorkspace] = useState(true);
+    const [workspaceChangeMessage, setWorkspaceChangeMessage] = useState('');
+
+    // Form data - Paso 2: Permisos
+    const [permisos, setPermisos] = useState([]);
+
+    const steps = [
+        { number: 1, title: 'Información Básica' },
+        { number: 2, title: 'Permisos' },
+    ];
+
+    // Cargar permisos disponibles
+    useEffect(() => {
+        const loadPermisos = async () => {
+            try {
+                setLoadingPermisos(true);
+                const grouped = await getPermisosGrouped();
+                setPermisosAgrupados(grouped);
+            } catch (err) {
+                setError('Error al cargar permisos: ' + err.message);
+            } finally {
+                setLoadingPermisos(false);
+            }
+        };
+        loadPermisos();
+    }, []);
+
+    // Cargar datos del rol en modo edición
+    useEffect(() => {
+        if (rol) {
+            setInfo({
+                nombre: rol.nombre || '',
+                descripcion: rol.descripcion || '',
+            });
+            setPermisos(rol.permisos?.map(p => p.id) || []);
+
+            // Cargar espacio de trabajo
+            setEspacioTrabajoId(String(rol.espacioTrabajoId || ''));
+
+            // Verificar si puede cambiar de espacio
+            if (rol.id) {
+                checkCanChangeWorkspace(rol.id);
+            }
+        }
+    }, [rol]);
+
+    const checkCanChangeWorkspace = async (rolId) => {
+        try {
+            const result = await canChangeRolWorkspace(rolId);
+            setCanChangeWorkspace(result.canChange);
+            setWorkspaceChangeMessage(result.reason || '');
+        } catch (err) {
+            console.error('Error al verificar cambio de espacio:', err);
+            setCanChangeWorkspace(true);
+        }
+    };
+
+    const handleBlur = (field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+        validateField(field);
+    };
+
+    const validateField = (field) => {
+        const errors = { ...fieldErrors };
+
+        if (field === 'nombre' &amp;&amp; !info.nombre?.trim()) {
+            errors.nombre = 'El nombre del rol es requerido';
+        } else if (field === 'nombre') {
+            delete errors.nombre;
+        }
+
+        setFieldErrors(errors);
+    };
+
+    const handleInfoChange = (e) => {
+        const { name, value } = e.target;
+        setInfo(prev => ({ ...prev, [name]: value }));
+        if (touched[name]) {
+            validateField(name);
+        }
+    };
+
+    const handlePermisoToggle = (permisoId) => {
+        setPermisos(prev =>
+            prev.includes(permisoId)
+                ? prev.filter(id => id !== permisoId)
+                : [...prev, permisoId]
+        );
+    };
+
+    const handleModuloToggle = (modulo) => {
+        const permisosDelModulo = permisosAgrupados[modulo].map(p => p.id);
+        const todosSeleccionados = permisosDelModulo.every(id => permisos.includes(id));
+
+        setPermisos(prev =>
+            todosSeleccionados
+                ? prev.filter(id => !permisosDelModulo.includes(id))
+                : [...new Set([...prev, ...permisosDelModulo])]
+        );
+    };
+
+    const validateStep1 = () => {
+        const errors = {};
+        if (!info.nombre?.trim()) {
+            errors.nombre = 'El nombre del rol es requerido';
+        }
+        if (info.descripcion &amp;&amp; info.descripcion.length > 1000) {
+            errors.descripcion = 'Las notas no pueden exceder 1000 caracteres';
+        }
+        if (!espacioTrabajoId) {
+            errors.espacioTrabajoId = 'El espacio de trabajo es requerido';
+        }
+        setFieldErrors(errors);
+        setTouched({ nombre: true });
+        return Object.keys(errors).length === 0;
+    };
+
+    const nextStep = () => {
+        if (currentStep === 1 &amp;&amp; !validateStep1()) {
+            return;
+        }
+        setCurrentStep(prev => prev + 1);
+    };
+
+    const prevStep = () => {
+        setCurrentStep(prev => prev - 1);
+    };
+
+    const handleSubmit = async () => {
+        if (!validateStep1()) {
+            setCurrentStep(1);
+            return;
+        }
+
+        try {
+            setLoading(true);
+            setError('');
+
+            const data = {
+                nombre: info.nombre,
+                descripcion: info.descripcion,
+                permisos: permisos,
+                espacioTrabajoId: espacioTrabajoId ? parseInt(espacioTrabajoId) : undefined,
+            };
+
+            if (isEditMode) {
+                await updateRol(rol.id, data);
+            } else {
+                await createRol(data);
+            }
+            onSuccess();
+        } catch (err) {
+            const errorMessage = err.message.toLowerCase();
+            // Detect step 1 field errors
+            if (errorMessage.includes('nombre')) {
+                setCurrentStep(1);
+                setFieldErrors(prev => ({ ...prev, nombre: err.message }));
+                setTouched(prev => ({ ...prev, nombre: true }));
+            }
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getModuloLabel = (modulo) => {
+        const labels = {
+            empleados: 'Empleados',
+            empresas: 'Empresas',
+            contratos: 'Contratos',
+            registros_salud: 'Registros de Salud',
+            evaluaciones: 'Evaluaciones',
+            contactos: 'Contactos',
+            solicitudes: 'Solicitudes',
+            liquidaciones: 'Liquidaciones',
+            roles: 'Roles y Permisos',
+            reportes: 'Reportes',
+        };
+        return labels[modulo] || modulo;
+    };
+
+    const getAccionLabel = (accion) => {
+        const labels = {
+            crear: 'Crear',
+            leer: 'Leer',
+            actualizar: 'Actualizar',
+            eliminar: 'Eliminar',
+        };
+        return labels[accion] || accion;
+    };
+
+    const renderStep1 = () => (
+        &lt;div style={{ display: 'grid', gap: '1rem' }}>
+            &lt;div className="form-group">
+                &lt;label className="form-label">Nombre *&lt;/label>
+                &lt;input
+                    type="text"
+                    name="nombre"
+                    className={`form-input ${touched.nombre &amp;&amp; fieldErrors.nombre ? 'input-error' : ''}`}
+                    value={info.nombre}
+                    onChange={handleInfoChange}
+                    onBlur={() => handleBlur('nombre')}
+                    placeholder="Ej: Gerente de RRHH"
+                />
+                &lt;FieldError message={touched.nombre &amp;&amp; fieldErrors.nombre} />
+            &lt;/div>
+
+            &lt;div className="form-group">
+                &lt;label className="form-label">Descripción&lt;/label>
+                &lt;textarea
+                    name="descripcion"
+                    className="form-input"
+                    value={info.descripcion}
+                    onChange={handleInfoChange}
+                    placeholder="Descripción del rol y sus responsabilidades..."
+                    rows={4}
+                    style={{ resize: 'vertical', minHeight: '100px' }}
+                    maxLength={1000}
+                />
+                &lt;FieldError message={touched.descripcion &amp;&amp; fieldErrors.descripcion} />
+                &lt;span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>{info.descripcion.length}/1000&lt;/span>
+            &lt;/div>
+
+            {/* Espacio de Trabajo */}
+            &lt;EspacioTrabajoSelector
+                value={espacioTrabajoId}
+                onChange={(e) => setEspacioTrabajoId(e.target.value)}
+                onBlur={() => handleBlur('espacioTrabajoId')}
+                canChange={!isEditMode || canChangeWorkspace}
+                changeRestrictionMessage={workspaceChangeMessage}
+                touched={touched.espacioTrabajoId}
+                error={fieldErrors.espacioTrabajoId}
+            />
+        &lt;/div>
+    );
+
+    const renderStep2 = () => {
+        // Definir el orden de las acciones
+        const accionesOrdenadas = ['crear', 'leer', 'actualizar', 'eliminar'];
+
+        // Calcular si todos los permisos están seleccionados
+        const todosLosPermisos = Object.values(permisosAgrupados).flat().map(p => p.id);
+        const todosSeleccionados = todosLosPermisos.length > 0 &amp;&amp; todosLosPermisos.every(id => permisos.includes(id));
+        const algunosSeleccionados = todosLosPermisos.some(id => permisos.includes(id)) &amp;&amp; !todosSeleccionados;
+
+        const handleSeleccionarTodos = () => {
+            if (todosSeleccionados) {
+                setPermisos([]);
+            } else {
+                setPermisos(todosLosPermisos);
+            }
+        };
+
+        return (
+            &lt;div style={{ display: 'grid', gap: '1rem' }}>
+                &lt;div style={{
+                    padding: '0.75rem 1rem',
+                    background: 'var(--bg-secondary)',
+                    borderRadius: '0.5rem',
+                    border: '1px solid var(--border-color)',
+                    marginBottom: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                }}>
+                    &lt;p style={{
+                        fontSize: '0.875rem',
+                        color: 'var(--text-secondary)',
+                        margin: 0
+                    }}>
+                        &lt;strong style={{ color: 'var(--text-primary)' }}>{permisos.length}&lt;/strong> permisos seleccionados
+                    &lt;/p>
+                    &lt;label style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        color: 'var(--text-primary)'
+                    }}>
+                        &lt;input
+                            type="checkbox"
+                            checked={todosSeleccionados}
+                            ref={input => {
+                                if (input) input.indeterminate = algunosSeleccionados;
+                            }}
+                            onChange={handleSeleccionarTodos}
+                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                        />
+                        Seleccionar todos
+                    &lt;/label>
+                &lt;/div>
+
+                {loadingPermisos ? (
+                    &lt;div style={{ textAlign: 'center', padding: '2rem' }}>
+                        &lt;div className="spinner">&lt;/div>
+                    &lt;/div>
+                ) : (
+                    &lt;div style={{
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '0.5rem',
+                        overflow: 'hidden'
+                    }}>
+                        &lt;div style={{ overflowX: 'auto' }}>
+                            &lt;table style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                fontSize: '0.875rem'
+                            }}>
+                                &lt;thead>
+                                    &lt;tr style={{
+                                        background: 'var(--bg-secondary)',
+                                        borderBottom: '2px solid var(--border-color)'
+                                    }}>
+                                        &lt;th style={{
+                                            padding: '0.75rem 1rem',
+                                            textAlign: 'left',
+                                            fontWeight: 600,
+                                            color: 'var(--text-primary)',
+                                            position: 'sticky',
+                                            left: 0,
+                                            background: 'var(--bg-secondary)',
+                                            zIndex: 1
+                                        }}>
+                                            Módulo
+                                        &lt;/th>
+                                        {accionesOrdenadas.map(accion => (
+                                            &lt;th key={accion} style={{
+                                                padding: '0.75rem 1rem',
+                                                textAlign: 'center',
+                                                fontWeight: 600,
+                                                color: 'var(--text-primary)',
+                                                minWidth: '100px'
+                                            }}>
+                                                {getAccionLabel(accion)}
+                                            &lt;/th>
+                                        ))}
+                                        &lt;th style={{
+                                            padding: '0.75rem 1rem',
+                                            textAlign: 'center',
+                                            fontWeight: 600,
+                                            color: 'var(--text-primary)',
+                                            minWidth: '120px'
+                                        }}>
+                                            Seleccionar Todo
+                                        &lt;/th>
+                                    &lt;/tr>
+                                &lt;/thead>
+                                &lt;tbody>
+                                    {(() => {
+                                        const MODULE_ORDER = [
+                                            'empleados',
+                                            'empresas',
+                                            'contratos',
+                                            'registros_salud',
+                                            'evaluaciones',
+                                            'contactos',
+                                            'solicitudes',
+                                            'liquidaciones',
+                                            'roles',
+                                            'reportes'
+                                        ];
+
+                                        return MODULE_ORDER.map((modulo, index) => {
+                                            const permisosModulo = permisosAgrupados[modulo];
+                                            if (!permisosModulo) return null;
+
+                                            const permisosDelModulo = permisosModulo.map(p => p.id);
+                                            const todosSeleccionados = permisosDelModulo.every(id => permisos.includes(id));
+                                            const algunosSeleccionados = permisosDelModulo.some(id => permisos.includes(id)) &amp;&amp; !todosSeleccionados;
+
+                                            return (
+                                                &lt;tr key={modulo} style={{
+                                                    borderBottom: index &lt; MODULE_ORDER.length - 1 ? '1px solid var(--border-color)' : 'none',
+                                                    transition: 'background-color 0.2s'
+                                                }}
+                                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                >
+                                                    &lt;td style={{
+                                                        padding: '0.75rem 1rem',
+                                                        fontWeight: 600,
+                                                        color: 'var(--text-primary)',
+                                                        position: 'sticky',
+                                                        left: 0,
+                                                        background: 'var(--card-bg, white)',
+                                                        zIndex: 1,
+                                                        boxShadow: '2px 0 4px rgba(0,0,0,0.04)'
+                                                    }}>
+                                                        {getModuloLabel(modulo)}
+                                                    &lt;/td>
+                                                    {accionesOrdenadas.map(accion => {
+                                                        const permiso = permisosModulo.find(p => p.accion === accion);
+                                                        if (!permiso) {
+                                                            return (
+                                                                &lt;td key={accion} style={{
+                                                                    padding: '0.75rem 1rem',
+                                                                    textAlign: 'center'
+                                                                }}>
+                                                                    &lt;span style={{ color: 'var(--text-secondary)' }}>-&lt;/span>
+                                                                &lt;/td>
+                                                            );
+                                                        }
+                                                        return (
+                                                            &lt;td key={accion} style={{
+                                                                padding: '0.75rem 1rem',
+                                                                textAlign: 'center'
+                                                            }}>
+                                                                &lt;input
+                                                                    type="checkbox"
+                                                                    checked={permisos.includes(permiso.id)}
+                                                                    onChange={() => handlePermisoToggle(permiso.id)}
+                                                                    style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                                />
+                                                            &lt;/td>
+                                                        );
+                                                    })}
+                                                    &lt;td style={{
+                                                        padding: '0.75rem 1rem',
+                                                        textAlign: 'center'
+                                                    }}>
+                                                        &lt;input
+                                                            type="checkbox"
+                                                            checked={todosSeleccionados}
+                                                            ref={input => {
+                                                                if (input) input.indeterminate = algunosSeleccionados;
+                                                            }}
+                                                            onChange={() => handleModuloToggle(modulo)}
+                                                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                        />
+                                                    &lt;/td>
+                                                &lt;/tr>
+                                            );
+                                        });
+                                    })()}
+                                &lt;/tbody>
+                            &lt;/table>
+                        &lt;/div>
+                    &lt;/div>
+                )}
+            &lt;/div>
+        );
+    };
+
+    const content = (
+        &lt;>
+            &lt;div className="modal-body" style={{ padding: '2rem' }}>
+                &lt;StepTracker steps={steps} currentStep={currentStep} />
+
+                &lt;div style={{ marginTop: '2rem', textAlign: 'center', marginBottom: '2rem' }}>
+                    &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                        {steps[currentStep - 1].title}
+                    &lt;/h3>
+                    &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                        {currentStep === 1 &amp;&amp; 'Define el nombre y descripción del rol'}
+                        {currentStep === 2 &amp;&amp; 'Selecciona los permisos que tendrá este rol'}
+                    &lt;/p>
+                &lt;/div>
+
+                {error &amp;&amp; (
+                    &lt;div className="alert alert-error">
+                        {error}
+                    &lt;/div>
+                )}
+
+                {currentStep === 1 &amp;&amp; renderStep1()}
+                {currentStep === 2 &amp;&amp; renderStep2()}
+            &lt;/div>
+
+            &lt;div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 2rem', borderTop: '1px solid var(--border-color)' }}>
+                &lt;div>
+                    {currentStep > 1 &amp;&amp; (
+                        &lt;button className="btn btn-secondary" onClick={prevStep}>
+                            Anterior
+                        &lt;/button>
+                    )}
+                &lt;/div>
+                &lt;div style={{ display: 'flex', gap: '1rem' }}>
+                    &lt;button className="btn btn-secondary" onClick={onClose}>
+                        Cancelar
+                    &lt;/button>
+                    {currentStep &lt; 2 ? (
+                        &lt;button className="btn btn-primary" onClick={nextStep}>
+                            Siguiente
+                        &lt;/button>
+                    ) : (
+                        &lt;button className="btn btn-primary" onClick={handleSubmit} disabled={loading || loadingPermisos}>
+                            {loading ? 'Guardando...' : (isEditMode ? 'Actualizar' : 'Crear')} Rol
+                        &lt;/button>
+                    )}
+                &lt;/div>
+            &lt;/div>
+        &lt;/>
+    );
+
+    return (
+        &lt;div className="modal-overlay" onClick={onClose}>
+            &lt;div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
+                &lt;div className="modal-header">
+                    &lt;h2 className="modal-title">
+                        {isEditMode ? 'Editar Rol' : 'Nuevo Rol'}
+                    &lt;/h2>
+                    &lt;button className="modal-close" onClick={onClose}>
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        &lt;/svg>
+                    &lt;/button>
+                &lt;/div>
+                {content}
+            &lt;/div>
+        &lt;/div>
+    );
+};
+
+export default RolWizard;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

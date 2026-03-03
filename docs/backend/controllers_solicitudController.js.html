@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: controllers/solicitudController.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: controllers/solicitudController.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Controller de Solicitudes.
+ * Maneja las operaciones CRUD para solicitudes de recursos humanos,
+ * incluyendo vacaciones, licencias, horas extras y renuncias.
+ * Utiliza servicios de validación específicos por tipo y helpers
+ * de permisos y workspace para la separación de responsabilidades.
+ * @module controllers/solicitudController
+ */
+
+const {
+    Solicitud, Licencia, Vacaciones, HorasExtras, Renuncia,
+    Contrato, Empleado, Puesto, Departamento, Area, Empresa,
+    RegistroSalud, Usuario, EspacioTrabajo
+} = require('../models');
+const { Op } = require('sequelize');
+const sequelize = require('../config/database');
+
+// Helpers
+const { resolverScopeContratos, RESPUESTA_VACIA_PAGINADA } = require('../helpers/workspace.helper');
+const { parsearPaginacion } = require('../helpers/paginacion.helper');
+const { badRequest, forbidden, notFound, serverError, manejarErrorSequelize } = require('../helpers/respuestas.helper');
+const { tienePermiso } = require('../helpers/permisos.helper');
+
+// Servicios de validación por tipo de solicitud
+const vacacionesService = require('../services/vacacionesService');
+const licenciaService = require('../services/licenciaService');
+const horasExtrasService = require('../services/horasExtrasService');
+const renunciaService = require('../services/renunciaService');
+const { generarLiquidacionFinal } = require('../services/liquidacionGeneradorService');
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CONSTANTES
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Tipos de contrato que habilitan todos los tipos de solicitud.
+ * Los contratos que no están en esta lista solo pueden crear licencias/inasistencias.
+ * @constant {string[]}
+ */
+const TIPOS_RELACION_DEPENDENCIA = [
+    'tiempo_indeterminado',
+    'periodo_prueba',
+    'plazo_fijo',
+    'eventual',
+    'teletrabajo'
+];
+
+// ──────────────────────────────────────────────────────────────────────────────
+// INCLUDES DE SEQUELIZE (reutilizables)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Include estándar para cargar el contrato con empleado, usuario y empresa.
+ * @constant {object}
+ */
+const includeContrato = {
+    model: Contrato,
+    as: 'contrato',
+    include: [
+        {
+            model: Empleado,
+            as: 'empleado',
+            include: [
+                {
+                    model: Usuario,
+                    as: 'usuario',
+                    attributes: ['id', 'nombre', 'apellido']
+                },
+                {
+                    model: EspacioTrabajo,
+                    as: 'espacioTrabajo',
+                    attributes: ['id', 'nombre']
+                }
+            ]
+        },
+        {
+            model: Puesto,
+            as: 'puestos',
+            through: { attributes: [] },
+            include: [{
+                model: Departamento,
+                as: 'departamento',
+                include: [{
+                    model: Area,
+                    as: 'area',
+                    include: [{
+                        model: Empresa,
+                        as: 'empresa'
+                    }]
+                }]
+            }]
+        }
+    ]
+};
+
+/**
+ * Includes para cargar las entidades hija de cada tipo de solicitud.
+ * @constant {object[]}
+ */
+const includeTypes = [
+    { model: Licencia, as: 'licencia', include: [{ model: RegistroSalud, as: 'registroSalud' }] },
+    { model: Vacaciones, as: 'vacaciones' },
+    { model: HorasExtras, as: 'horasExtras' },
+    { model: Renuncia, as: 'renuncia' },
+];
+
+/**
+ * Condición SQL CASE para ordenar solicitudes por estado (pendientes primero).
+ * @constant {import('sequelize').Literal}
+ */
+const ordenPorEstado = sequelize.literal(`CASE 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`, '') IN ('pendiente', '') THEN 1 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'aceptada' THEN 2 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'aprobada' THEN 3 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'justificada' THEN 4 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'procesada' THEN 5 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'injustificada' THEN 6 
+    WHEN COALESCE(\`licencia\`.\`estado\`, \`vacaciones\`.\`estado\`, \`horasExtras\`.\`estado\`, \`renuncia\`.\`estado\`) = 'rechazada' THEN 7 
+    ELSE 8 END`);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// HELPERS PRIVADOS
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Construye la condición WHERE para filtrar por estado en una solicitud
+ * (que puede estar en cualquiera de las 4 tablas tipo).
+ *
+ * @param {string} estado - Estado a filtrar
+ * @returns {object} Condición Sequelize Op.and con Op.or para cada tabla tipo
+ */
+const buildEstadoCondicion = (estado) => {
+    const estadoVal = estado === 'pendiente'
+        ? { [Op.or]: ['pendiente', ''] }
+        : estado;
+
+    return {
+        [Op.or]: [
+            { '$licencia.estado$': estadoVal },
+            { '$vacaciones.estado$': estadoVal },
+            { '$horasExtras.estado$': estadoVal },
+            { '$renuncia.estado$': estadoVal },
+        ]
+    };
+};
+
+/**
+ * Verifica si existe una solicitud pendiente para un contrato dado.
+ * Usado para validar que no se creen solicitudes duplicadas.
+ *
+ * @param {number} contratoId - ID del contrato a verificar
+ * @param {number|null} [excluirId=null] - ID de solicitud a excluir (para edición)
+ * @returns {Promise&lt;boolean>} `true` si existe una solicitud pendiente
+ */
+const hayPendiente = async (contratoId, excluirId = null) => {
+    const where = {
+        contratoId,
+        activo: true,
+        [Op.and]: [{
+            [Op.or]: [
+                { '$licencia.estado$': { [Op.or]: ['pendiente', ''] } },
+                { '$vacaciones.estado$': { [Op.or]: ['pendiente', ''] } },
+                { '$horasExtras.estado$': { [Op.or]: ['pendiente', ''] } },
+                { '$renuncia.estado$': { [Op.or]: ['pendiente', ''] } }
+            ]
+        }]
+    };
+
+    if (excluirId) where.id = { [Op.ne]: excluirId };
+
+    const found = await Solicitud.findOne({ where, include: includeTypes });
+    return !!found;
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CONTROLLERS
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Obtiene todas las solicitudes con filtros opcionales y paginación.
+ * Aplica scope de acceso según el tipo de usuario en sesión.
+ *
+ * @param {import('express').Request} req - Request con query params:
+ *   `contratoId`, `empleadoId`, `espacioTrabajoId`, `tipoSolicitud`, `estado`, `activo`, `page`, `limit`
+ * @param {import('express').Response} res - Response con lista paginada de solicitudes
+ * @returns {Promise&lt;void>}
+ */
+const getAll = async (req, res) => {
+    try {
+        const { tipoSolicitud, estado, activo, page: pageQ, limit: limitQ, ...filtros } = req.query;
+        const { page, limit, offset } = parsearPaginacion(req.query);
+
+        const where = {};
+
+        // Filtro de activo
+        if (activo === 'false') where.activo = false;
+        else if (activo !== 'all') where.activo = true;
+
+        if (tipoSolicitud) where.tipoSolicitud = tipoSolicitud;
+
+        // Filtro por estado (en tablas hija)
+        if (estado) {
+            where[Op.and] = where[Op.and] || [];
+            where[Op.and].push(buildEstadoCondicion(estado));
+        }
+
+        // Resolver scope de contratos accesibles
+        const scope = await resolverScopeContratos(req.session, filtros, 'solicitudes');
+        if (scope.respuestaVacia) return res.json(RESPUESTA_VACIA_PAGINADA);
+
+        if (scope.contratoIds !== null) {
+            where.contratoId = { [Op.in]: scope.contratoIds };
+        }
+
+        const result = await Solicitud.findAndCountAll({
+            where,
+            include: [includeContrato, ...includeTypes],
+            order: [[ordenPorEstado, 'ASC'], ['createdAt', 'DESC']],
+            limit,
+            offset,
+            subQuery: false,
+            distinct: true,
+        });
+
+        res.json({
+            data: result.rows,
+            pagination: {
+                total: result.count,
+                page,
+                limit,
+                totalPages: Math.ceil(result.count / limit),
+            },
+        });
+    } catch (err) {
+        console.error('[solicitudController.getAll]', err);
+        serverError(res, err);
+    }
+};
+
+/**
+ * Obtiene una solicitud por ID.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con la solicitud o 404
+ * @returns {Promise&lt;void>}
+ */
+const getById = async (req, res) => {
+    try {
+        const solicitud = await Solicitud.findByPk(req.params.id, {
+            include: [includeContrato, ...includeTypes],
+        });
+
+        if (!solicitud) return notFound(res, 'Solicitud');
+        res.json(solicitud);
+    } catch (err) {
+        serverError(res, err);
+    }
+};
+
+/**
+ * Crea una nueva solicitud con su entidad hija (licencia, vacaciones, etc.).
+ * Aplica validaciones de negocio por tipo y genera acciones secundarias
+ * (liquidación automática al procesar renuncia, etc.).
+ *
+ * @param {import('express').Request} req - Request con body:
+ *   `contratoId`, `tipoSolicitud`, y los campos del tipo de solicitud
+ * @param {import('express').Response} res - Response 201 con la solicitud creada
+ * @returns {Promise&lt;void>}
+ */
+const create = async (req, res) => {
+    const transaction = await sequelize.transaction();
+
+    try {
+        // Verificar permiso de creación
+        if (!(await tienePermiso(req.session, 'solicitudes', 'crear'))) {
+            await transaction.rollback();
+            return forbidden(res, 'No tiene permiso para crear solicitudes');
+        }
+
+        const { contratoId, tipoSolicitud, ...typeData } = req.body;
+
+        // Validar existencia y estado del contrato
+        const contrato = await Contrato.findByPk(contratoId);
+        if (!contrato) {
+            await transaction.rollback();
+            return badRequest(res, 'El contrato no existe');
+        }
+        if (!contrato.activo) {
+            await transaction.rollback();
+            return badRequest(res, 'El contrato no está activo');
+        }
+
+        // Validar tipo de contrato vs tipo de solicitud
+        const esRelacionDependencia = TIPOS_RELACION_DEPENDENCIA.includes(contrato.tipoContrato);
+        if (!esRelacionDependencia &amp;&amp; tipoSolicitud !== 'licencia') {
+            await transaction.rollback();
+            return badRequest(res, 'Este tipo de contrato solo permite solicitudes de Licencia / Inasistencia');
+        }
+
+        // Validar que no exista una solicitud pendiente para el mismo contrato
+        if (await hayPendiente(contratoId)) {
+            await transaction.rollback();
+            return badRequest(res, 'No podés crear la solicitud porque ya existe una pendiente para este contrato. Por favor, esperá a que se resuelva la solicitud actual.');
+        }
+
+        // Validaciones de negocio específicas por tipo
+        const validaciones = {
+            vacaciones: () => vacacionesService.validarVacaciones(contratoId, typeData),
+            licencia: () => licenciaService.validarLicencia(contratoId, typeData),
+            horas_extras: () => horasExtrasService.validarHorasExtras(contratoId, typeData),
+            renuncia: () => renunciaService.validarRenuncia(contratoId),
+        };
+
+        if (validaciones[tipoSolicitud]) {
+            const validacion = await validaciones[tipoSolicitud]();
+            if (!validacion.valido) {
+                await transaction.rollback();
+                return badRequest(res, validacion.error);
+            }
+        }
+
+        // Crear registro base de solicitud
+        const solicitud = await Solicitud.create({ contratoId, tipoSolicitud }, { transaction });
+
+        // Crear entidad hija según tipo
+        await crearEntidadHija(tipoSolicitud, solicitud.id, contratoId, typeData, contrato, transaction);
+
+        await transaction.commit();
+
+        const fullSolicitud = await Solicitud.findByPk(solicitud.id, {
+            include: [includeContrato, ...includeTypes],
+        });
+
+        res.status(201).json(fullSolicitud);
+    } catch (err) {
+        await transaction.rollback();
+        console.error('[solicitudController.create]', err);
+        manejarErrorSequelize(res, err);
+    }
+};
+
+/**
+ * Actualiza una solicitud existente.
+ * Aplica validaciones de solapamiento y lógica de negocio en cambios de estado.
+ *
+ * @param {import('express').Request} req - Request con `params.id` y body con campos a actualizar
+ * @param {import('express').Response} res - Response con la solicitud actualizada
+ * @returns {Promise&lt;void>}
+ */
+const update = async (req, res) => {
+    const transaction = await sequelize.transaction();
+
+    try {
+        // Verificar permiso de edición
+        if (!(await tienePermiso(req.session, 'solicitudes', 'actualizar'))) {
+            await transaction.rollback();
+            return forbidden(res, 'No tiene permiso para editar solicitudes');
+        }
+
+        const { tipoSolicitud, ...typeData } = req.body;
+        const solicitud = await Solicitud.findByPk(req.params.id, {
+            include: [includeContrato, ...includeTypes],
+        });
+
+        if (!solicitud) {
+            await transaction.rollback();
+            return notFound(res, 'Solicitud');
+        }
+
+        // Determinar estado actual de la solicitud
+        const typeRecord = solicitud.licencia || solicitud.vacaciones || solicitud.horasExtras || solicitud.renuncia;
+        const currentState = typeRecord?.estado;
+
+        // Estados que permiten edición de datos (no solo cambio de estado)
+        const editableStates = solicitud.tipoSolicitud === 'renuncia'
+            ? ['pendiente', 'aceptada']
+            : ['pendiente'];
+
+        // Si no está en estado editable, solo permitir cambio de estado
+        if (!editableStates.includes(currentState)) {
+            const cambiosNoPermitidos = detectarCambiosNoPermitidos(typeData, typeRecord);
+            if (cambiosNoPermitidos.length > 0) {
+                await transaction.rollback();
+                return badRequest(res, 'No podés editar los datos de la solicitud porque no está pendiente. Solo podés cambiar su estado.');
+            }
+            // Limpiar campos que no sean 'estado' para evitar efectos secundarios
+            Object.keys(typeData).forEach(k => {
+                if (k !== 'estado') delete typeData[k];
+            });
+        }
+
+        // Validar solapamientos al editar fechas en estado editable
+        if (editableStates.includes(currentState)) {
+            const errorSolapamiento = await validarSolapamientoEdicion(solicitud, typeData);
+            if (errorSolapamiento) {
+                await transaction.rollback();
+                return badRequest(res, errorSolapamiento);
+            }
+        }
+
+        // Validar aprobación de renuncia
+        if (solicitud.tipoSolicitud === 'renuncia' &amp;&amp; typeData.estado) {
+            if (['aceptada', 'procesada'].includes(typeData.estado) &amp;&amp; currentState !== typeData.estado) {
+                const validacion = await renunciaService.validarAprobacion(solicitud.contratoId);
+                if (!validacion.valido) {
+                    await transaction.rollback();
+                    return badRequest(res, validacion.error);
+                }
+            }
+        }
+
+        // Actualizar entidad hija según tipo
+        await actualizarEntidadHija(solicitud, typeData, transaction);
+
+        await transaction.commit();
+
+        const updatedSolicitud = await Solicitud.findByPk(solicitud.id, {
+            include: [includeContrato, ...includeTypes],
+        });
+
+        res.json(updatedSolicitud);
+    } catch (err) {
+        await transaction.rollback();
+        console.error('[solicitudController.update]', err);
+        manejarErrorSequelize(res, err);
+    }
+};
+
+/**
+ * Desactiva (soft delete) una solicitud.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con mensaje de confirmación
+ * @returns {Promise&lt;void>}
+ */
+const remove = async (req, res) => {
+    try {
+        if (!(await tienePermiso(req.session, 'solicitudes', 'eliminar'))) {
+            return forbidden(res, 'No tiene permiso para desactivar solicitudes');
+        }
+
+        const solicitud = await Solicitud.findByPk(req.params.id);
+        if (!solicitud) return notFound(res, 'Solicitud');
+
+        await solicitud.update({ activo: false });
+        res.json({ message: 'Solicitud desactivada correctamente' });
+    } catch (err) {
+        serverError(res, err);
+    }
+};
+
+/**
+ * Reactiva una solicitud previamente desactivada.
+ * Valida que no exista otra solicitud pendiente para el mismo contrato.
+ *
+ * @param {import('express').Request} req - Request con `params.id`
+ * @param {import('express').Response} res - Response con la solicitud reactivada
+ * @returns {Promise&lt;void>}
+ */
+const reactivate = async (req, res) => {
+    try {
+        const solicitud = await Solicitud.findByPk(req.params.id);
+        if (!solicitud) return notFound(res, 'Solicitud');
+
+        if (await hayPendiente(solicitud.contratoId, solicitud.id)) {
+            return badRequest(res, 'No podés reactivar la solicitud porque ya existe una pendiente para este contrato. Por favor, esperá a que se resuelva la solicitud actual.');
+        }
+
+        await solicitud.update({ activo: true });
+
+        const fullSolicitud = await Solicitud.findByPk(solicitud.id, {
+            include: [includeContrato, ...includeTypes],
+        });
+
+        res.json(fullSolicitud);
+    } catch (err) {
+        serverError(res, err);
+    }
+};
+
+/**
+ * Desactiva múltiples solicitudes en una sola operación (bulk soft delete).
+ *
+ * @param {import('express').Request} req - Request con body `{ ids: number[] }`
+ * @param {import('express').Response} res - Response con mensaje de confirmación
+ * @returns {Promise&lt;void>}
+ */
+const bulkRemove = async (req, res) => {
+    try {
+        if (!(await tienePermiso(req.session, 'solicitudes', 'eliminar'))) {
+            return forbidden(res, 'No tiene permiso para desactivar solicitudes en lote');
+        }
+
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return badRequest(res, 'Se requiere un array de IDs');
+        }
+
+        await Solicitud.update({ activo: false }, { where: { id: ids } });
+        res.json({ message: `${ids.length} solicitud(es) desactivada(s) correctamente` });
+    } catch (err) {
+        serverError(res, err);
+    }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// FUNCIONES PRIVADAS DE APOYO
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Crea la entidad hija correspondiente a un tipo de solicitud.
+ * Ejecuta acciones secundarias cuando el estado inicial no es 'pendiente'.
+ *
+ * @param {string} tipoSolicitud - Tipo de solicitud ('licencia', 'vacaciones', etc.)
+ * @param {number} solicitudId - ID de la solicitud padre
+ * @param {number} contratoId - ID del contrato
+ * @param {object} typeData - Datos específicos del tipo
+ * @param {object} contrato - Instancia del contrato
+ * @param {object} transaction - Transacción de Sequelize
+ * @returns {Promise&lt;void>}
+ * @throws {Error} Si el tipo de solicitud es inválido
+ */
+const crearEntidadHija = async (tipoSolicitud, solicitudId, contratoId, typeData, contrato, transaction) => {
+    switch (tipoSolicitud) {
+        case 'licencia': {
+            // Validar que el registro de salud pertenezca al empleado
+            if (typeData.registroSaludId) {
+                const rs = await RegistroSalud.findByPk(typeData.registroSaludId);
+                if (!rs || rs.empleadoId !== contrato.empleadoId) {
+                    throw new Error('El registro de salud seleccionado no pertenece al empleado del contrato.');
+                }
+            }
+
+            const licencia = await Licencia.create({ solicitudId, ...typeData }, { transaction });
+
+            // Acción secundaria: si se crea ya justificada, sumar días a baja por renuncia
+            if (typeData.estado === 'justificada' &amp;&amp; licencia.diasSolicitud > 0) {
+                await licenciaService.onAprobacion(contratoId, licencia.diasSolicitud, transaction);
+            }
+            break;
+        }
+
+        case 'vacaciones': {
+            // Si se crea aprobada, registrar fecha de notificación
+            if (typeData.estado === 'aprobada' &amp;&amp; !typeData.notificadoEl) {
+                typeData.notificadoEl = new Date().toISOString().split('T')[0];
+            }
+
+            const vacaciones = await Vacaciones.create({ solicitudId, ...typeData }, { transaction });
+
+            if (typeData.estado === 'aprobada' &amp;&amp; vacaciones.diasSolicitud > 0) {
+                await vacacionesService.onAprobacion(contratoId, vacaciones.diasSolicitud, transaction);
+            }
+            break;
+        }
+
+        case 'horas_extras': {
+            await HorasExtras.create({ solicitudId, ...typeData }, { transaction });
+            break;
+        }
+
+        case 'renuncia': {
+            // Calcular fecha de baja efectiva si aplica
+            if (typeData.estado === 'aceptada' &amp;&amp; !typeData.fechaBajaEfectiva) {
+                typeData.fechaBajaEfectiva = renunciaService.calcularFechaBajaEfectiva();
+            }
+            if (typeData.estado === 'procesada') {
+                typeData.fechaBajaEfectiva = typeData.fechaBajaEfectiva || new Date().toISOString().split('T')[0];
+            }
+
+            await Renuncia.create({ solicitudId, ...typeData }, { transaction });
+
+            // Acción secundaria: actualizar contrato y generar liquidación final
+            if (typeData.estado === 'procesada') {
+                await Contrato.update(
+                    { fechaFin: typeData.fechaBajaEfectiva },
+                    { where: { id: contratoId }, transaction, individualHooks: true }
+                );
+
+                try {
+                    await generarLiquidacionFinal(contratoId, typeData.fechaBajaEfectiva, transaction);
+                } catch (liqError) {
+                    console.error('[solicitudController] Error al generar liquidación por renuncia (create):', liqError);
+                }
+            }
+            break;
+        }
+
+        default:
+            throw new Error('Tipo de solicitud inválido');
+    }
+};
+
+/**
+ * Actualiza la entidad hija de una solicitud existente.
+ * Ejecuta acciones secundarias en cambios de estado relevantes.
+ *
+ * @param {object} solicitud - Instancia de Solicitud con entidades relacionadas cargadas
+ * @param {object} typeData - Datos a actualizar
+ * @param {object} transaction - Transacción de Sequelize
+ * @returns {Promise&lt;void>}
+ */
+const actualizarEntidadHija = async (solicitud, typeData, transaction) => {
+    switch (solicitud.tipoSolicitud) {
+        case 'licencia': {
+            // Validar cambio de registro de salud
+            if (typeData.registroSaludId &amp;&amp; typeData.registroSaludId !== solicitud.licencia?.registroSaludId) {
+                const rs = await RegistroSalud.findByPk(typeData.registroSaludId);
+                if (!rs || rs.empleadoId !== solicitud.contrato?.empleadoId) {
+                    throw new Error('El registro de salud seleccionado no pertenece al empleado del contrato.');
+                }
+            }
+
+            // Acción secundaria: al justificar, sumar días a renuncia activa
+            const prevEstado = solicitud.licencia?.estado;
+            if (typeData.estado === 'justificada' &amp;&amp; prevEstado !== 'justificada') {
+                const dias = solicitud.licencia?.diasSolicitados || 0;
+                if (dias > 0) {
+                    await licenciaService.onAprobacion(solicitud.contratoId, dias, transaction);
+                }
+            }
+
+            // Limpiar registroSaludId si el motivo no es de salud
+            const MOTIVOS_SALUD = ['accidente_trabajo_art', 'enfermedad_inculpable'];
+            const nuevoMotivo = typeData.motivoLegal || solicitud.licencia.motivoLegal;
+            if (!MOTIVOS_SALUD.includes(nuevoMotivo)) {
+                typeData.registroSaludId = null;
+            }
+
+            await Licencia.update(typeData, { where: { solicitudId: solicitud.id }, transaction });
+            break;
+        }
+
+        case 'vacaciones': {
+            const prevEstado = solicitud.vacaciones?.estado;
+
+            if (typeData.estado === 'aprobada' &amp;&amp; prevEstado !== 'aprobada') {
+                typeData.notificadoEl = new Date().toISOString().split('T')[0];
+                const dias = solicitud.vacaciones?.diasSolicitud || 0;
+                if (dias > 0) {
+                    await vacacionesService.onAprobacion(solicitud.contratoId, dias, transaction);
+                }
+            }
+
+            await Vacaciones.update(typeData, { where: { solicitudId: solicitud.id }, transaction });
+            break;
+        }
+
+        case 'horas_extras': {
+            await HorasExtras.update(typeData, { where: { solicitudId: solicitud.id }, transaction });
+            break;
+        }
+
+        case 'renuncia': {
+            const prevEstado = solicitud.renuncia?.estado;
+
+            if (typeData.estado === 'aceptada' &amp;&amp; prevEstado !== 'aceptada') {
+                typeData.fechaBajaEfectiva = renunciaService.calcularFechaBajaEfectiva();
+            }
+
+            if (typeData.estado === 'procesada' &amp;&amp; prevEstado !== 'procesada') {
+                typeData.fechaBajaEfectiva = new Date().toISOString().split('T')[0];
+            }
+
+            await Renuncia.update(typeData, { where: { solicitudId: solicitud.id }, transaction });
+
+            // Acción secundaria: procesar renuncia → actualizar contrato y liquid. final
+            if (typeData.estado === 'procesada' &amp;&amp; prevEstado !== 'procesada') {
+                await Contrato.update(
+                    { fechaFin: typeData.fechaBajaEfectiva },
+                    { where: { id: solicitud.contratoId }, transaction, individualHooks: true }
+                );
+
+                try {
+                    await generarLiquidacionFinal(solicitud.contratoId, typeData.fechaBajaEfectiva, transaction);
+                } catch (liqError) {
+                    console.error('[solicitudController] Error al generar liquidación por renuncia (update):', liqError);
+                }
+            }
+            break;
+        }
+    }
+};
+
+/**
+ * Detecta si hay cambios en campos no permitidos al editar una solicitud
+ * que no está en estado editable.
+ *
+ * @param {object} typeData - Nuevos datos del request
+ * @param {object} typeRecord - Datos actuales de la entidad hija
+ * @returns {string[]} Array de campos modificados no permitidos
+ */
+const detectarCambiosNoPermitidos = (typeData, typeRecord) => {
+    const allowedFields = ['estado'];
+    return Object.keys(typeData).filter(k => {
+        if (allowedFields.includes(k)) return false;
+
+        let newVal = typeData[k];
+        let oldVal = typeRecord[k];
+
+        if (newVal === '' || newVal === undefined) newVal = null;
+        if (oldVal === '' || oldVal === undefined) oldVal = null;
+
+        if (newVal != oldVal) {
+            if (typeof newVal === 'string' &amp;&amp; typeof oldVal === 'string' &amp;&amp;
+                newVal.includes('-') &amp;&amp; oldVal.includes('-')) {
+                return newVal.split('T')[0] !== oldVal.split('T')[0];
+            }
+            return true;
+        }
+        return false;
+    });
+};
+
+/**
+ * Valida solapamientos de fechas/horas al editar una solicitud.
+ *
+ * @param {object} solicitud - Instancia de solicitud con relaciones cargadas
+ * @param {object} typeData - Datos a actualizar
+ * @returns {Promise&lt;string|null>} Mensaje de error si hay solapamiento, o `null` si es válido
+ */
+const validarSolapamientoEdicion = async (solicitud, typeData) => {
+    if (solicitud.tipoSolicitud === 'vacaciones' &amp;&amp; (typeData.fechaInicio || typeData.fechaFin)) {
+        const datos = {
+            fechaInicio: typeData.fechaInicio || solicitud.vacaciones.fechaInicio,
+            fechaFin: typeData.fechaFin || solicitud.vacaciones.fechaFin,
+        };
+        const validacion = await vacacionesService.validarVacaciones(solicitud.contratoId, datos, solicitud.id);
+        if (!validacion.valido) return validacion.error;
+    }
+
+    if (solicitud.tipoSolicitud === 'licencia' &amp;&amp; (typeData.fechaInicio || typeData.fechaFin)) {
+        const datos = {
+            fechaInicio: typeData.fechaInicio || solicitud.licencia.fechaInicio,
+            fechaFin: typeData.fechaFin || solicitud.licencia.fechaFin,
+        };
+        const validacion = await licenciaService.validarLicencia(solicitud.contratoId, datos, solicitud.id);
+        if (!validacion.valido) return validacion.error;
+    }
+
+    if (solicitud.tipoSolicitud === 'horas_extras' &amp;&amp; (typeData.fecha || typeData.horaInicio || typeData.horaFin)) {
+        const datos = {
+            fecha: typeData.fecha || solicitud.horasExtras.fecha,
+            horaInicio: typeData.horaInicio || solicitud.horasExtras.horaInicio,
+            horaFin: typeData.horaFin || solicitud.horasExtras.horaFin,
+        };
+        const validacion = await horasExtrasService.validarHorasExtras(solicitud.contratoId, datos, solicitud.id);
+        if (!validacion.valido) return validacion.error;
+    }
+
+    return null;
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ENDPOINTS DE VACACIONES (utilidades)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Retorna los días disponibles de vacaciones para un contrato en un período.
+ *
+ * @param {import('express').Request} req - Request con `params.contratoId` y `query.periodo`
+ * @param {import('express').Response} res - Response con `{ diasCorrespondientes, diasTomados, diasDisponibles }`
+ * @returns {Promise&lt;void>}
+ */
+const getDiasDisponiblesVacaciones = async (req, res) => {
+    try {
+        const { contratoId } = req.params;
+        const { periodo } = req.query;
+        const datos = await vacacionesService.calcularDiasDisponibles(contratoId, periodo);
+        const contrato = await Contrato.findByPk(contratoId);
+        res.json({ ...datos, antiguedad: contrato?.fechaInicio });
+    } catch (err) {
+        serverError(res, err);
+    }
+};
+
+/**
+ * Calcula los días hábiles entre dos fechas y la fecha de regreso.
+ *
+ * @param {import('express').Request} req - Request con `query.fechaInicio` y `query.fechaFin`
+ * @param {import('express').Response} res - Response con `{ diasSolicitud, fechaRegreso }`
+ * @returns {Promise&lt;void>}
+ */
+const getDiasSolicitadosVacaciones = async (req, res) => {
+    try {
+        const { fechaInicio, fechaFin } = req.query;
+        if (!fechaInicio || !fechaFin) {
+            return badRequest(res, 'Faltan parámetros: fechaInicio y fechaFin');
+        }
+        const resultado = vacacionesService.calcularDiasSolicitados(fechaInicio, fechaFin);
+        res.json(resultado);
+    } catch (err) {
+        serverError(res, err);
+    }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// EXPORTS
+// ──────────────────────────────────────────────────────────────────────────────
+
+module.exports = {
+    getAll,
+    getById,
+    create,
+    update,
+    remove,
+    reactivate,
+    bulkRemove,
+    getDiasDisponiblesVacaciones,
+    getDiasSolicitadosVacaciones,
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="helpers_fechas.module_helper.html">helpers/fechas.helper</a></li><li><a href="helpers_solapamiento.module_helper.html">helpers/solapamiento.helper</a></li><li><a href="jobs_contrato.module_cron.html">jobs/contrato.cron</a></li><li><a href="jobs_liquidacion.module_cron.html">jobs/liquidacion.cron</a></li><li><a href="jobs_registroSalud.module_cron.html">jobs/registroSalud.cron</a></li><li><a href="jobs_renuncia.module_cron.html">jobs/renuncia.cron</a></li><li><a href="module-app.html">app</a></li><li><a href="module-config_database.html">config/database</a></li><li><a href="module-controllers_authController.html">controllers/authController</a></li><li><a href="module-controllers_conceptoSalarialController.html">controllers/conceptoSalarialController</a></li><li><a href="module-controllers_contactoController.html">controllers/contactoController</a></li><li><a href="module-controllers_contratoController.html">controllers/contratoController</a></li><li><a href="module-controllers_empleadoController.html">controllers/empleadoController</a></li><li><a href="module-controllers_empresaController.html">controllers/empresaController</a></li><li><a href="module-controllers_espacioTrabajoController.html">controllers/espacioTrabajoController</a></li><li><a href="module-controllers_evaluacionController.html">controllers/evaluacionController</a></li><li><a href="module-controllers_liquidacionController.html">controllers/liquidacionController</a></li><li><a href="module-controllers_parametroLaboralController.html">controllers/parametroLaboralController</a></li><li><a href="module-controllers_permisoController.html">controllers/permisoController</a></li><li><a href="module-controllers_registroSaludController.html">controllers/registroSaludController</a></li><li><a href="module-controllers_rolController.html">controllers/rolController</a></li><li><a href="module-controllers_solicitudController.html">controllers/solicitudController</a></li><li><a href="module-helpers_paginacion.html">helpers/paginacion</a></li><li><a href="module-helpers_permisos.html">helpers/permisos</a></li><li><a href="module-helpers_respuestas.html">helpers/respuestas</a></li><li><a href="module-helpers_workspace.html">helpers/workspace</a></li><li><a href="module-middlewares_authMiddleware.html">middlewares/authMiddleware</a></li><li><a href="module-models_Area.html">models/Area</a></li><li><a href="module-models_ConceptoSalarial.html">models/ConceptoSalarial</a></li><li><a href="module-models_Contacto.html">models/Contacto</a></li><li><a href="module-models_Contrato.html">models/Contrato</a></li><li><a href="module-models_ContratoPuesto.html">models/ContratoPuesto</a></li><li><a href="module-models_Departamento.html">models/Departamento</a></li><li><a href="module-models_Empleado.html">models/Empleado</a></li><li><a href="module-models_Empresa.html">models/Empresa</a></li><li><a href="module-models_EspacioTrabajo.html">models/EspacioTrabajo</a></li><li><a href="module-models_Evaluacion.html">models/Evaluacion</a></li><li><a href="module-models_HorasExtras.html">models/HorasExtras</a></li><li><a href="module-models_Licencia.html">models/Licencia</a></li><li><a href="module-models_Liquidacion.html">models/Liquidacion</a></li><li><a href="module-models_ParametroLaboral.html">models/ParametroLaboral</a></li><li><a href="module-models_Permiso.html">models/Permiso</a></li><li><a href="module-models_Puesto.html">models/Puesto</a></li><li><a href="module-models_RegistroSalud.html">models/RegistroSalud</a></li><li><a href="module-models_Renuncia.html">models/Renuncia</a></li><li><a href="module-models_Rol.html">models/Rol</a></li><li><a href="module-models_RolPermiso.html">models/RolPermiso</a></li><li><a href="module-models_Solicitud.html">models/Solicitud</a></li><li><a href="module-models_Usuario.html">models/Usuario</a></li><li><a href="module-models_Vacaciones.html">models/Vacaciones</a></li><li><a href="module-models_index.html">models/index</a></li><li><a href="module-routes_authRoutes.html">routes/authRoutes</a></li><li><a href="module-routes_conceptoSalarialRoutes.html">routes/conceptoSalarialRoutes</a></li><li><a href="module-routes_contactoRoutes.html">routes/contactoRoutes</a></li><li><a href="module-routes_contratoRoutes.html">routes/contratoRoutes</a></li><li><a href="module-routes_empleadoRoutes.html">routes/empleadoRoutes</a></li><li><a href="module-routes_empresaRoutes.html">routes/empresaRoutes</a></li><li><a href="module-routes_espacioTrabajoRoutes.html">routes/espacioTrabajoRoutes</a></li><li><a href="module-routes_evaluacionRoutes.html">routes/evaluacionRoutes</a></li><li><a href="module-routes_feriadoRoutes.html">routes/feriadoRoutes</a></li><li><a href="module-routes_liquidacionRoutes.html">routes/liquidacionRoutes</a></li><li><a href="module-routes_parametroLaboralRoutes.html">routes/parametroLaboralRoutes</a></li><li><a href="module-routes_permisoRoutes.html">routes/permisoRoutes</a></li><li><a href="module-routes_registroSaludRoutes.html">routes/registroSaludRoutes</a></li><li><a href="module-routes_rolRoutes.html">routes/rolRoutes</a></li><li><a href="module-routes_solicitudRoutes.html">routes/solicitudRoutes</a></li><li><a href="module-routes_usuarioRoutes.html">routes/usuarioRoutes</a></li><li><a href="module-seeders_seed.html">seeders/seed</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_horasExtrasService.html">services/horasExtrasService</a></li><li><a href="module-services_licenciaService.html">services/licenciaService</a></li><li><a href="module-services_liquidacionGeneradorService.html">services/liquidacionGeneradorService</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_renunciaService.html">services/renunciaService</a></li><li><a href="module-services_vacacionesService.html">services/vacacionesService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:17:56 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

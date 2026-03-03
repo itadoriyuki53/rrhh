@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/ContactoWizard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/ContactoWizard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Orquestador para el alta y edición de contactos de empleados.
+ * @module components/ContactoWizard
+ */
+
+import { useState, useEffect } from 'react';
+import Select from 'react-select';
+import StepTracker from './StepTracker';
+import { getEmpleados, createContacto, updateContacto } from '../services/api';
+import { formatFullName } from '../helpers/formatters';
+import { useIsDark } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
+
+const PARENTESCOS = [
+    'Cónyuge', 'Padre', 'Madre', 'Hijo/a', 'Hermano/a',
+    'Abuelo/a', 'Nieto/a', 'Tío/a', 'Sobrino/a', 'Primo/a',
+    'Suegro/a', 'Cuñado/a', 'Yerno', 'Nuera', 'Otro'
+];
+
+/**
+ * Componente interno de error de campo.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {string} [props.message] - Mensaje de error.
+ */
+const FieldError = ({ message }) => {
+    if (!message) return null;
+    return &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}&lt;/span>;
+};
+
+/**
+ * Componente ContactoWizard
+ * 
+ * Formulario multi-paso para gestionar familiares y contactos de emergencia.
+ * Incluye validaciones de DNI, edad mínima del contacto y campos obligatorios.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.contacto] - Objeto contacto a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @returns {JSX.Element}
+ */
+const ContactoWizard = ({ contacto, onClose, onSuccess }) => {
+    const isEditing = !!contacto;
+    const [currentStep, setCurrentStep] = useState(1);
+
+    const [formData, setFormData] = useState({
+        empleadoId: null,
+        esFamiliar: false,
+        esContactoEmergencia: false,
+        nombreCompleto: '',
+        dni: '',
+        fechaNacimiento: '',
+        parentesco: '',
+        discapacidad: false,
+        dependiente: false,
+        escolaridad: false,
+        telefonoPrincipal: '',
+        telefonoSecundario: '',
+        direccion: '',
+    });
+
+    const [empleados, setEmpleados] = useState([]);
+    const [loadingEmpleados, setLoadingEmpleados] = useState(true);
+    const [selectedEmpleado, setSelectedEmpleado] = useState(null);
+    const [touched, setTouched] = useState({});
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [error, setError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const isDark = useIsDark();
+
+    // Load empleados
+    useEffect(() => {
+        const loadEmpleados = async () => {
+            try {
+                setLoadingEmpleados(true);
+                const result = await getEmpleados({ activo: 'true', limit: 1000 });
+                setEmpleados(result.data);
+            } catch (err) {
+                console.error('Error loading empleados:', err);
+            } finally {
+                setLoadingEmpleados(false);
+            }
+        };
+        loadEmpleados();
+    }, []);
+
+    // Initialize form with existing data
+    useEffect(() => {
+        if (contacto) {
+            if (contacto.empleado) {
+                const empOption = {
+                    value: contacto.empleado.id,
+                    label: `${formatFullName(contacto.empleado)} (${contacto.empleado.numeroDocumento || 'Sin doc'})`,
+                    empleado: contacto.empleado
+                };
+                setSelectedEmpleado(empOption);
+            }
+
+            setFormData({
+                empleadoId: contacto.empleado?.id || contacto.empleadoId || null,
+                esFamiliar: contacto.esFamiliar || false,
+                esContactoEmergencia: contacto.esContactoEmergencia || false,
+                nombreCompleto: contacto.nombreCompleto || '',
+                dni: contacto.dni || '',
+                fechaNacimiento: contacto.fechaNacimiento || '',
+                parentesco: contacto.parentesco || '',
+                discapacidad: contacto.discapacidad || false,
+                dependiente: contacto.dependiente || false,
+                escolaridad: contacto.escolaridad || false,
+                telefonoPrincipal: contacto.telefonoPrincipal || '',
+                telefonoSecundario: contacto.telefonoSecundario || '',
+                direccion: contacto.direccion || '',
+            });
+        }
+    }, [contacto]);
+
+    const empleadoOptions = Object.values(empleados.reduce((acc, emp) => {
+        const wsName = emp.espacioTrabajo?.nombre || 'Sin Espacio';
+        if (!acc[wsName]) acc[wsName] = { label: wsName, options: [] };
+        acc[wsName].options.push({
+            value: emp.id,
+            label: `${formatFullName(emp)} - ${emp.numeroDocumento || 'Sin doc'}`,
+            empleado: emp,
+        });
+        return acc;
+    }, {}));
+
+    const handleEmpleadoChange = (option) => {
+        setSelectedEmpleado(option);
+        setFormData(prev => ({
+            ...prev,
+            empleadoId: option ? option.value : null,
+        }));
+        if (touched.empleadoId) validateStep();
+    };
+
+    const handleBlur = (field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+        validateStep();
+    };
+
+    const handleChange = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        setError('');
+        if (touched[field]) validateStep();
+    };
+
+    const handleCheckboxChange = (field) => {
+        setFormData(prev => ({ ...prev, [field]: !prev[field] }));
+        setError('');
+    };
+
+    const validateStep = () => {
+        const errors = {};
+
+        if (currentStep === 1) {
+            if (!formData.empleadoId) errors.empleadoId = 'Debe seleccionar un empleado';
+            if (!formData.esFamiliar &amp;&amp; !formData.esContactoEmergencia) {
+                errors.checkboxes = 'Debe seleccionar al menos una opción: Familiar o Contacto de Emergencia';
+            }
+            if (!formData.nombreCompleto) {
+                errors.nombreCompleto = 'El nombre completo es requerido';
+            } else if (formData.nombreCompleto.length &lt; 2 || formData.nombreCompleto.length > 200) {
+                errors.nombreCompleto = 'El nombre debe tener entre 2 y 200 caracteres';
+            }
+            if (!formData.dni) {
+                errors.dni = 'El DNI es requerido';
+            } else if (!/^(\d{8}|[MF]\d{7})$/.test(formData.dni)) {
+                errors.dni = 'El DNI debe ser 8 números o comenzar con M/F seguido de 7 números';
+            }
+            if (formData.fechaNacimiento) {
+                const birthDate = new Date(formData.fechaNacimiento);
+                const minDate = new Date('1900-01-01');
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                if (birthDate &lt; minDate) {
+                    errors.fechaNacimiento = 'La fecha de nacimiento no es válida';
+                } else if (birthDate > today) {
+                    errors.fechaNacimiento = 'La fecha de nacimiento no puede ser futura';
+                } else {
+                    // Check minimum age (18 years)
+                    let age = today.getFullYear() - birthDate.getFullYear();
+                    const monthDiff = today.getMonth() - birthDate.getMonth();
+                    if (monthDiff &lt; 0 || (monthDiff === 0 &amp;&amp; today.getDate() &lt; birthDate.getDate())) {
+                        age--;
+                    }
+                    if (age &lt; 18) {
+                        errors.fechaNacimiento = 'El contacto debe tener al menos 18 años para ser responsable';
+                    }
+                }
+            }
+            if (!formData.parentesco) {
+                errors.parentesco = 'El parentesco es requerido';
+            }
+        }
+
+        if (currentStep === 2) {
+            if (!formData.telefonoPrincipal) {
+                errors.telefonoPrincipal = 'El teléfono principal es requerido';
+            } else if (!/^[0-9+\-\s()]*$/.test(formData.telefonoPrincipal)) {
+                errors.telefonoPrincipal = 'El teléfono solo puede contener números, +, -, espacios y paréntesis';
+            }
+            if (formData.telefonoSecundario &amp;&amp; !/^[0-9+\-\s()]*$/.test(formData.telefonoSecundario)) {
+                errors.telefonoSecundario = 'El teléfono solo puede contener números, +, -, espacios y paréntesis';
+            }
+            if (formData.direccion &amp;&amp; formData.direccion.length > 300) {
+                errors.direccion = 'La dirección no puede exceder 300 caracteres';
+            }
+        }
+
+        setFieldErrors(errors);
+
+        if (Object.keys(errors).length > 0) {
+            const allTouched = {};
+            Object.keys(errors).forEach(key => { allTouched[key] = true; });
+            setTouched(prev => ({ ...prev, ...allTouched }));
+            setError('Por favor completa todos los campos obligatorios');
+        }
+
+        return Object.keys(errors).length === 0;
+    };
+
+    const nextStep = () => {
+        if (validateStep()) {
+            setCurrentStep(prev => prev + 1);
+            setTouched({});
+            setError('');
+        }
+    };
+
+    const prevStep = () => setCurrentStep(prev => prev - 1);
+
+    const handleSubmit = async () => {
+        if (!validateStep()) return;
+
+        try {
+            setSubmitting(true);
+            const payload = {
+                empleadoId: formData.empleadoId,
+                esFamiliar: formData.esFamiliar,
+                esContactoEmergencia: formData.esContactoEmergencia,
+                nombreCompleto: formData.nombreCompleto,
+                dni: formData.dni,
+                fechaNacimiento: formData.fechaNacimiento || null,
+                parentesco: formData.parentesco,
+                discapacidad: formData.discapacidad,
+                dependiente: formData.dependiente,
+                escolaridad: formData.escolaridad,
+                telefonoPrincipal: formData.telefonoPrincipal,
+                telefonoSecundario: formData.telefonoSecundario || null,
+                direccion: formData.direccion || null,
+            };
+
+            if (isEditing) {
+                await updateContacto(contacto.id, payload);
+            } else {
+                await createContacto(payload);
+            }
+            onSuccess();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const renderStep1 = () => (
+        &lt;div style={{ display: 'grid', gap: '1.5rem' }}>
+            {/* Empleado Selection */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">Empleado *&lt;/label>
+                &lt;Select
+                    isLoading={loadingEmpleados}
+                    options={empleadoOptions}
+                    value={selectedEmpleado}
+                    onChange={handleEmpleadoChange}
+                    onBlur={() => handleBlur('empleadoId')}
+                    placeholder="Buscar y seleccionar empleado..."
+                    noOptionsMessage={() => "No se encontraron empleados"}
+                    styles={buildSelectStyles(isDark)}
+                    formatGroupLabel={data => (
+                        &lt;div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
+                            {data.label}
+                        &lt;/div>
+                    )}
+                    isClearable
+                    menuPortalTarget={document.body}
+                    menuPosition="fixed"
+                />
+                &lt;FieldError message={touched.empleadoId &amp;&amp; fieldErrors.empleadoId} />
+            &lt;/div>
+
+            {/* Checkboxes for Es Familiar / Es Contacto de Emergencia */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">Tipo de Contacto *&lt;/label>
+                &lt;div style={{ display: 'flex', gap: '2rem', marginTop: '0.5rem' }}>
+                    &lt;label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        &lt;input
+                            type="checkbox"
+                            checked={formData.esFamiliar}
+                            onChange={() => handleCheckboxChange('esFamiliar')}
+                            style={{ width: '18px', height: '18px', accentColor: '#0d9488' }}
+                        />
+                        &lt;span>Es familiar&lt;/span>
+                    &lt;/label>
+                    &lt;label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        &lt;input
+                            type="checkbox"
+                            checked={formData.esContactoEmergencia}
+                            onChange={() => handleCheckboxChange('esContactoEmergencia')}
+                            style={{ width: '18px', height: '18px', accentColor: '#0d9488' }}
+                        />
+                        &lt;span>Es contacto de emergencia&lt;/span>
+                    &lt;/label>
+                &lt;/div>
+                &lt;FieldError message={fieldErrors.checkboxes} />
+            &lt;/div>
+
+            {/* Nombre completo y DNI */}
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Nombre Completo *&lt;/label>
+                    &lt;input
+                        type="text"
+                        className={`form-input ${touched.nombreCompleto &amp;&amp; fieldErrors.nombreCompleto ? 'input-error' : ''}`}
+                        value={formData.nombreCompleto}
+                        onChange={(e) => handleChange('nombreCompleto', e.target.value)}
+                        onBlur={() => handleBlur('nombreCompleto')}
+                        placeholder="Nombre y apellido del contacto"
+                    />
+                    &lt;FieldError message={touched.nombreCompleto &amp;&amp; fieldErrors.nombreCompleto} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">DNI *&lt;/label>
+                    &lt;input
+                        type="text"
+                        className={`form-input ${touched.dni &amp;&amp; fieldErrors.dni ? 'input-error' : ''}`}
+                        value={formData.dni}
+                        onChange={(e) => handleChange('dni', e.target.value)}
+                        onBlur={() => handleBlur('dni')}
+                        placeholder="12345678 o M1234567"
+                    />
+                    &lt;FieldError message={touched.dni &amp;&amp; fieldErrors.dni} />
+                &lt;/div>
+            &lt;/div>
+
+            {/* Fecha de nacimiento y Parentesco */}
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Fecha de Nacimiento&lt;/label>
+                    &lt;input
+                        type="date"
+                        className={`form-input ${touched.fechaNacimiento &amp;&amp; fieldErrors.fechaNacimiento ? 'input-error' : ''}`}
+                        value={formData.fechaNacimiento}
+                        onChange={(e) => handleChange('fechaNacimiento', e.target.value)}
+                        onBlur={() => handleBlur('fechaNacimiento')}
+                    />
+                    &lt;FieldError message={touched.fechaNacimiento &amp;&amp; fieldErrors.fechaNacimiento} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Parentesco *&lt;/label>
+                    &lt;select
+                        className={`form-input ${touched.parentesco &amp;&amp; fieldErrors.parentesco ? 'input-error' : ''}`}
+                        value={formData.parentesco}
+                        onChange={(e) => handleChange('parentesco', e.target.value)}
+                        onBlur={() => handleBlur('parentesco')}
+                    >
+                        &lt;option value="">Seleccionar parentesco...&lt;/option>
+                        {PARENTESCOS.map(p => (
+                            &lt;option key={p} value={p}>{p}&lt;/option>
+                        ))}
+                    &lt;/select>
+                    &lt;FieldError message={touched.parentesco &amp;&amp; fieldErrors.parentesco} />
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+
+    const renderStep2 = () => (
+        &lt;div style={{ display: 'grid', gap: '1.5rem' }}>
+            {/* Checkboxes adicionales */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">Información Adicional&lt;/label>
+                &lt;div style={{ display: 'flex', gap: '2rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                    &lt;label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        &lt;input
+                            type="checkbox"
+                            checked={formData.discapacidad}
+                            onChange={() => handleCheckboxChange('discapacidad')}
+                            style={{ width: '18px', height: '18px', accentColor: '#0d9488' }}
+                        />
+                        &lt;span>Discapacidad&lt;/span>
+                    &lt;/label>
+                    &lt;label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        &lt;input
+                            type="checkbox"
+                            checked={formData.dependiente}
+                            onChange={() => handleCheckboxChange('dependiente')}
+                            style={{ width: '18px', height: '18px', accentColor: '#0d9488' }}
+                        />
+                        &lt;span>Dependiente&lt;/span>
+                    &lt;/label>
+                    &lt;label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        &lt;input
+                            type="checkbox"
+                            checked={formData.escolaridad}
+                            onChange={() => handleCheckboxChange('escolaridad')}
+                            style={{ width: '18px', height: '18px', accentColor: '#0d9488' }}
+                        />
+                        &lt;span>Escolaridad&lt;/span>
+                    &lt;/label>
+                &lt;/div>
+            &lt;/div>
+
+            {/* Teléfonos */}
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Teléfono Principal *&lt;/label>
+                    &lt;input
+                        type="tel"
+                        className={`form-input ${touched.telefonoPrincipal &amp;&amp; fieldErrors.telefonoPrincipal ? 'input-error' : ''}`}
+                        value={formData.telefonoPrincipal}
+                        onChange={(e) => handleChange('telefonoPrincipal', e.target.value)}
+                        onBlur={() => handleBlur('telefonoPrincipal')}
+                        placeholder="+54 11 1234-5678"
+                    />
+                    &lt;FieldError message={touched.telefonoPrincipal &amp;&amp; fieldErrors.telefonoPrincipal} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Teléfono Secundario&lt;/label>
+                    &lt;input
+                        type="tel"
+                        className={`form-input ${touched.telefonoSecundario &amp;&amp; fieldErrors.telefonoSecundario ? 'input-error' : ''}`}
+                        value={formData.telefonoSecundario}
+                        onChange={(e) => handleChange('telefonoSecundario', e.target.value)}
+                        onBlur={() => handleBlur('telefonoSecundario')}
+                        placeholder="Opcional"
+                    />
+                    &lt;FieldError message={touched.telefonoSecundario &amp;&amp; fieldErrors.telefonoSecundario} />
+                &lt;/div>
+            &lt;/div>
+
+            {/* Dirección */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">Dirección&lt;/label>
+                &lt;textarea
+                    className={`form-input ${touched.direccion &amp;&amp; fieldErrors.direccion ? 'input-error' : ''}`}
+                    value={formData.direccion}
+                    onChange={(e) => handleChange('direccion', e.target.value)}
+                    onBlur={() => handleBlur('direccion')}
+                    placeholder="Dirección completa (opcional)"
+                    rows={3}
+                    style={{ resize: 'vertical' }}
+                    maxLength={300}
+                />
+                &lt;FieldError message={touched.direccion &amp;&amp; fieldErrors.direccion} />
+                &lt;span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>{formData.direccion.length}/300&lt;/span>
+            &lt;/div>
+        &lt;/div>
+    );
+
+    return (
+        &lt;div className="modal-overlay" onClick={onClose}>
+            &lt;div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
+                &lt;div className="modal-header">
+                    &lt;h2 className="modal-title">{isEditing ? 'Editar Contacto' : 'Nuevo Contacto'}&lt;/h2>
+                    &lt;button className="modal-close" onClick={onClose}>
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        &lt;/svg>
+                    &lt;/button>
+                &lt;/div>
+
+                &lt;div className="modal-body" style={{ padding: '2rem' }}>
+                    &lt;StepTracker steps={steps} currentStep={currentStep} />
+
+                    &lt;div style={{ marginTop: '2rem', textAlign: 'center', marginBottom: '2rem' }}>
+                        &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                            {steps[currentStep - 1].title}
+                        &lt;/h3>
+                        &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                            {currentStep === 1 &amp;&amp; 'Ingresa los datos básicos del contacto'}
+                            {currentStep === 2 &amp;&amp; 'Completa la información adicional del contacto'}
+                        &lt;/p>
+                    &lt;/div>
+
+                    {error &amp;&amp; (
+                        &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                            {error}
+                        &lt;/div>
+                    )}
+
+                    {currentStep === 1 &amp;&amp; renderStep1()}
+                    {currentStep === 2 &amp;&amp; renderStep2()}
+                &lt;/div>
+
+                &lt;div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 2rem', borderTop: '1px solid var(--border-color)' }}>
+                    &lt;div>
+                        {currentStep > 1 &amp;&amp; (
+                            &lt;button className="btn btn-secondary" onClick={prevStep}>
+                                Anterior
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                    &lt;div style={{ display: 'flex', gap: '1rem' }}>
+                        &lt;button className="btn btn-secondary" onClick={onClose} disabled={submitting}>
+                            Cancelar
+                        &lt;/button>
+                        {currentStep &lt; 2 ? (
+                            &lt;button className="btn btn-primary" onClick={nextStep}>
+                                Siguiente
+                            &lt;/button>
+                        ) : (
+                            &lt;button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+                                {submitting ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear')} Contacto
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+};
+
+export default ContactoWizard;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

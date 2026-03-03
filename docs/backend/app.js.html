@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: app.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: app.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Configuración principal de la aplicación Express.
+ * Registra middlewares globales (CORS, sesión, parseo JSON),
+ * monta todas las rutas de la API bajo el prefijo `/api`,
+ * e inicializa los cron jobs automáticos del sistema.
+ * @module app
+ */
+
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const session = require('express-session');
+const sequelize = require('./config/database');
+
+// ──────────────────────────────────────────────────────────────────────────────
+// RUTAS
+// ──────────────────────────────────────────────────────────────────────────────
+const authRoutes = require('./routes/authRoutes');
+const empleadoRoutes = require('./routes/empleadoRoutes');
+const empresaRoutes = require('./routes/empresaRoutes');
+const contratoRoutes = require('./routes/contratoRoutes');
+const registroSaludRoutes = require('./routes/registroSaludRoutes');
+const evaluacionRoutes = require('./routes/evaluacionRoutes');
+const contactoRoutes = require('./routes/contactoRoutes');
+const solicitudRoutes = require('./routes/solicitudRoutes');
+const liquidacionRoutes = require('./routes/liquidacionRoutes');
+const conceptoSalarialRoutes = require('./routes/conceptoSalarialRoutes');
+const parametroLaboralRoutes = require('./routes/parametroLaboralRoutes');
+const feriadoRoutes = require('./routes/feriadoRoutes');
+const rolRoutes = require('./routes/rolRoutes');
+const permisoRoutes = require('./routes/permisoRoutes');
+const espacioTrabajoRoutes = require('./routes/espacioTrabajoRoutes');
+const usuarioRoutes = require('./routes/usuarioRoutes');
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CRON JOBS
+// ──────────────────────────────────────────────────────────────────────────────
+require('./jobs/contrato.cron');
+require('./jobs/registroSalud.cron');
+require('./jobs/liquidacion.cron');
+require('./jobs/renuncia.cron');
+
+// ──────────────────────────────────────────────────────────────────────────────
+// APP
+// ──────────────────────────────────────────────────────────────────────────────
+const app = express();
+
+// Middleware de CORS — permite requests del frontend en desarrollo
+app.use(cors({
+    origin: 'http://localhost:5173',
+    credentials: true, // Necesario para envío de cookies de sesión
+}));
+
+// Parseo de cuerpo JSON y URL-encoded con límite ampliado (archivos adjuntos)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Configuración de sesiones con MemoryStore (suficiente en desarrollo)
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'cataratas-rh-secret-key-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    name: 'connect.sid',
+    cookie: {
+        secure: false,    // Cambiar a true en producción con HTTPS
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000, // 24 horas por defecto
+        sameSite: 'lax',
+    },
+}));
+
+// Servir documentación técnica estática desde la raíz
+app.use('/docs', express.static(path.join(__dirname, '../../docs')));
+
+// ──────────────────────────────────────────────────────────────────────────────
+// RUTAS DE LA API
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Rutas de autenticación (públicas, sin middleware de sesión)
+app.use('/api/auth', authRoutes);
+
+// Rutas protegidas (requieren sesión activa vía middleware en cada router)
+app.use('/api/empleados', empleadoRoutes);
+app.use('/api/empresas', empresaRoutes);
+app.use('/api/contratos', contratoRoutes);
+app.use('/api/registros-salud', registroSaludRoutes);
+app.use('/api/evaluaciones', evaluacionRoutes);
+app.use('/api/contactos', contactoRoutes);
+app.use('/api/solicitudes', solicitudRoutes);
+app.use('/api/liquidaciones', liquidacionRoutes);
+app.use('/api/conceptos-salariales', conceptoSalarialRoutes);
+app.use('/api/parametros-laborales', parametroLaboralRoutes);
+app.use('/api/feriados', feriadoRoutes);
+app.use('/api/roles', rolRoutes);
+app.use('/api/permisos', permisoRoutes);
+app.use('/api/espacios-trabajo', espacioTrabajoRoutes);
+app.use('/api/usuarios', usuarioRoutes);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// RUTA DE SALUD
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/health
+ * Verifica que el servidor esté funcionando correctamente.
+ * @returns {{ status: string, message: string }}
+ */
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'OK', message: 'CataratasRH API funcionando' });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MANEJO GLOBAL DE ERRORES
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Middleware de manejo de errores no capturados.
+ * Captura errores lanzados desde cualquier ruta o middleware.
+ */
+app.use((err, req, res, next) => {
+    console.error('[app] Error no manejado:', err.stack);
+    res.status(500).json({ error: 'Ocurrió un error inesperado en el servidor.' });
+});
+
+module.exports = app;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="helpers_fechas.module_helper.html">helpers/fechas.helper</a></li><li><a href="helpers_solapamiento.module_helper.html">helpers/solapamiento.helper</a></li><li><a href="jobs_contrato.module_cron.html">jobs/contrato.cron</a></li><li><a href="jobs_liquidacion.module_cron.html">jobs/liquidacion.cron</a></li><li><a href="jobs_registroSalud.module_cron.html">jobs/registroSalud.cron</a></li><li><a href="jobs_renuncia.module_cron.html">jobs/renuncia.cron</a></li><li><a href="module-app.html">app</a></li><li><a href="module-config_database.html">config/database</a></li><li><a href="module-controllers_authController.html">controllers/authController</a></li><li><a href="module-controllers_conceptoSalarialController.html">controllers/conceptoSalarialController</a></li><li><a href="module-controllers_contactoController.html">controllers/contactoController</a></li><li><a href="module-controllers_contratoController.html">controllers/contratoController</a></li><li><a href="module-controllers_empleadoController.html">controllers/empleadoController</a></li><li><a href="module-controllers_empresaController.html">controllers/empresaController</a></li><li><a href="module-controllers_espacioTrabajoController.html">controllers/espacioTrabajoController</a></li><li><a href="module-controllers_evaluacionController.html">controllers/evaluacionController</a></li><li><a href="module-controllers_liquidacionController.html">controllers/liquidacionController</a></li><li><a href="module-controllers_parametroLaboralController.html">controllers/parametroLaboralController</a></li><li><a href="module-controllers_permisoController.html">controllers/permisoController</a></li><li><a href="module-controllers_registroSaludController.html">controllers/registroSaludController</a></li><li><a href="module-controllers_rolController.html">controllers/rolController</a></li><li><a href="module-controllers_solicitudController.html">controllers/solicitudController</a></li><li><a href="module-helpers_paginacion.html">helpers/paginacion</a></li><li><a href="module-helpers_permisos.html">helpers/permisos</a></li><li><a href="module-helpers_respuestas.html">helpers/respuestas</a></li><li><a href="module-helpers_workspace.html">helpers/workspace</a></li><li><a href="module-middlewares_authMiddleware.html">middlewares/authMiddleware</a></li><li><a href="module-models_Area.html">models/Area</a></li><li><a href="module-models_ConceptoSalarial.html">models/ConceptoSalarial</a></li><li><a href="module-models_Contacto.html">models/Contacto</a></li><li><a href="module-models_Contrato.html">models/Contrato</a></li><li><a href="module-models_ContratoPuesto.html">models/ContratoPuesto</a></li><li><a href="module-models_Departamento.html">models/Departamento</a></li><li><a href="module-models_Empleado.html">models/Empleado</a></li><li><a href="module-models_Empresa.html">models/Empresa</a></li><li><a href="module-models_EspacioTrabajo.html">models/EspacioTrabajo</a></li><li><a href="module-models_Evaluacion.html">models/Evaluacion</a></li><li><a href="module-models_HorasExtras.html">models/HorasExtras</a></li><li><a href="module-models_Licencia.html">models/Licencia</a></li><li><a href="module-models_Liquidacion.html">models/Liquidacion</a></li><li><a href="module-models_ParametroLaboral.html">models/ParametroLaboral</a></li><li><a href="module-models_Permiso.html">models/Permiso</a></li><li><a href="module-models_Puesto.html">models/Puesto</a></li><li><a href="module-models_RegistroSalud.html">models/RegistroSalud</a></li><li><a href="module-models_Renuncia.html">models/Renuncia</a></li><li><a href="module-models_Rol.html">models/Rol</a></li><li><a href="module-models_RolPermiso.html">models/RolPermiso</a></li><li><a href="module-models_Solicitud.html">models/Solicitud</a></li><li><a href="module-models_Usuario.html">models/Usuario</a></li><li><a href="module-models_Vacaciones.html">models/Vacaciones</a></li><li><a href="module-models_index.html">models/index</a></li><li><a href="module-routes_authRoutes.html">routes/authRoutes</a></li><li><a href="module-routes_conceptoSalarialRoutes.html">routes/conceptoSalarialRoutes</a></li><li><a href="module-routes_contactoRoutes.html">routes/contactoRoutes</a></li><li><a href="module-routes_contratoRoutes.html">routes/contratoRoutes</a></li><li><a href="module-routes_empleadoRoutes.html">routes/empleadoRoutes</a></li><li><a href="module-routes_empresaRoutes.html">routes/empresaRoutes</a></li><li><a href="module-routes_espacioTrabajoRoutes.html">routes/espacioTrabajoRoutes</a></li><li><a href="module-routes_evaluacionRoutes.html">routes/evaluacionRoutes</a></li><li><a href="module-routes_feriadoRoutes.html">routes/feriadoRoutes</a></li><li><a href="module-routes_liquidacionRoutes.html">routes/liquidacionRoutes</a></li><li><a href="module-routes_parametroLaboralRoutes.html">routes/parametroLaboralRoutes</a></li><li><a href="module-routes_permisoRoutes.html">routes/permisoRoutes</a></li><li><a href="module-routes_registroSaludRoutes.html">routes/registroSaludRoutes</a></li><li><a href="module-routes_rolRoutes.html">routes/rolRoutes</a></li><li><a href="module-routes_solicitudRoutes.html">routes/solicitudRoutes</a></li><li><a href="module-routes_usuarioRoutes.html">routes/usuarioRoutes</a></li><li><a href="module-seeders_seed.html">seeders/seed</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_horasExtrasService.html">services/horasExtrasService</a></li><li><a href="module-services_licenciaService.html">services/licenciaService</a></li><li><a href="module-services_liquidacionGeneradorService.html">services/liquidacionGeneradorService</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_renunciaService.html">services/renunciaService</a></li><li><a href="module-services_vacacionesService.html">services/vacacionesService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:17:56 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/ContratoWizard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/ContratoWizard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Asistente multi-paso para la creación y edición de contratos laborales.
+ * @module components/ContratoWizard
+ */
+
+import { useState, useEffect } from 'react';
+import Select from 'react-select';
+import StepTracker from './StepTracker';
+import { useAuth } from '../context/AuthContext';
+import {
+    createContrato,
+    updateContrato,
+    getEmpleados,
+    getEmpresas,
+    getEmpresaById,
+    getPuestosConContrato,
+    getRoles
+} from '../services/api';
+import { validarDiaHabil } from '../helpers/diasHabiles';
+import { getTodayStr, formatFullName } from '../helpers/formatters';
+import { useIsDark } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
+
+// Tipos de contrato agrupados por categoría
+const TIPOS_CONTRATO = {
+    'Relación de Dependencia (Ley 20.744 – LCT)': [
+        { value: 'tiempo_indeterminado', label: 'Contrato por Tiempo Indeterminado (Efectivo)' },
+        { value: 'periodo_prueba', label: 'Período de Prueba (Art. 92 bis)' },
+        { value: 'plazo_fijo', label: 'Contrato a Plazo Fijo' },
+        { value: 'eventual', label: 'Contrato Eventual' },
+        { value: 'teletrabajo', label: 'Contrato de Teletrabajo (Ley 27.555)' },
+    ],
+    'No Laborales / Extracontractuales (Freelancers / Outsourcing)': [
+        { value: 'locacion_servicios', label: 'Locación de Servicios (Contractor / Freelancer)' },
+        { value: 'monotributista', label: 'Monotributista' },
+        { value: 'responsable_inscripto', label: 'Responsable Inscripto (Autónomo)' },
+        { value: 'honorarios', label: 'Honorarios' },
+        { value: 'contrato_obra', label: 'Contrato de Obra' },
+    ],
+    'Formativos (Educativos)': [
+        { value: 'pasantia_educativa', label: 'Pasantía Educativa (Ley 26.427)' },
+        { value: 'beca', label: 'Beca' },
+        { value: 'ad_honorem', label: 'Ad honorem' },
+    ],
+};
+
+// Tooltip content for Step 1 - Puestos
+const TOOLTIP_PUESTOS = `**Reglas de asignación:**
+• Un empleado puede tener varios puestos en un mismo contrato solo si pertenecen a la misma empresa.
+• Si los puestos son de empresas distintas, deben crearse contratos separados.
+• No se permite crear un contrato para un puesto que el empleado ya tiene asignado en otro contrato activo.
+
+**Categoría superior:** Según la Ley de Contrato de Trabajo, si el empleado realiza dos tareas de distinta jerarquía, se le debe remunerar según la de mayor categoría o proporcionalmente al tiempo dedicado a cada una.`;
+
+// Tooltip content for Step 2 - Tipos de Contrato
+const TOOLTIP_TIPOS_CONTRATO = `**Relación de Dependencia**
+• La empresa paga cargas sociales (jubilación, obra social, ART).
+• El estándar es el contrato por tiempo indeterminado.
+• El período de prueba comprende los primeros 3 meses (Art. 92 bis).
+• El plazo fijo tiene fecha de fin y requiere preaviso especial.
+• El contrato eventual cubre necesidades extraordinarias.
+• El teletrabajo debe registrarse según la ley vigente.
+
+**No Laborales / Extracontractuales**
+• Incluye locación de servicios, monotributistas, responsables inscriptos, honorarios y contrato de obra.
+• No tienen recibo de sueldo ni vacaciones pagas automáticas.
+• Requieren constancia de inscripción y facturación mensual.
+
+**Formativos**
+• Incluye pasantía educativa, beca y ad honorem.
+• No son empleados ni freelancers.
+• La pasantía tiene duración máxima y asignación estímulo.`;
+
+/**
+ * Componente interno de error de campo.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {string} [props.message] - Mensaje de error.
+ */
+const FieldError = ({ message }) => {
+    if (!message) return null;
+    return &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}&lt;/span>;
+};
+
+/**
+ * Componente ContratoWizard
+ * 
+ * Gestiona el ciclo de vida de un contrato: selección de empleado/puesto,
+ * tipo de contrato (dependencia, freelance, formativo) y condiciones económicas/horarias.
+ * Permite la creación masiva (un contrato por empleado si se seleccionan varios).
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.contrato] - Objeto contrato a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @param {Object} [props.empleadoPreseleccionado] - Empleado inicial opcional.
+ * @returns {JSX.Element}
+ */
+const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleadoPreseleccionado = null }) => {
+    const { user } = useAuth();
+    const isEditMode = !!contratoToEdit;
+    const [currentStep, setCurrentStep] = useState(1);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [touched, setTouched] = useState({});
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [isEditDataLoaded, setIsEditDataLoaded] = useState(false);
+    const [showTooltipPuestos, setShowTooltipPuestos] = useState(false);
+    const [showTooltipTipos, setShowTooltipTipos] = useState(false);
+    const isDark = useIsDark();
+
+    // Data
+    const [empleados, setEmpleados] = useState([]);
+    const [empresas, setEmpresas] = useState([]);
+    const [roles, setRoles] = useState([]); // Roles de sistema
+    const [puestosDisponibles, setPuestosDisponibles] = useState([]);
+    const [puestosConContrato, setPuestosConContrato] = useState(new Map()); // Map&lt;puestoId, Map&lt;empleadoId, empleadoName>>
+
+    // Step 1: Empleados y Puestos
+    const [selectedEmpleados, setSelectedEmpleados] = useState([]);
+    const [selectedPuestos, setSelectedPuestos] = useState([]);
+    const [selectedEmpresa, setSelectedEmpresa] = useState(null);
+
+    // Step 2: Tipo de Contrato
+    const [tipoContrato, setTipoContrato] = useState('');
+
+    // Step 3: Datos del Contrato
+    const [formData, setFormData] = useState({
+        fechaInicio: getTodayStr(),
+        fechaFin: '',
+        horario: '',
+        salario: '',
+        compensacion: '',
+        rolId: '',
+    });
+
+    const steps = [
+        { number: 1, title: 'Empleado y Puestos' },
+        { number: 2, title: 'Tipo de Contrato' },
+        { number: 3, title: 'Datos del Contrato' },
+    ];
+
+    // Load initial data
+    useEffect(() => {
+        if (user) {
+            loadInitialData();
+        }
+    }, [user]);
+
+    // Preseleccionar empleado
+    useEffect(() => {
+        if (empleadoPreseleccionado &amp;&amp; !isEditMode) {
+            const option = {
+                value: empleadoPreseleccionado.id,
+                label: `${formatFullName(empleadoPreseleccionado)} - ${empleadoPreseleccionado.numeroDocumento}`,
+                empleado: empleadoPreseleccionado,
+            };
+            setSelectedEmpleados([option]);
+        }
+    }, [empleadoPreseleccionado, isEditMode]);
+
+    // Load edit data
+    useEffect(() => {
+        if (contratoToEdit) {
+            // Mark that we are loading edit data to prevent puestos reset
+            setIsEditDataLoaded(true);
+
+            if (contratoToEdit.empleado) {
+                setSelectedEmpleados([{
+                    value: contratoToEdit.empleado.id,
+                    label: `${formatFullName(contratoToEdit.empleado)} - ${contratoToEdit.empleado.numeroDocumento}`,
+                    empleado: contratoToEdit.empleado,
+                }]);
+            }
+            if (contratoToEdit.puestos &amp;&amp; contratoToEdit.puestos.length > 0) {
+                const puestoOptions = contratoToEdit.puestos.map(p => ({
+                    value: p.id,
+                    label: `${p.nombre}${p.departamento ? ` (${p.departamento.nombre}${p.departamento.area ? ` - ${p.departamento.area.nombre}` : ''})` : ''}`,
+                    puesto: p,
+                    empresaId: p.departamento?.area?.empresa?.id,
+                }));
+                setSelectedPuestos(puestoOptions);
+                // Set empresa from first puesto
+                if (puestoOptions[0]?.empresaId) {
+                    loadEmpresaData(puestoOptions[0].empresaId);
+                }
+            }
+            setTipoContrato(contratoToEdit.tipoContrato || '');
+            setFormData({
+                fechaInicio: contratoToEdit.fechaInicio || '',
+                fechaFin: contratoToEdit.fechaFin || '',
+                horario: contratoToEdit.horario || '',
+                salario: contratoToEdit.salario?.toString() || '',
+                compensacion: contratoToEdit.compensacion || '',
+                rolId: contratoToEdit.rolId || '',
+            });
+        }
+    }, [contratoToEdit]);
+
+    const loadInitialData = async () => {
+        try {
+            // Determine workspace ID filter
+            let filters = { limit: 500, activo: 'true' };
+
+            // Si NO es admin, filtrar por el espacio de trabajo del usuario
+            if (user &amp;&amp; user.esEmpleado) {
+                const espacioId = user.empleado?.espacioTrabajoId;
+                if (espacioId) {
+                    filters.espacioTrabajoId = espacioId;
+                }
+            }
+
+            // Para roles, usamos el mismo filtro
+            const roleFilters = { limit: 100, activo: 'true' };
+            if (filters.espacioTrabajoId) {
+                roleFilters.espacioTrabajoId = filters.espacioTrabajoId;
+            }
+
+            // Para empresas, también usamos el mismo filtro
+            const empresaFilters = { limit: 100, activo: 'true' };
+            if (filters.espacioTrabajoId) {
+                empresaFilters.espacioTrabajoId = filters.espacioTrabajoId;
+            }
+
+            const [empleadosRes, empresasRes, rolesRes] = await Promise.all([
+                getEmpleados(filters),
+                getEmpresas(empresaFilters),
+                getRoles(roleFilters)
+            ]);
+            setEmpleados(empleadosRes.data || []);
+            setEmpresas(empresasRes.data || []);
+            setRoles(rolesRes.roles || []);
+        } catch (err) {
+            console.error('Error loading data:', err);
+        }
+    };
+
+    const loadPuestosConContrato = async (empleados) => {
+        try {
+            const contratos = new Map(); // Map&lt;puestoId, Map&lt;empleadoId, empleadoNombre>>
+            for (const emp of empleados) {
+                const result = await getPuestosConContrato(emp.value);
+                const empleadoNombre = emp.label.split(' - ')[0]; // Nombre del empleado
+                (result.puestoIds || []).forEach(puestoId => {
+                    if (!contratos.has(puestoId)) {
+                        contratos.set(puestoId, new Map());
+                    }
+                    contratos.get(puestoId).set(emp.value, empleadoNombre);
+                });
+            }
+            setPuestosConContrato(contratos);
+        } catch (err) {
+            console.error('Error loading puestos con contrato:', err);
+        }
+    };
+
+    const loadEmpresaData = async (empresaId) => {
+        try {
+            const empresa = await getEmpresaById(empresaId);
+            setSelectedEmpresa(empresa);
+
+            // Flatten puestos from empresa hierarchy
+            const puestos = [];
+            empresa.areas?.forEach(area => {
+                area.departamentos?.forEach(depto => {
+                    depto.puestos?.forEach(puesto => {
+                        const empleadosConContratoPuesto = puestosConContrato.get(puesto.id);
+                        puestos.push({
+                            value: puesto.id,
+                            label: `${puesto.nombre} (${depto.nombre} - ${area.nombre})`,
+                            puesto: puesto,
+                            empresaId: empresa.id,
+                            empleadosConContrato: empleadosConContratoPuesto || new Map(),
+                        });
+                    });
+                });
+            });
+
+            // If we're in edit mode and have selectedPuestos, update their labels with the correct info
+            if (isEditMode &amp;&amp; selectedPuestos.length > 0) {
+                const puestosMap = new Map(puestos.map(p => [p.value, p]));
+                setSelectedPuestos(prev => prev.map(sp => {
+                    const updatedPuesto = puestosMap.get(sp.value);
+                    return updatedPuesto ? { ...sp, ...updatedPuesto } : sp;
+                }));
+            }
+
+            setPuestosDisponibles(puestos);
+        } catch (err) {
+            console.error('Error loading empresa:', err);
+        }
+    };
+
+    const handleEmpleadoChange = async (options, skipPuestosReset = false) => {
+        const selectedOptions = isEditMode ? (options ? [options] : []) : (options || []);
+
+        // Validar que todos los empleados seleccionados pertenezcan al mismo espacio de trabajo
+        if (selectedOptions.length > 1) {
+            const firstWs = selectedOptions[0].empleado?.espacioTrabajoId;
+            const diffWs = selectedOptions.some(opt => opt.empleado?.espacioTrabajoId !== firstWs);
+            if (diffWs) {
+                setError('Todos los empleados seleccionados deben pertenecer al mismo espacio de trabajo.');
+                return;
+            }
+        }
+        setError('');
+
+        setSelectedEmpleados(selectedOptions);
+
+        // Resetear puestos al cambiar selección, except when loading edit data
+        if (!skipPuestosReset) {
+            setSelectedPuestos([]);
+            setSelectedEmpresa(null);
+            setPuestosDisponibles([]);
+        }
+
+        // Cargar puestos con contrato para todos los empleados seleccionados
+        if (selectedOptions.length > 0) {
+            await loadPuestosConContrato(selectedOptions);
+        } else {
+            setPuestosConContrato(new Map());
+        }
+        if (touched.empleados) validateStep();
+    };
+
+    const handleEmpresaChange = async (option) => {
+        const empresaId = option ? option.value : null;
+        setSelectedPuestos([]);
+        if (empresaId) {
+            await loadEmpresaData(parseInt(empresaId));
+        } else {
+            setSelectedEmpresa(option ? option.empresa : null);
+            setPuestosDisponibles([]);
+        }
+    };
+
+    const handlePuestosChange = (options) => {
+        setSelectedPuestos(options || []);
+        if (touched.puestos) validateStep();
+    };
+
+    const handleRolChange = (option) => {
+        const value = option ? option.value : '';
+        setFormData(prev => ({ ...prev, rolId: value }));
+        if (touched.rolId) validateStep();
+    };
+
+    const validateStep = () => {
+        const errors = {};
+
+        if (currentStep === 1) {
+            if (selectedEmpleados.length === 0) errors.empleados = 'Debe seleccionar al menos un empleado';
+            if (selectedPuestos.length === 0) errors.puestos = 'Debe seleccionar al menos un puesto';
+        } else if (currentStep === 2) {
+            if (!tipoContrato) errors.tipoContrato = 'Debe seleccionar un tipo de contrato';
+        } else if (currentStep === 3) {
+            // Validación de fecha de inicio
+            if (!formData.fechaInicio) {
+                errors.fechaInicio = 'La fecha de inicio es requerida';
+            } else if (!isEditMode) {
+                // Solo validar que no sea anterior a hoy si no es edición
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const [year, month, day] = formData.fechaInicio.split('-');
+                const startDate = new Date(year, month - 1, day); // fecha local
+                if (startDate &lt; today) {
+                    errors.fechaInicio = 'La fecha de inicio no puede ser anterior a hoy';
+                }
+            }
+
+            // Validación de fecha de fin (si se ingresó)
+            if (formData.fechaFin &amp;&amp; formData.fechaInicio) {
+                if (new Date(formData.fechaFin) &lt; new Date(formData.fechaInicio)) {
+                    errors.fechaFin = 'La fecha de fin no puede ser anterior a la fecha de inicio';
+                }
+            }
+
+            // Validación de horario
+            if (!formData.horario?.trim()) {
+                errors.horario = 'El horario es requerido';
+            } else if (formData.horario.length &lt; 5 || formData.horario.length > 100) {
+                errors.horario = 'El horario debe tener entre 5 y 100 caracteres';
+            }
+
+            // Validación de salario
+            if (!formData.salario) {
+                errors.salario = 'El salario es requerido';
+            } else if (isNaN(parseFloat(formData.salario))) {
+                errors.salario = 'Debe ser un número válido';
+            } else if (parseFloat(formData.salario) &lt; 0) {
+                errors.salario = 'El salario no puede ser negativo';
+            } else if (parseFloat(formData.salario) > 999999999.99) {
+                errors.salario = 'El salario no puede exceder 999,999,999.99';
+            }
+
+            // Validación de compensación (opcional pero con límite)
+            if (formData.compensacion &amp;&amp; formData.compensacion.length > 500) {
+                errors.compensacion = 'La compensación no puede exceder 500 caracteres';
+            }
+
+            // Validación de rol
+            if (!formData.rolId) {
+                errors.rolId = 'El rol es requerido';
+            }
+        }
+
+        // Preservar solo los errores de días hábiles de campos de fecha
+        setFieldErrors(prev => {
+            const camposFecha = ['fechaInicio', 'fechaFin'];
+            const erroresDiasHabiles = {};
+
+            // Preservar errores de días hábiles en campos de fecha
+            camposFecha.forEach(campo => {
+                if (prev[campo] &amp;&amp; prev[campo].includes('día hábil')) {
+                    erroresDiasHabiles[campo] = prev[campo];
+                }
+            });
+
+            // Combinar: errores de la validación actual + errores de días hábiles preservados
+            return { ...erroresDiasHabiles, ...errors };
+        });
+
+        // Mark all fields with errors as touched so error messages are displayed
+        if (Object.keys(errors).length > 0) {
+            const allTouched = {};
+            Object.keys(errors).forEach(key => { allTouched[key] = true; });
+            setTouched(prev => ({ ...prev, ...allTouched }));
+            setError('Por favor completa todos los campos obligatorios');
+        }
+
+        return Object.keys(errors).length === 0;
+    };
+
+    const handleBlur = (field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+        validateStep();
+    };
+
+    const handleChange = (e) => { // ✅ Síncrono ahora
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+
+        // Validar días hábiles en tiempo real SÍNCRONO
+        if ((name === 'fechaInicio' || name === 'fechaFin') &amp;&amp; value) {
+            try {
+                const nombreCampo = name === 'fechaInicio'
+                    ? 'La fecha de inicio'
+                    : 'La fecha de fin';
+                validarDiaHabil(value, nombreCampo); // ✅ Síncrono
+                setFieldErrors(prev => ({ ...prev, [name]: null }));
+            } catch (error) {
+                setFieldErrors(prev => ({ ...prev, [name]: error.message }));
+                setTouched(prev => ({ ...prev, [name]: true })); // Marcar como touched para mostrar error
+            }
+        }
+
+        if (touched[name]) validateStep();
+    };
+
+    const nextStep = () => {
+        if (validateStep()) {
+            setCurrentStep(prev => prev + 1);
+            setTouched({});
+            setError('');
+        }
+    };
+
+    const prevStep = () => setCurrentStep(prev => prev - 1);
+
+    const handleSubmit = async () => {
+        if (!validateStep()) return;
+
+        setLoading(true);
+        setError('');
+
+        try {
+            // In edit mode, if selectedPuestos is empty but the contract has puestos, use original puestos
+            let puestoIds = selectedPuestos.map(p => p.value);
+            if (isEditMode &amp;&amp; puestoIds.length === 0 &amp;&amp; contratoToEdit?.puestos?.length > 0) {
+                puestoIds = contratoToEdit.puestos.map(p => p.id);
+            }
+            const baseData = {
+                puestoIds,
+                tipoContrato,
+                fechaInicio: formData.fechaInicio,
+                fechaFin: formData.fechaFin || null,
+                horario: formData.horario,
+                salario: parseFloat(formData.salario),
+                compensacion: formData.compensacion || null,
+                rolId: formData.rolId || null,
+            };
+
+            if (isEditMode) {
+                await updateContrato(contratoToEdit.id, { ...baseData, empleadoId: selectedEmpleados[0].value });
+                onSuccess(1);
+            } else {
+                // Crear un contrato por cada empleado seleccionado
+                let createdCount = 0;
+                for (const emp of selectedEmpleados) {
+                    await createContrato({ ...baseData, empleadoId: emp.value });
+                    createdCount++;
+                }
+                onSuccess(createdCount);
+            }
+        } catch (err) {
+            const errorMessage = err.message.toLowerCase();
+
+            // Handle fechaFin validation error specifically
+            if (errorMessage.includes('fecha de fin') || errorMessage.includes('fecha fin')) {
+                setCurrentStep(3);
+                setFieldErrors(prev => ({ ...prev, fechaFin: err.message }));
+                setTouched(prev => ({ ...prev, fechaFin: true }));
+            }
+
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Format option with individual "ya tiene contrato" badges per employee
+    const formatPuestoOption = (option) => {
+        // Find which of the selected employees have contracts for this position
+        const empleadosSeleccionadosConContrato = selectedEmpleados.filter(emp =>
+            option.empleadosConContrato?.has(emp.value)
+        );
+
+        return (
+            &lt;div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                &lt;span>{option.label}&lt;/span>
+                &lt;div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {empleadosSeleccionadosConContrato.map(emp => (
+                        &lt;span key={emp.value} style={{
+                            fontSize: '0.65rem',
+                            backgroundColor: '#f59e0b',
+                            color: 'white',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            whiteSpace: 'nowrap',
+                        }}>
+                            {option.empleadosConContrato.get(emp.value)} ya tiene contrato
+                        &lt;/span>
+                    ))}
+                &lt;/div>
+            &lt;/div>
+        );
+    };
+
+    // Disable position if ANY selected employee has a contract for it (except in edit mode for the current contract)
+    const isPuestoDisabled = (option) => {
+        if (selectedEmpleados.length === 0) return false;
+
+        // In edit mode, allow selecting positions even if they have contracts
+        // The backend will validate conflicts with OTHER active contracts
+        if (isEditMode) return false;
+
+        // Check if ANY selected employee has a contract for this position
+        const anyHasContract = selectedEmpleados.some(emp =>
+            option.empleadosConContrato?.has(emp.value)
+        );
+        return anyHasContract;
+    };
+
+    const empleadoOptions = Object.values(
+        empleados.reduce((acc, emp) => {
+            const ws = emp.espacioTrabajo?.nombre || 'Sin Espacio';
+            if (!acc[ws]) acc[ws] = { label: ws, options: [] };
+            acc[ws].options.push({
+                value: emp.id,
+                label: `${formatFullName(emp)} - ${emp.numeroDocumento}`,
+                empleado: emp,
+            });
+            return acc;
+        }, {})
+    );
+
+    const areFieldsLocked = isEditMode &amp;&amp; contratoToEdit?.estado !== 'pendiente';
+    const isEmpleadoLocked = areFieldsLocked;
+
+    // Update puestos options when puestosConContrato changes
+    useEffect(() => {
+        if (selectedEmpresa) {
+            loadEmpresaData(selectedEmpresa.id);
+        }
+    }, [puestosConContrato]);
+
+    const renderStep1 = () => (
+        &lt;div style={{ display: 'grid', gap: '1.5rem' }}>
+            {/* Empleados */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">
+                    {isEditMode ? 'Empleado *' : 'Empleado(s) *'}
+                    {!isEditMode &amp;&amp; selectedEmpleados.length > 1 &amp;&amp; (
+                        &lt;span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--primary-color)', fontWeight: 500 }}>
+                            ({selectedEmpleados.length} seleccionados - se creará un contrato por cada uno)
+                        &lt;/span>
+                    )}
+                &lt;/label>
+                &lt;Select
+                    isMulti={!isEditMode}
+                    isDisabled={isEmpleadoLocked}
+                    options={Object.values(empleados.reduce((acc, emp) => {
+                        const wsName = emp.espacioTrabajo?.nombre || 'Sin Espacio';
+                        if (!acc[wsName]) acc[wsName] = { label: wsName, options: [] };
+                        acc[wsName].options.push({
+                            value: emp.id,
+                            label: `${formatFullName(emp)} - ${emp.numeroDocumento}`,
+                            empleado: emp,
+                        });
+                        return acc;
+                    }, {}))}
+                    value={selectedEmpleados}
+                    onChange={handleEmpleadoChange}
+                    onBlur={() => handleBlur('empleados')}
+                    placeholder={isEditMode ? "Empleado..." : "Buscar y seleccionar empleados..."}
+                    noOptionsMessage={() => "No se encontraron empleados"}
+                    styles={buildSelectStyles(isDark)}
+                    isClearable={!isEmpleadoLocked}
+                    closeMenuOnSelect={isEditMode}
+                    formatGroupLabel={data => (
+                        &lt;div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
+                            {data.label}
+                        &lt;/div>
+                    )}
+                />
+                &lt;FieldError message={touched.empleados &amp;&amp; fieldErrors.empleados} />
+            &lt;/div>
+
+            {/* Empresa (para filtrar puestos) */}
+            {selectedEmpleados.length > 0 &amp;&amp; (
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Empresa *&lt;/label>
+                    &lt;Select
+                        isDisabled={areFieldsLocked}
+                        options={Object.values(empresas.reduce((acc, emp) => {
+                            // Filtrar por espacio si hay empleados seleccionados
+                            const currentWorkspaceId = selectedEmpleados[0]?.empleado?.espacioTrabajoId;
+                            if (currentWorkspaceId &amp;&amp; emp.espacioTrabajoId !== currentWorkspaceId) return acc;
+
+                            const wsName = emp.espacioTrabajo?.nombre || 'General';
+                            if (!acc[wsName]) acc[wsName] = { label: wsName, options: [] };
+                            acc[wsName].options.push({
+                                value: emp.id,
+                                label: emp.nombre,
+                                empresa: emp
+                            });
+                            return acc;
+                        }, {}))}
+                        value={selectedEmpresa ? { value: selectedEmpresa.id, label: selectedEmpresa.nombre, empresa: selectedEmpresa } : null}
+                        onChange={handleEmpresaChange}
+                        placeholder="Seleccionar empresa..."
+                        noOptionsMessage={() => "No se encontraron empresas"}
+                        styles={buildSelectStyles(isDark)}
+                        isClearable
+                        formatGroupLabel={data => (
+                            &lt;div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
+                                {data.label}
+                            &lt;/div>
+                        )}
+                    />
+                &lt;/div>
+            )}
+
+            {/* Puestos */}
+            {selectedEmpresa &amp;&amp; (
+                &lt;div className="form-group">
+                    &lt;label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Puestos de Trabajo *
+                        &lt;span
+                            className="tooltip-icon"
+                            onClick={() => setShowTooltipPuestos(!showTooltipPuestos)}
+                        >
+                            ?
+                        &lt;/span>
+                    &lt;/label>
+                    {showTooltipPuestos &amp;&amp; (
+                        &lt;div className="tooltip-info">
+                            {TOOLTIP_PUESTOS.split('**').map((part, i) =>
+                                i % 2 === 1 ? &lt;strong key={i}>{part}&lt;/strong> : part
+                            )}
+                        &lt;/div>
+                    )}
+                    &lt;Select
+                        isDisabled={areFieldsLocked}
+                        isMulti
+                        options={puestosDisponibles}
+                        value={selectedPuestos}
+                        onChange={handlePuestosChange}
+                        onBlur={() => handleBlur('puestos')}
+                        placeholder="Seleccionar puestos..."
+                        noOptionsMessage={() => "No hay puestos disponibles"}
+                        formatOptionLabel={formatPuestoOption}
+                        isOptionDisabled={isPuestoDisabled}
+                        styles={buildSelectStyles(isDark)}
+                        closeMenuOnSelect={false}
+                    />
+                    &lt;FieldError message={touched.puestos &amp;&amp; fieldErrors.puestos} />
+                    {!isEditMode &amp;&amp; (
+                        &lt;p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                            Los puestos con contrato activo no pueden ser seleccionados
+                        &lt;/p>
+                    )}
+                &lt;/div>
+            )}
+        &lt;/div>
+    );
+
+    const renderStep2 = () => (
+        &lt;div style={{ display: 'grid', gap: '1.5rem' }}>
+            &lt;div className="form-group">
+                &lt;label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    Tipo de Contrato *
+                    &lt;span
+                        className="tooltip-icon"
+                        onClick={() => setShowTooltipTipos(!showTooltipTipos)}
+                    >
+                        ?
+                    &lt;/span>
+                &lt;/label>
+                {showTooltipTipos &amp;&amp; (
+                    &lt;div className="tooltip-info">
+                        {TOOLTIP_TIPOS_CONTRATO.split('**').map((part, i) =>
+                            i % 2 === 1 ? &lt;strong key={i}>{part}&lt;/strong> : part
+                        )}
+                    &lt;/div>
+                )}
+                &lt;select
+                    className={`form-input ${touched.tipoContrato &amp;&amp; fieldErrors.tipoContrato ? 'input-error' : ''}`}
+                    value={tipoContrato}
+                    onChange={(e) => { setTipoContrato(e.target.value); if (touched.tipoContrato) validateStep(); }}
+                    onBlur={() => handleBlur('tipoContrato')}
+                >
+                    &lt;option value="">Seleccionar tipo de contrato&lt;/option>
+                    {Object.entries(TIPOS_CONTRATO).map(([category, options]) => (
+                        &lt;optgroup key={category} label={category}>
+                            {options.map(opt => (
+                                &lt;option key={opt.value} value={opt.value}>{opt.label}&lt;/option>
+                            ))}
+                        &lt;/optgroup>
+                    ))}
+                &lt;/select>
+                &lt;FieldError message={touched.tipoContrato &amp;&amp; fieldErrors.tipoContrato} />
+            &lt;/div>
+        &lt;/div>
+    );
+
+    const renderStep3 = () => (
+        &lt;div style={{ display: 'grid', gap: '1rem' }}>
+            {/* Fechas */}
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Fecha de Inicio *&lt;/label>
+                    &lt;input
+                        type="date"
+                        name="fechaInicio"
+                        disabled={areFieldsLocked}
+                        className={`form-input ${touched.fechaInicio &amp;&amp; fieldErrors.fechaInicio ? 'input-error' : ''}`}
+                        value={formData.fechaInicio}
+                        onChange={handleChange}
+                        onBlur={() => handleBlur('fechaInicio')}
+                    />
+                    &lt;FieldError message={touched.fechaInicio &amp;&amp; fieldErrors.fechaInicio} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Fecha de Fin&lt;/label>
+                    &lt;input
+                        type="date"
+                        name="fechaFin"
+                        className={`form-input ${touched.fechaFin &amp;&amp; fieldErrors.fechaFin ? 'input-error' : ''}`}
+                        value={formData.fechaFin}
+                        onChange={handleChange}
+                        onBlur={() => handleBlur('fechaFin')}
+                    />
+                    &lt;FieldError message={touched.fechaFin &amp;&amp; fieldErrors.fechaFin} />
+                &lt;/div>
+            &lt;/div>
+
+            {/* Horario */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">Horario *&lt;/label>
+                &lt;input
+                    type="text"
+                    name="horario"
+                    className={`form-input ${touched.horario &amp;&amp; fieldErrors.horario ? 'input-error' : ''}`}
+                    value={formData.horario}
+                    onChange={handleChange}
+                    onBlur={() => handleBlur('horario')}
+                    placeholder="Ej: Lunes a Viernes 9:00 a 18:00"
+                />
+                &lt;FieldError message={touched.horario &amp;&amp; fieldErrors.horario} />
+            &lt;/div>
+
+            {/* Salario y Compensación */}
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Salario *&lt;/label>
+                    &lt;input
+                        type="number"
+                        name="salario"
+                        className={`form-input ${touched.salario &amp;&amp; fieldErrors.salario ? 'input-error' : ''}`}
+                        value={formData.salario}
+                        onChange={handleChange}
+                        onBlur={() => handleBlur('salario')}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                    />
+                    &lt;FieldError message={touched.salario &amp;&amp; fieldErrors.salario} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Compensación&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="compensacion"
+                        className={`form-input ${touched.compensacion &amp;&amp; fieldErrors.compensacion ? 'input-error' : ''}`}
+                        value={formData.compensacion}
+                        onChange={handleChange}
+                        onBlur={() => handleBlur('compensacion')}
+                        placeholder="Beneficios adicionales..."
+                    />
+                    &lt;FieldError message={touched.compensacion &amp;&amp; fieldErrors.compensacion} />
+                &lt;/div>
+            &lt;/div>
+
+            {/* Rol de Sistema */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">Rol en la Empresa *&lt;/label>
+                &lt;Select
+                    options={Object.values(roles.reduce((acc, rol) => {
+                        // Filtrar por espacio si hay empleados seleccionados
+                        const currentWorkspaceId = selectedEmpleados[0]?.empleado?.espacioTrabajoId;
+                        if (currentWorkspaceId &amp;&amp; rol.espacioTrabajoId !== currentWorkspaceId) return acc;
+
+                        const wsName = rol.espacioTrabajo?.nombre || 'General';
+                        if (!acc[wsName]) acc[wsName] = { label: wsName, options: [] };
+                        acc[wsName].options.push({
+                            value: rol.id,
+                            label: rol.nombre,
+                        });
+                        return acc;
+                    }, {}))}
+                    value={roles.find(r => r.id === parseInt(formData.rolId)) ? {
+                        value: parseInt(formData.rolId),
+                        label: roles.find(r => r.id === parseInt(formData.rolId))?.nombre
+                    } : null}
+                    onChange={handleRolChange}
+                    onBlur={() => handleBlur('rolId')}
+                    placeholder="Seleccionar rol..."
+                    noOptionsMessage={() => "No se encontraron roles"}
+                    styles={buildSelectStyles(isDark)}
+                    formatGroupLabel={data => (
+                        &lt;div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
+                            {data.label}
+                        &lt;/div>
+                    )}
+                />
+                &lt;FieldError message={touched.rolId &amp;&amp; fieldErrors.rolId} />
+                &lt;p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                    Asigna permisos de sistema al usuario mientras dure el contrato.
+                &lt;/p>
+            &lt;/div>
+        &lt;/div>
+    );
+
+    return (
+        &lt;div className="modal-overlay" onClick={onClose}>
+            &lt;div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
+                &lt;div className="modal-header">
+                    &lt;h2 className="modal-title">
+                        {isEditMode ? 'Editar Contrato' : 'Nuevo Contrato'}
+                    &lt;/h2>
+                    &lt;button className="modal-close" onClick={onClose}>
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        &lt;/svg>
+                    &lt;/button>
+                &lt;/div>
+
+                &lt;div className="modal-body" style={{ padding: '2rem' }}>
+                    &lt;StepTracker steps={steps} currentStep={currentStep} />
+
+                    &lt;div style={{ marginTop: '2rem', textAlign: 'center', marginBottom: '2rem' }}>
+                        &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                            {steps[currentStep - 1].title}
+                        &lt;/h3>
+                        &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                            {currentStep === 1 &amp;&amp; 'Selecciona el empleado y los puestos que ocupará'}
+                            {currentStep === 2 &amp;&amp; 'Elige el tipo de contrato laboral'}
+                            {currentStep === 3 &amp;&amp; 'Completa los datos del contrato'}
+                        &lt;/p>
+                    &lt;/div>
+
+                    {error &amp;&amp; (
+                        &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                            {error}
+                        &lt;/div>
+                    )}
+
+                    {currentStep === 1 &amp;&amp; renderStep1()}
+                    {currentStep === 2 &amp;&amp; renderStep2()}
+                    {currentStep === 3 &amp;&amp; renderStep3()}
+                &lt;/div>
+
+                &lt;div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 2rem', borderTop: '1px solid var(--border-color)' }}>
+                    &lt;div>
+                        {currentStep > 1 &amp;&amp; (
+                            &lt;button className="btn btn-secondary" onClick={prevStep}>
+                                Anterior
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                    &lt;div style={{ display: 'flex', gap: '1rem' }}>
+                        &lt;button className="btn btn-secondary" onClick={onClose}>
+                            Cancelar
+                        &lt;/button>
+                        {currentStep &lt; 3 ? (
+                            &lt;button className="btn btn-primary" onClick={nextStep}>
+                                Siguiente
+                            &lt;/button>
+                        ) : (
+                            &lt;button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+                                {loading ? 'Guardando...' : (isEditMode ? 'Actualizar' : 'Crear')} Contrato
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+};
+
+export default ContratoWizard;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

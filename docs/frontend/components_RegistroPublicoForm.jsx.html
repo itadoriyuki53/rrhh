@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/RegistroPublicoForm.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/RegistroPublicoForm.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Formulario autónomo para el registro autogestionado de nuevos usuarios administradores.
+ * @module components/RegistroPublicoForm
+ */
+
+import { useState } from 'react';
+import { register, login } from '../services/api';
+
+/**
+ * Componente RegistroPublicoForm
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Function} props.onSuccess - Callback ejecutado tras el registro y login exitoso.
+ * @returns {JSX.Element}
+ */
+const RegistroPublicoForm = ({ onSuccess }) => {
+    const [form, setForm] = useState({
+        nombre: '',
+        apellido: '',
+        email: '',
+        contrasena: '',
+        confirmarContrasena: '',
+    });
+    const [errors, setErrors] = useState({});
+    const [loading, setLoading] = useState(false);
+    const [globalError, setGlobalError] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
+
+    const validate = () => {
+        const e = {};
+        if (!form.nombre.trim()) e.nombre = 'El nombre es requerido';
+        if (!form.apellido.trim()) e.apellido = 'El apellido es requerido';
+        if (!form.email.trim()) e.email = 'El email es requerido';
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Email inválido';
+        if (!form.contrasena) e.contrasena = 'La contraseña es requerida';
+        else if (form.contrasena.length &lt; 8) e.contrasena = 'Mínimo 8 caracteres';
+        else if (!/[A-Z]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos una mayúscula';
+        else if (!/[0-9]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos un número';
+        else if (!/[@$!%*?&amp;#]/.test(form.contrasena)) e.contrasena = 'Debe contener al menos un carácter especial (@$!%*?&amp;#)';
+        if (!form.confirmarContrasena) e.confirmarContrasena = 'Debes confirmar la contraseña';
+        else if (form.contrasena !== form.confirmarContrasena) e.confirmarContrasena = 'Las contraseñas no coinciden';
+        return e;
+    };
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setForm(prev => ({ ...prev, [name]: value }));
+        if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+        setGlobalError('');
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        const validationErrors = validate();
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            return;
+        }
+        setLoading(true);
+        setGlobalError('');
+        try {
+            // 1. Registrar usuario
+            await register({
+                nombre: form.nombre,
+                apellido: form.apellido,
+                email: form.email,
+                contrasena: form.contrasena,
+            });
+            // 2. Auto-login con las mismas credenciales
+            const loginResult = await login({
+                email: form.email,
+                contrasena: form.contrasena,
+            });
+            onSuccess(loginResult);
+        } catch (err) {
+            setGlobalError(err.message || 'Error al registrarse');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const EyeIcon = ({ visible }) => visible ? (
+        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
+            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+        &lt;/svg>
+    ) : (
+        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
+            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        &lt;/svg>
+    );
+
+    const FieldError = ({ msg }) => msg ? (
+        &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{msg}&lt;/span>
+    ) : null;
+
+    const eyeBtnStyle = {
+        position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
+        background: 'none', border: 'none', color: 'var(--neutral-500)', cursor: 'pointer',
+        padding: '0.5rem', display: 'flex', alignItems: 'center', borderRadius: 4,
+    };
+
+    return (
+        &lt;form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1.25rem' }} noValidate>
+            &lt;div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                &lt;h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>Crear cuenta&lt;/h2>
+                &lt;p style={{ color: 'var(--neutral-500)', fontSize: '0.875rem' }}>Completá tus datos para registrarte&lt;/p>
+            &lt;/div>
+
+            {globalError &amp;&amp; (
+                &lt;div style={{
+                    background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626',
+                    borderRadius: '0.5rem', padding: '0.75rem 1rem', fontSize: '0.875rem'
+                }}>
+                    {globalError}
+                &lt;/div>
+            )}
+
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Nombre *&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="nombre"
+                        className={`form-input${errors.nombre ? ' input-error' : ''}`}
+                        value={form.nombre}
+                        onChange={handleChange}
+                        placeholder="Juan"
+                        autoComplete="given-name"
+                    />
+                    &lt;FieldError msg={errors.nombre} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Apellido *&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="apellido"
+                        className={`form-input${errors.apellido ? ' input-error' : ''}`}
+                        value={form.apellido}
+                        onChange={handleChange}
+                        placeholder="Pérez"
+                        autoComplete="family-name"
+                    />
+                    &lt;FieldError msg={errors.apellido} />
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-group">
+                &lt;label className="form-label">Email *&lt;/label>
+                &lt;input
+                    type="email"
+                    name="email"
+                    className={`form-input${errors.email ? ' input-error' : ''}`}
+                    value={form.email}
+                    onChange={handleChange}
+                    placeholder="email@ejemplo.com"
+                    autoComplete="email"
+                />
+                &lt;FieldError msg={errors.email} />
+            &lt;/div>
+
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Contraseña *&lt;/label>
+                    &lt;div style={{ position: 'relative', display: 'flex' }}>
+                        &lt;input
+                            type={showPassword ? 'text' : 'password'}
+                            name="contrasena"
+                            className={`form-input${errors.contrasena ? ' input-error' : ''}`}
+                            value={form.contrasena}
+                            onChange={handleChange}
+                            placeholder="Mínimo 8 caracteres"
+                            style={{ paddingRight: '3rem', width: '100%' }}
+                            autoComplete="new-password"
+                        />
+                        &lt;button type="button" style={eyeBtnStyle} onClick={() => setShowPassword(p => !p)} aria-label="Mostrar contraseña">
+                            &lt;EyeIcon visible={showPassword} />
+                        &lt;/button>
+                    &lt;/div>
+                    &lt;FieldError msg={errors.contrasena} />
+                &lt;/div>
+
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Confirmar contraseña *&lt;/label>
+                    &lt;div style={{ position: 'relative', display: 'flex' }}>
+                        &lt;input
+                            type={showConfirm ? 'text' : 'password'}
+                            name="confirmarContrasena"
+                            className={`form-input${errors.confirmarContrasena ? ' input-error' : ''}`}
+                            value={form.confirmarContrasena}
+                            onChange={handleChange}
+                            placeholder="Repetir contraseña"
+                            style={{ paddingRight: '3rem', width: '100%' }}
+                            autoComplete="new-password"
+                        />
+                        &lt;button type="button" style={eyeBtnStyle} onClick={() => setShowConfirm(p => !p)} aria-label="Mostrar contraseña">
+                            &lt;EyeIcon visible={showConfirm} />
+                        &lt;/button>
+                    &lt;/div>
+                    &lt;FieldError msg={errors.confirmarContrasena} />
+                &lt;/div>
+            &lt;/div>
+
+            &lt;button
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading}
+                style={{ justifyContent: 'center', marginTop: '0.5rem' }}
+            >
+                {loading ? 'Registrando...' : 'Crear cuenta'}
+            &lt;/button>
+        &lt;/form>
+    );
+};
+
+export default RegistroPublicoForm;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

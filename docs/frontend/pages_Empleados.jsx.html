@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages/Empleados.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages/Empleados.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Tabla principal e interfaz de gestión de empleados (ABM).
+ * @module pages/Empleados
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import Select from 'react-select';
+import {
+    getEmpleados,
+    deleteEmpleado,
+    deleteEmpleadosBulk,
+    getEmpleadoById,
+    reactivateEmpleado,
+    getEspaciosTrabajo,
+    getCurrentUser,
+} from '../services/api';
+import EmpleadoWizard from '../components/EmpleadoWizard';
+import EmpleadoDetail from '../components/EmpleadoDetail';
+import ConfirmDialog from '../components/ConfirmDialog';
+import ubicaciones from '../data/ubicaciones.json';
+import { truncateText } from '../helpers/formatters';
+import { useIsDark, useModulePermissions } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
+
+const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
+
+/**
+ * Componente Empleados
+ * 
+ * Tabla principal para lista de Empleados. Gestiona operaciones CRUD, validaciones 
+ * y usa helpers para estandarizar estilos oscuros y accesibilidad.
+ * 
+ * @returns {JSX.Element}
+ */
+const Empleados = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { user } = useAuth();
+
+    const { isEmpleadoUser, canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'empleados');
+
+    // Data State
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+
+    // Welcome Alert
+
+
+    // Pagination
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(10);
+    const [totalPages, setTotalPages] = useState(1);
+    const [total, setTotal] = useState(0);
+
+    // Filters
+    const [searchInput, setSearchInput] = useState('');
+    const [filterNombre, setFilterNombre] = useState('');
+    const [filterActivo, setFilterActivo] = useState('true');
+    const [filterEspacio, setFilterEspacio] = useState(null);
+    const [filterDocumento, setFilterDocumento] = useState('');
+    const [documentoInput, setDocumentoInput] = useState('');
+    const [filterEmail, setFilterEmail] = useState('');
+    const [emailInput, setEmailInput] = useState('');
+    const [filterNacionalidad, setFilterNacionalidad] = useState('');
+
+    const [currentUser, setCurrentUser] = useState(null);
+
+    // Filter lists
+    const [espaciosList, setEspaciosList] = useState([]);
+    const isDark = useIsDark();
+
+    // Selection
+    const [selectedIds, setSelectedIds] = useState(new Set());
+
+    // Column Visibility
+    const [visibleColumns, setVisibleColumns] = useState({
+        espacio: false,
+        email: true,
+        documento: true,
+        nacionalidad: true,
+    });
+    const [showColumnSelector, setShowColumnSelector] = useState(false);
+
+    // Modal State
+    const [showWizard, setShowWizard] = useState(false);
+    const [showDetail, setShowDetail] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
+    const [selectedItem, setSelectedItem] = useState(null);
+
+    // Delete Confirmation
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
+
+    // Employee to Contract Flow
+    const [showContratoPrompt, setShowContratoPrompt] = useState(false);
+    const [nuevoEmpleado, setNuevoEmpleado] = useState(null);
+
+    // Redirigir si no tiene permiso de lectura
+
+    useEffect(() => {
+        if (user &amp;&amp; isEmpleadoUser &amp;&amp; !canRead) {
+            navigate('/dashboard', { replace: true });
+        }
+    }, [user, isEmpleadoUser, canRead, navigate]);
+
+
+
+    // Load filter data
+    // Load Initial Data
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const [espaciosRes, userMe] = await Promise.all([
+                    getEspaciosTrabajo({ activo: 'true' }),
+                    getCurrentUser()
+                ]);
+
+                setEspaciosList(espaciosRes.data || []);
+                setCurrentUser(userMe);
+
+                // Lógica de preselección de espacio SOLO SI ES EMPLEADO
+                if (userMe &amp;&amp; userMe.esEmpleado) {
+                    const espacios = espaciosRes.data || [];
+                    // Si el usuario tiene un espacio asignado, priorizar ese
+                    if (userMe.espacioTrabajoId) {
+                        const miEspacio = espacios.find(e => e.id === userMe.espacioTrabajoId);
+                        if (miEspacio) {
+                            setFilterEspacio({ value: miEspacio.id, label: miEspacio.nombre });
+                        }
+                    }
+                }
+
+            } catch (e) { console.error(e); }
+        };
+        load();
+    }, []);
+
+    const espacioOptions = espaciosList.map(e => ({ value: e.id, label: e.nombre }));
+    const selectStyles = buildSelectStyles(isDark);
+
+    // Debounce Search (nombre, documento, email)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setFilterNombre(searchInput);
+            setPage(1);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setFilterDocumento(documentoInput);
+            setPage(1);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [documentoInput]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setFilterEmail(emailInput);
+            setPage(1);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [emailInput]);
+
+    /**
+     * Refresca la vista de la grilla de empleados consultando `getEmpleados`.
+     * Considera estados activos/inactivos, búsqueda por nombre/documento y paginado.
+     * 
+     * @async
+     * @returns {Promise&lt;void>}
+     */
+    const loadItems = useCallback(async () => {
+        try {
+            setLoading(true);
+
+            const params = {
+                nombre: filterNombre,
+                activo: filterActivo,
+                page,
+                limit,
+                espacioTrabajoId: filterEspacio?.value,
+                documento: filterDocumento,
+                email: filterEmail,
+                nacionalidad: filterNacionalidad,
+            };
+
+            const result = await getEmpleados(params);
+
+            setItems(result.data);
+            setTotalPages(result.pagination.totalPages);
+            setTotal(result.pagination.total);
+            setSelectedIds(new Set());
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [filterNombre, filterActivo, page, limit, filterEspacio, filterDocumento, filterEmail, filterNacionalidad]);
+
+    useEffect(() => {
+        loadItems();
+    }, [loadItems]);
+
+
+    /**
+     * Restablece activamente y elimina todos los filtros aplicados a la vista de datos.
+     * 
+     * @returns {void}
+     */
+    const clearFilters = () => {
+        setSearchInput('');
+        setFilterNombre('');
+        setFilterActivo('true');
+        // Si es empleado, no limpiar el filtro de espacio
+        if (!currentUser || !currentUser.esEmpleado) {
+            setFilterEspacio(null);
+        }
+        setDocumentoInput('');
+        setEmailInput('');
+        setFilterDocumento('');
+        setFilterEmail('');
+        setFilterNacionalidad('');
+        setPage(1);
+    };
+
+    const isEmpleado = currentUser &amp;&amp; currentUser.esEmpleado;
+    const showingInactive = filterActivo === 'false';
+    const hasActiveFilters = filterNombre || filterActivo !== 'true' || (!isEmpleado &amp;&amp; filterEspacio) || filterNacionalidad || filterDocumento || filterEmail;
+
+
+    // Selection Handlers
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            setSelectedIds(new Set(items.map(item => item.id)));
+        } else {
+            setSelectedIds(new Set());
+        }
+    };
+
+    const handleSelectOne = (id) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
+    const allSelected = items.length > 0 &amp;&amp; items.every(item => selectedIds.has(item.id));
+    const someSelected = items.some(item => selectedIds.has(item.id)) &amp;&amp; !allSelected;
+
+    // Column Toggle
+    const toggleColumn = (col) => {
+        setVisibleColumns(prev => ({ ...prev, [col]: !prev[col] }));
+    };
+
+    // CRUD Handlers
+    const handleCreate = () => {
+        setEditingItem(null);
+        setShowWizard(true);
+        setError('');
+        setSuccess('');
+    };
+
+    const handleEdit = async (item) => {
+        try {
+            const fullItem = await getEmpleadoById(item.id);
+            setEditingItem(fullItem);
+            setShowWizard(true);
+            setError('');
+            setSuccess('');
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleView = async (item) => {
+        try {
+            const fullItem = await getEmpleadoById(item.id);
+            setSelectedItem(fullItem);
+            setShowDetail(true);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleCloseWizard = () => {
+        setShowWizard(false);
+        setEditingItem(null);
+    };
+
+    const handleWizardSuccess = (empleadoCreado = null) => {
+        handleCloseWizard();
+        if (editingItem) {
+            setSuccess('Empleado actualizado correctamente');
+        } else {
+            setSuccess('Empleado creado correctamente');
+            // Si es un nuevo empleado, preguntar si desea crear contrato
+            if (empleadoCreado) {
+                setNuevoEmpleado(empleadoCreado);
+                setShowContratoPrompt(true);
+            }
+        }
+        loadItems();
+    };
+
+    const handleContratoPromptYes = () => {
+        setShowContratoPrompt(false);
+        // Navegar a /contratos con el empleado preseleccionado
+        navigate('/contratos', { state: { empleadoPreseleccionado: nuevoEmpleado } });
+        setNuevoEmpleado(null);
+    };
+
+    const handleContratoPromptNo = () => {
+        setShowContratoPrompt(false);
+        setNuevoEmpleado(null);
+    };
+
+    const handleDeleteClick = (item) => {
+        setItemToDelete(item);
+        setConfirmOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            await deleteEmpleado(itemToDelete.id);
+            setSuccess('Empleado desactivado correctamente');
+            loadItems();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setConfirmOpen(false);
+            setItemToDelete(null);
+        }
+    };
+
+    const handleCancelDelete = () => {
+        setConfirmOpen(false);
+        setItemToDelete(null);
+    };
+
+    const handleBulkDeleteClick = () => {
+        if (selectedIds.size === 0) return;
+        setConfirmBulkOpen(true);
+    };
+
+    const handleConfirmBulkDelete = async () => {
+        try {
+            await deleteEmpleadosBulk(Array.from(selectedIds));
+            setSuccess(`${selectedIds.size} empleado(s) desactivado(s) correctamente`);
+            setSelectedIds(new Set());
+            loadItems();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setConfirmBulkOpen(false);
+        }
+    };
+
+    const handleReactivate = async (item) => {
+        try {
+            await reactivateEmpleado(item.id);
+            setSuccess('Empleado reactivado correctamente');
+            loadItems();
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+
+    return (
+        &lt;>
+            &lt;div>
+                {/* Header */}
+                &lt;div className="page-header">
+                    &lt;div>
+                        &lt;h1 className="page-title">Empleados&lt;/h1>
+                        &lt;p className="page-subtitle">Gestiona los empleados de la organización&lt;/p>
+                    &lt;/div>
+                &lt;/div>
+
+                {/* Alerts */}
+                {error &amp;&amp; (
+                    &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                        {error}
+                        &lt;button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕&lt;/button>
+                    &lt;/div>
+                )}
+                {success &amp;&amp; (
+                    &lt;div className="alert alert-success" style={{ marginBottom: '1rem' }}>
+                        {success}
+                        &lt;button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕&lt;/button>
+                    &lt;/div>
+                )}
+
+                {/* Card */}
+                &lt;div className="card">
+                    &lt;div className="card-header">
+                        &lt;div className="header-left">
+                            &lt;h3 className="card-title">Listado de Empleados&lt;/h3>
+                            &lt;span className="selection-indicator">
+                                {selectedIds.size} de {total} seleccionados
+                            &lt;/span>
+                        &lt;/div>
+                        &lt;div className="header-actions">
+                            {selectedIds.size > 0 &amp;&amp; !showingInactive &amp;&amp; canDelete &amp;&amp; (
+                                &lt;button className="btn btn-danger" onClick={handleBulkDeleteClick}>
+                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
+                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                    &lt;/svg>
+                                    Desactivar seleccionados
+                                &lt;/button>
+                            )}
+                            {canCreate &amp;&amp; (
+                                &lt;button className="btn btn-primary" onClick={handleCreate}>
+                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
+                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                    &lt;/svg>
+                                    Nuevo Empleado
+                                &lt;/button>
+                            )}
+                        &lt;/div>
+                    &lt;/div>
+
+
+                    {/* Filters */}
+                    &lt;div className="filters-bar">
+                        &lt;div className="filters-inputs">
+                            &lt;div className="filter-group">
+                                &lt;Select
+                                    options={espacioOptions}
+                                    value={filterEspacio}
+                                    onChange={opt => { setFilterEspacio(opt); setPage(1); }}
+                                    placeholder="Espacio..."
+                                    isClearable={!currentUser?.esEmpleado}
+                                    isDisabled={currentUser &amp;&amp; currentUser.esEmpleado}
+                                    styles={selectStyles}
+                                    menuPortalTarget={document.body}
+                                    noOptionsMessage={() => 'Sin resultados'}
+                                />
+                            &lt;/div>
+                            &lt;div className="filter-group">
+                                &lt;input type="text" className="filter-input" placeholder="Buscar por nombre..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} style={{ width: '200px' }} />
+                            &lt;/div>
+                            &lt;div className="filter-group">
+                                &lt;input type="text" className="filter-input" placeholder="Documento" value={documentoInput} onChange={(e) => setDocumentoInput(e.target.value)} style={{ width: '200px' }} />
+                            &lt;/div>
+                            &lt;div className="filter-group">
+                                &lt;input type="text" className="filter-input" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} style={{ width: '200px' }} />
+                            &lt;/div>
+                            &lt;div className="filter-group">
+                                &lt;select className="filter-input" value={filterNacionalidad} onChange={(e) => { setFilterNacionalidad(e.target.value); setPage(1); }} style={{ width: '200px' }}>
+                                    &lt;option value="">Nacionalidad&lt;/option>
+                                    {ubicaciones.nacionalidades.map(n => &lt;option key={n.id} value={n.id}>{n.nombre}&lt;/option>)}
+                                &lt;/select>
+                            &lt;/div>
+                            &lt;div className="filter-group">
+                                &lt;select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }} style={{ width: '200px' }}>
+                                    &lt;option value="true">Activos&lt;/option>
+                                    &lt;option value="false">Inactivos&lt;/option>
+                                &lt;/select>
+                            &lt;/div>
+                        &lt;/div>
+
+                        &lt;div className="filters-actions">
+                            &lt;div className="column-selector-wrapper">
+                                &lt;button className="btn btn-secondary btn-sm" onClick={() => setShowColumnSelector(!showColumnSelector)}>
+                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.004.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    &lt;/svg>
+                                    Columnas
+                                &lt;/button>
+                                {showColumnSelector &amp;&amp; (
+                                    &lt;div className="column-selector-dropdown">
+                                        {Object.entries({ espacio: 'Espacio', email: 'Email', documento: 'Documento', nacionalidad: 'Nacionalidad' }).map(([key, label]) => (
+                                            &lt;label key={key} className="column-option">
+                                                &lt;input type="checkbox" checked={visibleColumns[key]} onChange={() => toggleColumn(key)} />
+                                                &lt;span>{label}&lt;/span>
+                                            &lt;/label>
+                                        ))}
+                                    &lt;/div>
+                                )}
+                            &lt;/div>
+                            {hasActiveFilters &amp;&amp; (
+                                &lt;button className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    &lt;/svg>
+                                    Limpiar
+                                &lt;/button>
+                            )}
+                        &lt;/div>
+                    &lt;/div>
+                    {/* Content */}
+                    {loading ? (
+                        &lt;div className="loading">&lt;div className="spinner">&lt;/div>&lt;/div>
+                    ) : items.length === 0 ? (
+                        &lt;div className="empty-state">
+                            &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                            &lt;/svg>
+                            &lt;h3>No hay empleados {showingInactive ? 'inactivos' : ''}&lt;/h3>
+                            &lt;p>{showingInactive ? 'No hay empleados desactivados' : 'Crea un nuevo empleado para comenzar'}&lt;/p>
+                        &lt;/div>
+                    ) : (
+                        &lt;>
+                            &lt;div className="table-container">
+                                &lt;table className="table">
+                                    &lt;thead>
+                                        &lt;tr>
+                                            &lt;th style={{ width: '40px' }}>
+                                                &lt;input type="checkbox" checked={allSelected} ref={input => { if (input) input.indeterminate = someSelected; }} onChange={handleSelectAll} />
+                                            &lt;/th>
+                                            &lt;th>Nombre&lt;/th>
+                                            {visibleColumns.espacio &amp;&amp; &lt;th>Espacio&lt;/th>}
+                                            {visibleColumns.email &amp;&amp; &lt;th>Email&lt;/th>}
+                                            {visibleColumns.documento &amp;&amp; &lt;th>Documento&lt;/th>}
+                                            {visibleColumns.nacionalidad &amp;&amp; &lt;th>Nacionalidad&lt;/th>}
+                                            &lt;th>Acciones&lt;/th>
+                                        &lt;/tr>
+                                    &lt;/thead>
+                                    &lt;tbody>
+                                        {items.map((item) => (
+                                            &lt;tr key={item.id} className={`${selectedIds.has(item.id) ? 'row-selected' : ''} ${!item.activo ? 'row-inactive' : ''}`}>
+                                                &lt;td>&lt;input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => handleSelectOne(item.id)} />&lt;/td>
+                                                &lt;td>&lt;strong>{truncateText(item.apellido + ', ' + item.nombre, 15)}&lt;/strong>&lt;/td>
+                                                {visibleColumns.espacio &amp;&amp; &lt;td>{truncateText(item.espacioTrabajo?.nombre || '-', 20)}&lt;/td>}
+                                                {visibleColumns.email &amp;&amp; &lt;td>{truncateText(item.email, 20)}&lt;/td>}
+                                                {visibleColumns.documento &amp;&amp; &lt;td>{item.numeroDocumento}&lt;/td>}
+                                                {visibleColumns.nacionalidad &amp;&amp; &lt;td>{(() => {
+                                                    const id = item.nacionalidadId || item.nacionalidad;
+                                                    const nac = ubicaciones.nacionalidades.find(n => n.id === id);
+                                                    return nac ? nac.nombre : (id || '-');
+                                                })()}&lt;/td>}
+                                                &lt;td>
+                                                    &lt;div className="table-actions">
+                                                        {showingInactive ? (
+                                                            canEdit &amp;&amp; (
+                                                                &lt;button className="btn btn-success btn-sm" onClick={() => handleReactivate(item)} title="Reactivar">
+                                                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                                                    &lt;/svg>
+                                                                    Reactivar
+                                                                &lt;/button>
+                                                            )
+                                                        ) : (
+                                                            &lt;>
+                                                                &lt;button className="btn btn-info btn-sm" onClick={() => handleView(item)} title="Ver">
+                                                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                    &lt;/svg>
+                                                                    Ver
+                                                                &lt;/button>
+                                                                {canEdit &amp;&amp; (
+                                                                    &lt;button className="btn btn-warning btn-sm" onClick={() => handleEdit(item)} title="Editar">
+                                                                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                                                        &lt;/svg>
+                                                                        Editar
+                                                                    &lt;/button>
+                                                                )}
+                                                                {canDelete &amp;&amp; (
+                                                                    &lt;button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(item)} title="Desactivar">
+                                                                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                                                        &lt;/svg>
+                                                                        Desactivar
+                                                                    &lt;/button>
+                                                                )}
+                                                            &lt;/>
+                                                        )}
+                                                    &lt;/div>
+                                                &lt;/td>
+                                            &lt;/tr>
+                                        ))}
+                                    &lt;/tbody>
+                                &lt;/table>
+                            &lt;/div>
+
+                            {/* Pagination */}
+                            &lt;div className="pagination-bar">
+                                &lt;div className="pagination-info">
+                                    &lt;span>Filas por página:&lt;/span>
+                                    &lt;select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
+                                        {ROWS_PER_PAGE_OPTIONS.map(opt => &lt;option key={opt} value={opt}>{opt}&lt;/option>)}
+                                    &lt;/select>
+                                    &lt;span className="pagination-total">
+                                        {((page - 1) * limit) + 1}-{Math.min(page * limit, total)} de {total}
+                                    &lt;/span>
+                                &lt;/div>
+                                &lt;div className="pagination-controls">
+                                    &lt;button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«&lt;/button>
+                                    &lt;button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹&lt;/button>
+                                    &lt;span className="pagination-page">Página {page} de {totalPages || 1}&lt;/span>
+                                    &lt;button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›&lt;/button>
+                                    &lt;button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»&lt;/button>
+                                &lt;/div>
+                            &lt;/div>
+                        &lt;/>
+                    )}
+                &lt;/div>
+
+                {/* Modals */}
+                {showWizard &amp;&amp; (
+                    &lt;EmpleadoWizard empleado={editingItem} onClose={handleCloseWizard} onSuccess={handleWizardSuccess} />
+                )}
+
+                {showDetail &amp;&amp; selectedItem &amp;&amp; (
+                    &lt;EmpleadoDetail
+                        empleado={selectedItem}
+                        onClose={() => { setShowDetail(false); setSelectedItem(null); }}
+                        onEdit={(empleado) => {
+                            setShowDetail(false);
+                            setSelectedItem(null);
+                            setEditingItem(empleado);
+                            setShowWizard(true);
+                        }}
+                    />
+                )}
+
+                &lt;ConfirmDialog
+                    isOpen={confirmOpen}
+                    title="Desactivar empleado"
+                    message={itemToDelete ? `¿Estás seguro de desactivar al empleado "${itemToDelete.nombre} ${itemToDelete.apellido}"? Podrás reactivarlo más tarde.` : ''}
+                    onConfirm={handleConfirmDelete}
+                    onCancel={handleCancelDelete}
+                    confirmText="Desactivar"
+                    variant="danger"
+                />
+
+                &lt;ConfirmDialog
+                    isOpen={confirmBulkOpen}
+                    title="Desactivar empleados"
+                    message={`¿Estás seguro de desactivar ${selectedIds.size} empleado(s)? Podrás reactivarlos más tarde.`}
+                    onConfirm={handleConfirmBulkDelete}
+                    onCancel={() => setConfirmBulkOpen(false)}
+                    confirmText="Desactivar todos"
+                    variant="danger"
+                />
+
+                {/* Prompt para crear contrato después de crear empleado */}
+                &lt;ConfirmDialog
+                    isOpen={showContratoPrompt}
+                    title="¿Registrar contrato?"
+                    message={nuevoEmpleado ? `El empleado "${nuevoEmpleado.nombre} ${nuevoEmpleado.apellido}" fue creado exitosamente. ¿Deseas registrar un contrato para este empleado ahora?` : ''}
+                    onConfirm={handleContratoPromptYes}
+                    onCancel={handleContratoPromptNo}
+                    confirmText="Sí, crear contrato"
+                    cancelText="No, más tarde"
+                />
+            &lt;/div>
+        &lt;/>
+    );
+};
+
+export default Empleados;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

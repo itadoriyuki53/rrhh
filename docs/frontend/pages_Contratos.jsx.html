@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages/Contratos.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages/Contratos.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Panel de administración y visualización de contratos laborales.
+ * @module pages/Contratos
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import Select from 'react-select';
+import {
+    getContratos, deleteContrato, deleteContratosBulk,
+    getContratoById, reactivateContrato,
+    getEmpleados, getEspaciosTrabajo, getCurrentUser,
+} from '../services/api';
+import { formatDateOnly, formatCurrency, truncateText } from '../helpers/formatters';
+import { useIsDark, useModulePermissions } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
+import ContratoWizard from '../components/ContratoWizard';
+import ContratoDetail from '../components/ContratoDetail';
+import ConfirmDialog from '../components/ConfirmDialog';
+
+const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
+
+const TIPOS_CONTRATO_LABELS = {
+    tiempo_indeterminado: 'Tiempo Indeterminado', periodo_prueba: 'Período de Prueba',
+    plazo_fijo: 'Plazo Fijo', eventual: 'Eventual', teletrabajo: 'Teletrabajo',
+    locacion_servicios: 'Locación de Servicios', monotributista: 'Monotributista',
+    responsable_inscripto: 'Responsable Inscripto', honorarios: 'Honorarios',
+    contrato_obra: 'Contrato de Obra', pasantia_educativa: 'Pasantía Educativa',
+    beca: 'Beca', ad_honorem: 'Ad honorem',
+};
+
+const TIPOS_CONTRATO_FILTER = Object.entries(TIPOS_CONTRATO_LABELS).map(([value, label]) => ({ value, label }));
+
+
+
+/**
+ * Componente Contratos
+ * 
+ * Panel de administración de contratos de la plataforma. Configuración de hooks como useIsDark base, 
+ * useModulePermissions para lecto/escritura y callbacks para control del flujo de estados.
+ * 
+ * @returns {JSX.Element}
+ */
+const Contratos = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { user } = useAuth();
+
+    const { isEmpleadoUser, canRead, canCreate, canEdit, canDelete } = useModulePermissions(user, 'contratos');
+
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(10);
+    const [totalPages, setTotalPages] = useState(1);
+    const [total, setTotal] = useState(0);
+    const [filterActivo, setFilterActivo] = useState('true');
+    const [filterTipoContrato, setFilterTipoContrato] = useState('');
+    const [filterEspacio, setFilterEspacio] = useState(null);
+    const [filterEmpleado, setFilterEmpleado] = useState(null);
+    const [filterEstado, setFilterEstado] = useState('');
+    const [filterSalarioMin, setFilterSalarioMin] = useState('');
+    const [filterSalarioMax, setFilterSalarioMax] = useState('');
+    const [salarioMinInput, setSalarioMinInput] = useState('');
+    const [salarioMaxInput, setSalarioMaxInput] = useState('');
+    const [empleadosList, setEmpleadosList] = useState([]);
+    const [espaciosList, setEspaciosList] = useState([]);
+    const [currentUser, setCurrentUser] = useState(null);
+    const isDark = useIsDark();
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [visibleColumns, setVisibleColumns] = useState({ espacio: false, tipoContrato: true, estado: true, salario: true });
+    const [showColumnSelector, setShowColumnSelector] = useState(false);
+    const [showWizard, setShowWizard] = useState(false);
+    const [modoMultiple, setModoMultiple] = useState(false);
+    const [showDetail, setShowDetail] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [empleadoPreseleccionado, setEmpleadoPreseleccionado] = useState(null);
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
+
+
+
+    // Redirigir si no tiene permiso de lectura
+    useEffect(() => {
+        if (user &amp;&amp; isEmpleadoUser &amp;&amp; !canRead) {
+            navigate('/dashboard', { replace: true });
+        }
+    }, [user, isEmpleadoUser, canRead, navigate]);
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const [empRes, espRes, userMe] = await Promise.all([
+                    getEmpleados({ limit: 500, activo: 'true' }),
+                    getEspaciosTrabajo({ limit: 200, activo: 'true' }),
+                    getCurrentUser(),
+                ]);
+                setEmpleadosList(empRes.data || []);
+                setEspaciosList(espRes.data || []);
+                setCurrentUser(userMe);
+
+                if (userMe &amp;&amp; userMe.esEmpleado) {
+                    const espacios = espRes.data || [];
+                    if (userMe.espacioTrabajoId) {
+                        const miEspacio = espacios.find(e => e.id === userMe.espacioTrabajoId);
+                        if (miEspacio) {
+                            setFilterEspacio({ value: miEspacio.id, label: miEspacio.nombre });
+                        }
+                    }
+                }
+            } catch (e) { console.error(e); }
+        };
+        load();
+    }, []);
+
+    const empleadoOptions = Object.values(
+        (empleadosList).reduce((acc, emp) => {
+            const ws = emp.espacioTrabajo?.nombre || 'Sin Espacio';
+            if (!acc[ws]) acc[ws] = { label: ws, options: [] };
+            const ap = emp.usuario?.apellido || emp.apellido || '';
+            const nm = emp.usuario?.nombre || emp.nombre || '';
+            const doc = emp.numeroDocumento || '';
+            acc[ws].options.push({ value: emp.id, label: `${ap}, ${nm}${doc ? ` - ${doc}` : ''}` });
+            return acc;
+        }, {})
+    );
+
+    const espacioOptions = espaciosList.map(e => ({ value: e.id, label: e.nombre }));
+    const selectStyles = buildSelectStyles(isDark);
+
+    useEffect(() => {
+        if (location.state?.empleadoPreseleccionado) {
+            setEmpleadoPreseleccionado(location.state.empleadoPreseleccionado);
+            setShowWizard(true);
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+    }, [location.state, navigate, location.pathname]);
+
+    // Debounce Search (Salario Minimo y Maximo)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setFilterSalarioMin(salarioMinInput);
+            setPage(1);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [salarioMinInput]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setFilterSalarioMax(salarioMaxInput);
+            setPage(1);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [salarioMaxInput]);
+
+    /**
+     * Refresca la vista de contratos llamando al servicio `getContratos`.
+     * Aplica filtros de visibilidad, espacios, salarios y paginado activo.
+     * 
+     * @async
+     * @returns {Promise&lt;void>}
+     */
+    const loadItems = useCallback(async () => {
+        try {
+            setLoading(true);
+            const params = { tipoContrato: filterTipoContrato, activo: filterActivo, page, limit };
+            if (filterEspacio) params.espacioTrabajoId = filterEspacio.value;
+            if (filterEmpleado) params.empleadoId = filterEmpleado.value;
+            if (filterEstado) params.estado = filterEstado;
+            if (filterSalarioMin) params.salarioMin = filterSalarioMin;
+            if (filterSalarioMax) params.salarioMax = filterSalarioMax;
+            const result = await getContratos(params);
+            setItems(result.data);
+            setTotalPages(result.pagination.totalPages);
+            setTotal(result.pagination.total);
+            setSelectedIds(new Set());
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [filterTipoContrato, filterActivo, page, limit, filterEspacio, filterEmpleado, filterEstado, filterSalarioMin, filterSalarioMax]);
+
+    useEffect(() => { loadItems(); }, [loadItems]);
+
+    /**
+     * Restablece activamente y elimina todos los filtros aplicados a la vista de datos.
+     * 
+     * @returns {void}
+     */
+    const clearFilters = () => {
+        setFilterActivo('true'); setFilterTipoContrato('');
+        if (!currentUser || !currentUser.esEmpleado) {
+            setFilterEspacio(null);
+        }
+        setFilterEmpleado(null);
+        setFilterEstado('');
+        setFilterSalarioMin('');
+        setFilterSalarioMax('');
+        setSalarioMinInput('');
+        setSalarioMaxInput('');
+        setPage(1);
+    };
+
+    const isEmpleado = currentUser &amp;&amp; currentUser.esEmpleado;
+    const hasActiveFilters = filterActivo !== 'true' || filterTipoContrato || (!isEmpleado &amp;&amp; filterEspacio) || filterEmpleado || filterEstado || filterSalarioMin || filterSalarioMax;
+    const toggleColumn = (col) => setVisibleColumns(prev => ({ ...prev, [col]: !prev[col] }));
+
+    const handleSelectAll = (e) => {
+        setSelectedIds(e.target.checked ? new Set(items.filter(i => i.estado !== 'finalizado').map(i => i.id)) : new Set());
+    };
+    const handleSelectOne = (id) => {
+        const s = new Set(selectedIds);
+        s.has(id) ? s.delete(id) : s.add(id);
+        setSelectedIds(s);
+    };
+    const selectableItems = items.filter(i => i.estado !== 'finalizado');
+    const allSelected = selectableItems.length > 0 &amp;&amp; selectableItems.every(i => selectedIds.has(i.id));
+    const someSelected = items.some(i => selectedIds.has(i.id)) &amp;&amp; !allSelected;
+
+    const handleEdit = async (item) => {
+        try { const f = await getContratoById(item.id); setEditingItem(f); setModoMultiple(false); setShowWizard(true); setError(''); setSuccess(''); }
+        catch (err) { setError(err.message); }
+    };
+    const handleView = async (item) => {
+        try { const f = await getContratoById(item.id); setSelectedItem(f); setShowDetail(true); }
+        catch (err) { setError(err.message); }
+    };
+    const handleCloseWizard = () => { setShowWizard(false); setEditingItem(null); setEmpleadoPreseleccionado(null); };
+    const handleWizardSuccess = (count = 1) => {
+        handleCloseWizard();
+        setSuccess(editingItem ? 'Contrato actualizado correctamente' : (count > 1 ? `${count} contratos creados` : 'Contrato creado correctamente'));
+        loadItems();
+    };
+    const handleDeleteClick = (item) => { setItemToDelete(item); setConfirmOpen(true); };
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
+        try { await deleteContrato(itemToDelete.id); setSuccess('Contrato desactivado correctamente'); loadItems(); }
+        catch (err) { setError(err.message); }
+        finally { setConfirmOpen(false); setItemToDelete(null); }
+    };
+    const handleConfirmBulkDelete = async () => {
+        try { await deleteContratosBulk(Array.from(selectedIds)); setSuccess(`${selectedIds.size} contrato(s) desactivado(s)`); setSelectedIds(new Set()); loadItems(); }
+        catch (err) { setError(err.message); }
+        finally { setConfirmBulkOpen(false); }
+    };
+    const handleReactivate = async (item) => {
+        try { await reactivateContrato(item.id); setSuccess('Contrato reactivado correctamente'); loadItems(); }
+        catch (err) { setError(err.message); }
+    };
+    const showingInactive = filterActivo === 'false';
+
+    const SVG_GEAR = (
+        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.004.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        &lt;/svg>
+    );
+
+    const formatDate = (dateString) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
+    return (
+        &lt;div>
+            &lt;div className="page-header">
+                &lt;div>
+                    &lt;h1 className="page-title">Contratos&lt;/h1>
+                    &lt;p className="page-subtitle">Gestiona los contratos laborales de los empleados&lt;/p>
+                &lt;/div>
+            &lt;/div>
+            {error &amp;&amp; &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}&lt;button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕&lt;/button>&lt;/div>}
+            {success &amp;&amp; &lt;div className="alert alert-success" style={{ marginBottom: '1rem' }}>{success}&lt;button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕&lt;/button>&lt;/div>}
+            &lt;div className="card">
+                &lt;div className="card-header">
+                    &lt;div className="header-left">
+                        &lt;h3 className="card-title">Listado de Contratos&lt;/h3>
+                        &lt;span className="selection-indicator">{selectedIds.size} de {total} seleccionados&lt;/span>
+                    &lt;/div>
+                    &lt;div className="header-actions">
+                        {selectedIds.size > 0 &amp;&amp; !showingInactive &amp;&amp; canDelete &amp;&amp; (
+                            &lt;button className="btn btn-danger" onClick={() => setConfirmBulkOpen(true)}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>&lt;path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />&lt;/svg>
+                                Desactivar seleccionados
+                            &lt;/button>
+                        )}
+                        {canCreate &amp;&amp; (
+                            &lt;button className="btn btn-primary" onClick={() => { setEditingItem(null); setEmpleadoPreseleccionado(null); setModoMultiple(true); setShowWizard(true); setError(''); setSuccess(''); }}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>&lt;path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />&lt;/svg>
+                                Nuevo Contrato
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+                {/* Filters */}
+                &lt;div className="filters-bar">
+                    &lt;div className="filters-inputs">
+                        &lt;div className="filter-group" style={{ width: '200px' }}>
+                            &lt;Select
+                                options={espacioOptions}
+                                value={filterEspacio}
+                                onChange={opt => { setFilterEspacio(opt); setPage(1); }}
+                                placeholder="Espacio..."
+                                isClearable={!currentUser?.esEmpleado}
+                                isDisabled={currentUser &amp;&amp; currentUser.esEmpleado}
+                                styles={selectStyles}
+                                menuPortalTarget={document.body}
+                                noOptionsMessage={() => 'Sin resultados'}
+                            />
+                        &lt;/div>
+                        &lt;div className="filter-group" style={{ width: '200px' }}>
+                            &lt;Select options={empleadoOptions} value={filterEmpleado} onChange={opt => { setFilterEmpleado(opt); setPage(1); }} placeholder="Empleado..." isClearable styles={selectStyles} menuPortalTarget={document.body} noOptionsMessage={() => 'Sin resultados'} />
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;select className="filter-input" value={filterTipoContrato} onChange={(e) => { setFilterTipoContrato(e.target.value); setPage(1); }} style={{ width: '200px' }}>
+                                &lt;option value="">Tipo de contrato&lt;/option>
+                                {TIPOS_CONTRATO_FILTER.map(t => &lt;option key={t.value} value={t.value}>{t.label}&lt;/option>)}
+                            &lt;/select>
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;select className="filter-input" value={filterEstado} onChange={(e) => { setFilterEstado(e.target.value); setPage(1); }} style={{ width: '200px' }}>
+                                &lt;option value="">Estado&lt;/option>
+                                &lt;option value="pendiente">Pendiente&lt;/option>
+                                &lt;option value="en_curso">En Curso&lt;/option>
+                                &lt;option value="finalizado">Finalizado&lt;/option>
+                            &lt;/select>
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;input type="number" className="filter-input" placeholder="Salario mín." value={salarioMinInput} onChange={e => setSalarioMinInput(e.target.value)} style={{ width: '200px' }} min="0" />
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;input type="number" className="filter-input" placeholder="Salario máx." value={salarioMaxInput} onChange={e => setSalarioMaxInput(e.target.value)} style={{ width: '200px' }} min="0" />
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }} style={{ width: '200px' }}>
+                                &lt;option value="true">Activos&lt;/option>
+                                &lt;option value="false">Inactivos&lt;/option>
+                            &lt;/select>
+                        &lt;/div>
+                    &lt;/div>
+                    &lt;div className="filters-actions">
+                        &lt;div className="column-selector-wrapper">
+                            &lt;button className="btn btn-secondary btn-sm" onClick={() => setShowColumnSelector(!showColumnSelector)}>{SVG_GEAR} Columnas&lt;/button>
+                            {showColumnSelector &amp;&amp; (
+                                &lt;div className="column-selector-dropdown">
+                                    {Object.entries({ espacio: 'Espacio', tipoContrato: 'Tipo', estado: 'Estado', salario: 'Salario' }).map(([k, l]) => (
+                                        &lt;label key={k} className="column-option">
+                                            &lt;input type="checkbox" checked={visibleColumns[k]} onChange={() => toggleColumn(k)} />&lt;span>{l}&lt;/span>
+                                        &lt;/label>
+                                    ))}
+                                &lt;/div>
+                            )}
+                        &lt;/div>
+                        {hasActiveFilters &amp;&amp; (
+                            &lt;button className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>&lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />&lt;/svg> Limpiar
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+                {loading ? (&lt;div className="loading">&lt;div className="spinner">&lt;/div>&lt;/div>) : items.length === 0 ? (
+                    &lt;div className="empty-state">
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">&lt;path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />&lt;/svg>
+                        &lt;h3>No hay contratos {showingInactive ? 'inactivos' : ''}&lt;/h3>
+                        &lt;p>{showingInactive ? 'No hay contratos desactivados' : 'Crea un nuevo contrato para comenzar'}&lt;/p>
+                    &lt;/div>
+                ) : (
+                    &lt;>
+                        &lt;div className="table-container">
+                            &lt;table className="table">
+                                &lt;thead>&lt;tr>
+                                    &lt;th style={{ width: '40px' }}>&lt;input type="checkbox" checked={allSelected} ref={input => { if (input) input.indeterminate = someSelected; }} onChange={handleSelectAll} />&lt;/th>
+                                    &lt;th>Empleado&lt;/th>
+                                    {visibleColumns.espacio &amp;&amp; &lt;th>Espacio&lt;/th>}
+                                    {visibleColumns.tipoContrato &amp;&amp; &lt;th>Tipo&lt;/th>}
+                                    {visibleColumns.estado &amp;&amp; &lt;th>Estado&lt;/th>}
+                                    {visibleColumns.salario &amp;&amp; &lt;th>Salario&lt;/th>}
+                                    &lt;th>Inicio&lt;/th>
+                                    &lt;th>Acciones&lt;/th>
+                                &lt;/tr>&lt;/thead>
+                                &lt;tbody>
+                                    {items.map((item) => {
+                                        const hoy = new Date();
+                                        const fin = item.fechaFin ? new Date(item.fechaFin) : null;
+                                        const dias = fin ? Math.ceil((fin - hoy) / 86400000) : null;
+                                        const estado = item.estado == 'finalizado' ? 'Finalizado' : item.estado == 'en_curso' ? 'En Curso' : item.estado == 'pendiente' ? 'Pendiente' : 'Indefinido';
+                                        const eColor = { Finalizado: '#ef4444', 'En Curso': '#3b82f6', Pendiente: '#f59e0b' }[estado] || '#64748b';
+                                        const ap = item.empleado?.usuario?.apellido || item.empleado?.apellido || '';
+                                        const nm = item.empleado?.usuario?.nombre || item.empleado?.nombre || '';
+                                        return (
+                                            &lt;tr key={item.id} className={`${selectedIds.has(item.id) ? 'row-selected' : ''} ${!item.activo ? 'row-inactive' : ''}`}>
+                                                &lt;td>&lt;input type="checkbox" disabled={item.estado === 'finalizado'} checked={selectedIds.has(item.id)} onChange={() => handleSelectOne(item.id)} />&lt;/td>
+                                                &lt;td>
+                                                    &lt;strong>{truncateText(ap + ', ' + nm, 15)}&lt;/strong>
+                                                    &lt;div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{item.empleado?.numeroDocumento}&lt;/div>
+                                                &lt;/td>
+                                                {visibleColumns.espacio &amp;&amp; &lt;td>{truncateText(item.empleado?.espacioTrabajo?.nombre || '-')}&lt;/td>}
+                                                {visibleColumns.tipoContrato &amp;&amp; &lt;td>{truncateText(TIPOS_CONTRATO_LABELS[item.tipoContrato] || item.tipoContrato, 15)}&lt;/td>}
+                                                {visibleColumns.estado &amp;&amp; &lt;td>&lt;span style={{ display: 'inline-flex', alignItems: 'center', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '9999px', background: `${eColor}20`, color: eColor, fontWeight: 600 }}>{estado}&lt;/span>&lt;/td>}
+                                                {visibleColumns.salario &amp;&amp; &lt;td>&lt;strong>{formatCurrency(item.salario)}&lt;/strong>&lt;/td>}
+                                                &lt;td>{formatDate(item.fechaInicio)}&lt;/td>
+                                                &lt;td>
+                                                    &lt;div className="table-actions">
+                                                        {showingInactive ? (
+                                                            canEdit &amp;&amp; (
+                                                                &lt;button className="btn btn-success btn-sm" onClick={() => handleReactivate(item)}>
+                                                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>&lt;path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />&lt;/svg>
+                                                                    Reactivar
+                                                                &lt;/button>
+                                                            )
+                                                        ) : (
+                                                            &lt;>
+                                                                &lt;button className="btn btn-info btn-sm" onClick={() => handleView(item)}>
+                                                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>&lt;path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />&lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />&lt;/svg>
+                                                                    Ver
+                                                                &lt;/button>
+                                                                {canEdit &amp;&amp; item.estado !== 'finalizado' &amp;&amp; (
+                                                                    &lt;button className="btn btn-warning btn-sm" onClick={() => handleEdit(item)}>
+                                                                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>&lt;path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />&lt;/svg>
+                                                                        Editar
+                                                                    &lt;/button>
+                                                                )}
+                                                                {canDelete &amp;&amp; item.estado !== 'finalizado' &amp;&amp; (
+                                                                    &lt;button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(item)}>
+                                                                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>&lt;path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />&lt;/svg>
+                                                                        Desactivar
+                                                                    &lt;/button>
+                                                                )}
+                                                            &lt;/>
+                                                        )}
+                                                    &lt;/div>
+                                                &lt;/td>
+                                            &lt;/tr>
+                                        );
+                                    })}
+                                &lt;/tbody>
+                            &lt;/table>
+                        &lt;/div>
+                        &lt;div className="pagination-bar">
+                            &lt;div className="pagination-info">
+                                &lt;span>Filas por página:&lt;/span>
+                                &lt;select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">{ROWS_PER_PAGE_OPTIONS.map(opt => &lt;option key={opt} value={opt}>{opt}&lt;/option>)}&lt;/select>
+                                &lt;span className="pagination-total">{((page - 1) * limit) + 1}-{Math.min(page * limit, total)} de {total}&lt;/span>
+                            &lt;/div>
+                            &lt;div className="pagination-controls">
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«&lt;/button>
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹&lt;/button>
+                                &lt;span className="pagination-page">Página {page} de {totalPages || 1}&lt;/span>
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›&lt;/button>
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»&lt;/button>
+                            &lt;/div>
+                        &lt;/div>
+                    &lt;/>
+                )}
+            &lt;/div>
+            {showWizard &amp;&amp; &lt;ContratoWizard contrato={editingItem} onClose={handleCloseWizard} onSuccess={handleWizardSuccess} empleadoPreseleccionado={empleadoPreseleccionado} />}
+            {showDetail &amp;&amp; selectedItem &amp;&amp; (
+                &lt;ContratoDetail contrato={selectedItem} onClose={() => { setShowDetail(false); setSelectedItem(null); }} onEdit={(c) => { setShowDetail(false); setSelectedItem(null); setEditingItem(c); setModoMultiple(false); setShowWizard(true); }} />
+            )}
+            &lt;ConfirmDialog isOpen={confirmOpen} title="Desactivar contrato" message="¿Estás seguro de desactivar este contrato? Podrás reactivarlo más tarde." onConfirm={handleConfirmDelete} onCancel={() => { setConfirmOpen(false); setItemToDelete(null); }} confirmText="Desactivar" variant="danger" />
+            &lt;ConfirmDialog isOpen={confirmBulkOpen} title="Desactivar contratos" message={`¿Desactivar ${selectedIds.size} contrato(s)? Podrás reactivarlos más tarde.`} onConfirm={handleConfirmBulkDelete} onCancel={() => setConfirmBulkOpen(false)} confirmText="Desactivar todos" variant="danger" />
+        &lt;/div>
+    );
+};
+
+export default Contratos;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

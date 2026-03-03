@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/EmpleadoWizard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/EmpleadoWizard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Orquestador de alta y modificación de empleados mediante un proceso guiado (Wizard).
+ * @module components/EmpleadoWizard
+ */
+
+import { useState, useEffect } from 'react';
+import StepTracker from './StepTracker';
+import EspacioTrabajoSelector from './EspacioTrabajoSelector';
+import { createEmpleado, updateEmpleado, canChangeEmpleadoWorkspace } from '../services/api';
+import ubicaciones from '../data/ubicaciones.json';
+
+const GENEROS = [
+    { value: 'femenino', label: 'Femenino' },
+    { value: 'masculino', label: 'Masculino' },
+    { value: 'otro', label: 'Otro' },
+];
+
+const ESTADOS_CIVILES = [
+    { value: 'soltero', label: 'Soltero/a' },
+    { value: 'casado', label: 'Casado/a' },
+    { value: 'divorciado', label: 'Divorciado/a' },
+    { value: 'viudo', label: 'Viudo/a' },
+];
+
+const TIPOS_DOCUMENTO = [
+    { value: 'cedula', label: 'Cédula' },
+    { value: 'pasaporte', label: 'Pasaporte' },
+];
+
+// Tooltip content for Argentine labor law
+const TOOLTIP_EDAD_MINIMA = `En Argentina, la edad mínima para trabajar es 16 años, según la Ley 26.390 de Prohibición del Trabajo Infantil y Protección del Trabajo Adolescente.
+
+Entre 16 y 18 años, los adolescentes pueden trabajar con autorización de sus padres o tutores, en una jornada reducida de hasta 6 horas diarias o 36 horas semanales, y sin realizar tareas nocturnas, peligrosas o insalubres.
+
+Como excepción, los adolescentes de 14 a 16 años solo pueden trabajar en empresas familiares, en jornadas más reducidas (máximo 3 horas diarias y 15 horas semanales), con autorización administrativa y siempre que no se vea afectada su escolaridad.`;
+
+/**
+ * Componente interno FieldError
+ * Renderiza un mensaje de error estilizado para campos de formulario.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {string} props.message - El mensaje a mostrar.
+ */
+const FieldError = ({ message }) => {
+    if (!message) return null;
+    return &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}&lt;/span>;
+};
+
+/**
+ * Componente EmpleadoWizard
+ * 
+ * Gestiona la creación y edición de empleados, validando datos personales,
+ * legales y dirección en múltiples pasos. Asegura el cumplimiento de reglas
+ * de negocio como edad mínima y unicidad de campos sensibles.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.empleado] - Objeto empleado a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras una operación exitosa.
+ * @returns {JSX.Element}
+ */
+const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess }) => {
+    const isEditMode = !!empleadoToEdit;
+    const [currentStep, setCurrentStep] = useState(1);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [touched, setTouched] = useState({});
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [showTooltipEdad, setShowTooltipEdad] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    // Espacio de Trabajo
+    const [espacioTrabajoId, setEspacioTrabajoId] = useState('');
+    const [canChangeWorkspace, setCanChangeWorkspace] = useState(true);
+    const [workspaceChangeMessage, setWorkspaceChangeMessage] = useState('');
+
+    // Datos externos
+    const [nacionalidades, setNacionalidades] = useState([]);
+    const [provincias, setProvincias] = useState([]);
+    const [ciudades, setCiudades] = useState([]);
+
+    // Form data - Paso 1: Información básica
+    const [info, setInfo] = useState({
+        nombre: '',
+        apellido: '',
+        email: '',
+        telefono: '',
+        tipoDocumento: 'cedula',
+        numeroDocumento: '',
+        cuil: '',
+        fechaNacimiento: '',
+        nacionalidadId: '',
+        genero: '',
+        estadoCivil: '',
+        contrasena: '',
+        confirmarContrasena: '',
+    });
+
+    // Form data - Paso 2: Dirección
+    const [direccion, setDireccion] = useState({
+        calle: '',
+        numero: '',
+        piso: '',
+        departamento: '',
+        codigoPostal: '',
+        provinciaId: '',
+        provinciaNombre: '',
+        ciudadId: '',
+        ciudadNombre: '',
+    });
+
+    const steps = [
+        { number: 1, title: 'Información Básica' },
+        { number: 2, title: 'Dirección' },
+    ];
+
+    // Cargar datos iniciales
+    useEffect(() => {
+        loadInitialData();
+    }, []);
+
+    // Cargar datos del empleado si es edición
+    useEffect(() => {
+        if (empleadoToEdit) {
+            setInfo({
+                nombre: empleadoToEdit.nombre || '',
+                apellido: empleadoToEdit.apellido || '',
+                email: empleadoToEdit.email || '',
+                telefono: empleadoToEdit.telefono || '',
+                tipoDocumento: empleadoToEdit.tipoDocumento || 'cedula',
+                numeroDocumento: empleadoToEdit.numeroDocumento || '',
+                cuil: empleadoToEdit.cuil || '',
+                fechaNacimiento: empleadoToEdit.fechaNacimiento || '',
+                nacionalidadId: String(empleadoToEdit.nacionalidadId || ''),
+                genero: empleadoToEdit.genero || '',
+                estadoCivil: empleadoToEdit.estadoCivil || '',
+            });
+            setDireccion({
+                calle: empleadoToEdit.calle || '',
+                numero: empleadoToEdit.numero || '',
+                piso: empleadoToEdit.piso || '',
+                departamento: empleadoToEdit.departamento || '',
+                codigoPostal: empleadoToEdit.codigoPostal || '',
+                provinciaId: String(empleadoToEdit.provinciaId || ''),
+                provinciaNombre: empleadoToEdit.provinciaNombre || '',
+                ciudadId: String(empleadoToEdit.ciudadId || ''),
+                ciudadNombre: empleadoToEdit.ciudadNombre || '',
+            });
+
+            // Cargar espacio de trabajo
+            setEspacioTrabajoId(String(empleadoToEdit.espacioTrabajoId || ''));
+
+            // Verificar si puede cambiar de espacio
+            if (empleadoToEdit.id) {
+                checkCanChangeWorkspace(empleadoToEdit.id);
+            }
+        }
+    }, [empleadoToEdit]);
+
+    const checkCanChangeWorkspace = async (empleadoId) => {
+        try {
+            const result = await canChangeEmpleadoWorkspace(empleadoId);
+            setCanChangeWorkspace(result.canChange);
+            setWorkspaceChangeMessage(result.reason || '');
+        } catch (err) {
+            console.error('Error al verificar cambio de espacio:', err);
+            // En caso de error, permitir el cambio por defecto
+            setCanChangeWorkspace(true);
+        }
+    };
+
+    const loadInitialData = () => {
+        setNacionalidades(ubicaciones.nacionalidades);
+        setProvincias(ubicaciones.provincias);
+    };
+
+    // Cargar ciudades cuando cambia la provincia
+    useEffect(() => {
+        if (direccion.provinciaId) {
+            loadCiudades(direccion.provinciaId);
+        } else {
+            setCiudades([]);
+        }
+    }, [direccion.provinciaId]);
+
+
+
+    const loadCiudades = (provinciaId) => {
+        const provincia = ubicaciones.provincias.find(p => p.id == provinciaId);
+        if (provincia &amp;&amp; provincia.ciudades) {
+            setCiudades(provincia.ciudades);
+        } else {
+            setCiudades([]);
+        }
+    };
+
+
+
+    const handleBlur = (field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+        validateField(field);
+    };
+
+    const validateField = (field) => {
+        const errors = { ...fieldErrors };
+
+        // Step 1 validations
+        if (field === 'nombre' &amp;&amp; !info.nombre?.trim()) errors.nombre = 'El nombre es requerido';
+        else if (field === 'nombre') delete errors.nombre;
+
+        if (field === 'apellido' &amp;&amp; !info.apellido?.trim()) errors.apellido = 'El apellido es requerido';
+        else if (field === 'apellido') delete errors.apellido;
+
+        if (field === 'email') {
+            if (!info.email?.trim()) errors.email = 'El email es requerido';
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.email)) errors.email = 'Email inválido';
+            else delete errors.email;
+        }
+
+        if (field === 'numeroDocumento' &amp;&amp; !info.numeroDocumento?.trim()) errors.numeroDocumento = 'El documento es requerido';
+        else if (field === 'numeroDocumento') delete errors.numeroDocumento;
+
+        if (field === 'fechaNacimiento' &amp;&amp; !info.fechaNacimiento?.trim()) errors.fechaNacimiento = 'La fecha es requerida';
+        else if (field === 'fechaNacimiento') delete errors.fechaNacimiento;
+
+        if (field === 'nacionalidadId' &amp;&amp; !info.nacionalidadId?.trim()) errors.nacionalidadId = 'La nacionalidad es requerida';
+        else if (field === 'nacionalidadId') delete errors.nacionalidadId;
+
+        if (field === 'genero' &amp;&amp; !info.genero?.trim()) errors.genero = 'El género es requerido';
+        else if (field === 'genero') delete errors.genero;
+
+        if (field === 'estadoCivil' &amp;&amp; !info.estadoCivil?.trim()) errors.estadoCivil = 'El estado civil es requerido';
+        else if (field === 'estadoCivil') delete errors.estadoCivil;
+
+        // Step 2 validations
+        if (field === 'calle' &amp;&amp; !direccion.calle?.trim()) errors.calle = 'La calle es requerida';
+        else if (field === 'calle') delete errors.calle;
+
+        if (field === 'numero' &amp;&amp; !direccion.numero?.trim()) errors.numero = 'El número es requerido';
+        else if (field === 'numero') delete errors.numero;
+
+        if (field === 'provinciaId' &amp;&amp; !direccion.provinciaId) errors.provinciaId = 'La provincia es requerida';
+        else if (field === 'provinciaId') delete errors.provinciaId;
+
+        setFieldErrors(errors);
+    };
+
+    const handleInfoChange = (e) => {
+        const { name, value } = e.target;
+        setInfo(prev => ({ ...prev, [name]: value }));
+        setError('');
+        if (touched[name]) validateField(name);
+    };
+
+    const handleDireccionChange = (e) => {
+        const { name, value } = e.target;
+
+        if (name === 'provinciaId') {
+            const prov = provincias.find(p => p.id == value);
+            setDireccion(prev => ({
+                ...prev,
+                provinciaId: value,
+                provinciaNombre: prov?.nombre || '',
+                ciudadId: '',
+                ciudadNombre: '',
+            }));
+        } else if (name === 'ciudadId') {
+            const city = ciudades.find(c => c.id == value);
+            setDireccion(prev => ({
+                ...prev,
+                ciudadId: value,
+                ciudadNombre: city?.nombre || '',
+            }));
+        } else {
+            setDireccion(prev => ({ ...prev, [name]: value }));
+        }
+        setError('');
+        if (touched[name]) validateField(name);
+    };
+
+
+
+    const validateStep = () => {
+        const errors = {};
+
+        if (currentStep === 1) {
+            if (!info.nombre?.trim()) errors.nombre = 'El nombre es requerido';
+            if (!info.apellido?.trim()) errors.apellido = 'El apellido es requerido';
+            if (!info.email?.trim()) errors.email = 'El email es requerido';
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.email)) errors.email = 'Email inválido';
+
+            // Validación de documento
+            if (!info.numeroDocumento?.trim()) {
+                errors.numeroDocumento = 'El documento es requerido';
+            } else if (!/^(\d{8}|[MF]\d{7})$/.test(info.numeroDocumento)) {
+                errors.numeroDocumento = 'El documento debe ser 8 números o comenzar con M/F seguido de 7 números';
+            }
+
+            // Validación de fecha de nacimiento
+            if (!info.fechaNacimiento?.trim()) {
+                errors.fechaNacimiento = 'La fecha es requerida';
+            } else {
+                const birthDate = new Date(info.fechaNacimiento);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                // No puede ser futura
+                if (birthDate > today) {
+                    errors.fechaNacimiento = 'La fecha de nacimiento no puede ser futura';
+                } else {
+                    // Calcular edad
+                    let age = today.getFullYear() - birthDate.getFullYear();
+                    const monthDiff = today.getMonth() - birthDate.getMonth();
+                    if (monthDiff &lt; 0 || (monthDiff === 0 &amp;&amp; today.getDate() &lt; birthDate.getDate())) {
+                        age--;
+                    }
+                    if (age &lt; 14) {
+                        errors.fechaNacimiento = 'El empleado debe tener al menos 14 años';
+                    }
+                }
+            }
+
+            if (!info.nacionalidadId?.trim()) errors.nacionalidadId = 'La nacionalidad es requerida';
+            if (!info.genero?.trim()) errors.genero = 'El género es requerido';
+            if (!info.estadoCivil?.trim()) errors.estadoCivil = 'El estado civil es requerido';
+
+            // Validación de contraseña (opcional en edición si no se cambia)
+            const passwordEntered = !!info.contrasena?.trim();
+            const passwordRequired = !isEditMode;
+
+            if (passwordRequired || passwordEntered) {
+                if (!info.contrasena?.trim()) {
+                    errors.contrasena = 'La contraseña es requerida';
+                } else if (info.contrasena.length &lt; 8) {
+                    errors.contrasena = 'La contraseña debe tener al menos 8 caracteres';
+                } else if (!/[A-Z]/.test(info.contrasena)) {
+                    errors.contrasena = 'La contraseña debe contener al menos una mayúscula';
+                } else if (!/[0-9]/.test(info.contrasena)) {
+                    errors.contrasena = 'La contraseña debe contener al menos un número';
+                } else if (!/[@$!%*?&amp;#]/.test(info.contrasena)) {
+                    errors.contrasena = 'La contraseña debe contener al menos un carácter especial (@$!%*?&amp;#)';
+                }
+            }
+
+            if (passwordRequired || !!info.confirmarContrasena?.trim() || passwordEntered) {
+                if (!info.confirmarContrasena?.trim()) {
+                    errors.confirmarContrasena = 'Debes confirmar la contraseña';
+                } else if (info.contrasena !== info.confirmarContrasena) {
+                    errors.confirmarContrasena = 'Las contraseñas no coinciden';
+                }
+            }
+
+            // Validación de espacio de trabajo
+            if (!espacioTrabajoId) {
+                errors.espacioTrabajoId = 'El espacio de trabajo es requerido';
+            }
+        }
+
+        if (currentStep === 2) {
+            if (!direccion.calle?.trim()) errors.calle = 'La calle es requerida';
+            if (!direccion.numero?.trim()) errors.numero = 'El número es requerido';
+            if (!direccion.provinciaId) errors.provinciaId = 'La provincia es requerida';
+        }
+
+
+
+        setFieldErrors(errors);
+
+        if (Object.keys(errors).length > 0) {
+            setError('Por favor completa todos los campos obligatorios');
+            // Mark all fields as touched
+            const allTouched = {};
+            Object.keys(errors).forEach(key => { allTouched[key] = true; });
+            setTouched(prev => ({ ...prev, ...allTouched }));
+            return false;
+        }
+
+        setError('');
+        return true;
+    };
+
+    const nextStep = () => {
+        if (validateStep()) {
+            setCurrentStep(prev => Math.min(prev + 1, 2));
+        }
+    };
+
+    const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
+
+    const handleSubmit = async () => {
+        if (!validateStep()) return;
+
+        setLoading(true);
+        setError('');
+
+        try {
+            const data = {
+                ...info,
+                ...direccion,
+                espacioTrabajoId: espacioTrabajoId ? parseInt(espacioTrabajoId) : undefined,
+            };
+
+            if (isEditMode) {
+                // En edición, si la contraseña está vacía, no enviarla para mantener la actual
+                if (!data.contrasena) {
+                    delete data.contrasena;
+                    delete data.confirmarContrasena;
+                }
+
+                await updateEmpleado(empleadoToEdit.id, data);
+                onSuccess();
+            } else {
+                const nuevoEmpleado = await createEmpleado(data);
+                onSuccess(nuevoEmpleado);
+            }
+        } catch (err) {
+            const errorMessage = err.message.toLowerCase();
+            // Detect step 1 field errors (nombre, apellido, email, documento, cuil, fecha nacimiento, nacionalidad, género, estado civil)
+            const step1Fields = ['nombre', 'apellido', 'email', 'documento', 'cuil', 'fecha', 'nacimiento', 'nacionalidad', 'nacionalidadId', 'género', 'genero', 'estado civil', 'estadocivil', 'edad', 'años'];
+            const isStep1Error = step1Fields.some(field => errorMessage.includes(field));
+
+            if (isStep1Error) {
+                setCurrentStep(1);
+                // Set specific field errors based on error message
+                if (errorMessage.includes('email')) {
+                    if (errorMessage.includes('unique') || errorMessage.includes('existe') || errorMessage.includes('duplicado') || errorMessage.includes('registrado')) {
+                        setFieldErrors(prev => ({ ...prev, email: 'Este email ya está registrado' }));
+                    } else {
+                        setFieldErrors(prev => ({ ...prev, email: 'Debe ser un email válido' }));
+                    }
+                    setTouched(prev => ({ ...prev, email: true }));
+                }
+                if (errorMessage.includes('documento')) {
+                    setFieldErrors(prev => ({ ...prev, numeroDocumento: err.message }));
+                    setTouched(prev => ({ ...prev, numeroDocumento: true }));
+                }
+                if (errorMessage.includes('cuil')) {
+                    setFieldErrors(prev => ({ ...prev, cuil: err.message }));
+                    setTouched(prev => ({ ...prev, cuil: true }));
+                }
+                if (errorMessage.includes('apellido')) {
+                    setFieldErrors(prev => ({ ...prev, apellido: err.message }));
+                    setTouched(prev => ({ ...prev, apellido: true }));
+                }
+                if (errorMessage.includes('nombre') &amp;&amp; !errorMessage.includes('apellido')) {
+                    setFieldErrors(prev => ({ ...prev, nombre: err.message }));
+                    setTouched(prev => ({ ...prev, nombre: true }));
+                }
+                // Handle fechaNacimiento errors (futura, edad, años, nacimiento)
+                if (errorMessage.includes('fecha') || errorMessage.includes('nacimiento') ||
+                    errorMessage.includes('futura') || errorMessage.includes('edad') ||
+                    errorMessage.includes('años') || errorMessage.includes('14')) {
+                    setFieldErrors(prev => ({ ...prev, fechaNacimiento: err.message }));
+                    setTouched(prev => ({ ...prev, fechaNacimiento: true }));
+                }
+                if (errorMessage.includes('nacionalidad')) {
+                    setFieldErrors(prev => ({ ...prev, nacionalidadId: err.message }));
+                    setTouched(prev => ({ ...prev, nacionalidadId: true }));
+                }
+            }
+            // Always show the error message in the banner
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const renderStep1 = () => (
+        &lt;div style={{ display: 'grid', gap: '1rem' }}>
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Nombre *&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="nombre"
+                        className={`form-input ${touched.nombre &amp;&amp; fieldErrors.nombre ? 'input-error' : ''}`}
+                        value={info.nombre}
+                        onChange={handleInfoChange}
+                        onBlur={() => handleBlur('nombre')}
+                        placeholder="Ingrese el nombre"
+                    />
+                    &lt;FieldError message={touched.nombre &amp;&amp; fieldErrors.nombre} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Apellido *&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="apellido"
+                        className={`form-input ${touched.apellido &amp;&amp; fieldErrors.apellido ? 'input-error' : ''}`}
+                        value={info.apellido}
+                        onChange={handleInfoChange}
+                        onBlur={() => handleBlur('apellido')}
+                        placeholder="Ingrese el apellido"
+                    />
+                    &lt;FieldError message={touched.apellido &amp;&amp; fieldErrors.apellido} />
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Email *&lt;/label>
+                    &lt;input
+                        type="email"
+                        name="email"
+                        className={`form-input ${touched.email &amp;&amp; fieldErrors.email ? 'input-error' : ''}`}
+                        value={info.email}
+                        onChange={handleInfoChange}
+                        onBlur={() => handleBlur('email')}
+                        placeholder="email@ejemplo.com"
+                    />
+                    &lt;FieldError message={touched.email &amp;&amp; fieldErrors.email} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Teléfono&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="telefono"
+                        className="form-input"
+                        value={info.telefono}
+                        onChange={handleInfoChange}
+                        placeholder="+54 11 1234-5678"
+                    />
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-grid-stacked-3">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Tipo de Documento *&lt;/label>
+                    &lt;select
+                        name="tipoDocumento"
+                        className="form-input"
+                        value={info.tipoDocumento}
+                        onChange={handleInfoChange}
+                    >
+                        {TIPOS_DOCUMENTO.map(t => (
+                            &lt;option key={t.value} value={t.value}>{t.label}&lt;/option>
+                        ))}
+                    &lt;/select>
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Número de Documento *&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="numeroDocumento"
+                        className={`form-input ${touched.numeroDocumento &amp;&amp; fieldErrors.numeroDocumento ? 'input-error' : ''}`}
+                        value={info.numeroDocumento}
+                        onChange={handleInfoChange}
+                        onBlur={() => handleBlur('numeroDocumento')}
+                        placeholder="12345678"
+                    />
+                    &lt;FieldError message={touched.numeroDocumento &amp;&amp; fieldErrors.numeroDocumento} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">CUIL&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="cuil"
+                        className={`form-input ${touched.cuil &amp;&amp; fieldErrors.cuil ? 'input-error' : ''}`}
+                        value={info.cuil}
+                        onChange={handleInfoChange}
+                        onBlur={() => handleBlur('cuil')}
+                        placeholder="XX-XXXXXXXX-X"
+                    />
+                    &lt;FieldError message={touched.cuil &amp;&amp; fieldErrors.cuil} />
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Fecha de Nacimiento *
+                        &lt;span
+                            className="tooltip-icon"
+                            onClick={() => setShowTooltipEdad(!showTooltipEdad)}
+                        >
+                            ?
+                        &lt;/span>
+                    &lt;/label>
+                    {showTooltipEdad &amp;&amp; (
+                        &lt;div className="tooltip-info">
+                            {TOOLTIP_EDAD_MINIMA.split('\n\n').map((paragraph, i) => (
+                                &lt;p key={i} style={{ marginBottom: i &lt; 2 ? '0.75rem' : 0 }}>{paragraph}&lt;/p>
+                            ))}
+                        &lt;/div>
+                    )}
+                    &lt;input
+                        type="date"
+                        name="fechaNacimiento"
+                        className={`form-input ${touched.fechaNacimiento &amp;&amp; fieldErrors.fechaNacimiento ? 'input-error' : ''}`}
+                        value={info.fechaNacimiento}
+                        onChange={handleInfoChange}
+                        onBlur={() => handleBlur('fechaNacimiento')}
+                    />
+                    &lt;FieldError message={touched.fechaNacimiento &amp;&amp; fieldErrors.fechaNacimiento} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Nacionalidad *&lt;/label>
+                    &lt;select
+                        name="nacionalidadId"
+                        className={`form-input ${touched.nacionalidadId &amp;&amp; fieldErrors.nacionalidadId ? 'input-error' : ''}`}
+                        value={info.nacionalidadId}
+                        onChange={handleInfoChange}
+                        onBlur={() => handleBlur('nacionalidadId')}
+                    >
+                        &lt;option value="">Seleccionar nacionalidad&lt;/option>
+                        {nacionalidades.map(nac => (
+                            &lt;option key={nac.id} value={nac.id}>{nac.nombre}&lt;/option>
+                        ))}
+                    &lt;/select>
+                    &lt;FieldError message={touched.nacionalidadId &amp;&amp; fieldErrors.nacionalidadId} />
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Género *&lt;/label>
+                    &lt;select
+                        name="genero"
+                        className={`form-input ${touched.genero &amp;&amp; fieldErrors.genero ? 'input-error' : ''}`}
+                        value={info.genero}
+                        onChange={handleInfoChange}
+                        onBlur={() => handleBlur('genero')}
+                    >
+                        &lt;option value="">Seleccionar género&lt;/option>
+                        {GENEROS.map(g => (
+                            &lt;option key={g.value} value={g.value}>{g.label}&lt;/option>
+                        ))}
+                    &lt;/select>
+                    &lt;FieldError message={touched.genero &amp;&amp; fieldErrors.genero} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Estado Civil *&lt;/label>
+                    &lt;select
+                        name="estadoCivil"
+                        className={`form-input ${touched.estadoCivil &amp;&amp; fieldErrors.estadoCivil ? 'input-error' : ''}`}
+                        value={info.estadoCivil}
+                        onChange={handleInfoChange}
+                        onBlur={() => handleBlur('estadoCivil')}
+                    >
+                        &lt;option value="">Seleccionar estado civil&lt;/option>
+                        {ESTADOS_CIVILES.map(e => (
+                            &lt;option key={e.value} value={e.value}>{e.label}&lt;/option>
+                        ))}
+                    &lt;/select>
+                    &lt;FieldError message={touched.estadoCivil &amp;&amp; fieldErrors.estadoCivil} />
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Contraseña *&lt;/label>
+                    &lt;div style={{ position: 'relative', display: 'flex' }}>
+                        &lt;input
+                            type={showPassword ? 'text' : 'password'}
+                            name="contrasena"
+                            className={`form-input ${touched.contrasena &amp;&amp; fieldErrors.contrasena ? 'input-error' : ''}`}
+                            value={info.contrasena}
+                            onChange={handleInfoChange}
+                            onBlur={() => handleBlur('contrasena')}
+                            placeholder="Mínimo 8 caracteres"
+                            style={{ paddingRight: '3rem', width: '100%' }}
+                        />
+                        &lt;button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            style={{
+                                position: 'absolute',
+                                right: '0.75rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--neutral-500)',
+                                cursor: 'pointer',
+                                padding: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '4px',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--neutral-50)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                            aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        >
+                            {showPassword ? (
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                                &lt;/svg>
+                            ) : (
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                &lt;/svg>
+                            )}
+                        &lt;/button>
+                    &lt;/div>
+                    &lt;FieldError message={touched.contrasena &amp;&amp; fieldErrors.contrasena} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Confirmar Contraseña *&lt;/label>
+                    &lt;div style={{ position: 'relative', display: 'flex' }}>
+                        &lt;input
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            name="confirmarContrasena"
+                            className={`form-input ${touched.confirmarContrasena &amp;&amp; fieldErrors.confirmarContrasena ? 'input-error' : ''}`}
+                            value={info.confirmarContrasena}
+                            onChange={handleInfoChange}
+                            onBlur={() => handleBlur('confirmarContrasena')}
+                            placeholder="Repetir contraseña"
+                            style={{ paddingRight: '3rem', width: '100%' }}
+                        />
+                        &lt;button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            style={{
+                                position: 'absolute',
+                                right: '0.75rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--neutral-500)',
+                                cursor: 'pointer',
+                                padding: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '4px',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--neutral-50)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                            aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        >
+                            {showConfirmPassword ? (
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                                &lt;/svg>
+                            ) : (
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                &lt;/svg>
+                            )}
+                        &lt;/button>
+                    &lt;/div>
+                    &lt;FieldError message={touched.confirmarContrasena &amp;&amp; fieldErrors.confirmarContrasena} />
+                &lt;/div>
+            &lt;/div>
+
+            {/* Espacio de Trabajo */}
+            &lt;EspacioTrabajoSelector
+                value={espacioTrabajoId}
+                onChange={(e) => setEspacioTrabajoId(e.target.value)}
+                onBlur={() => handleBlur('espacioTrabajoId')}
+                canChange={!isEditMode || canChangeWorkspace}
+                changeRestrictionMessage={workspaceChangeMessage}
+                touched={touched.espacioTrabajoId}
+                error={fieldErrors.espacioTrabajoId}
+            />
+        &lt;/div>
+    );
+
+    const renderStep2 = () => (
+        &lt;div style={{ display: 'grid', gap: '1rem' }}>
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Calle *&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="calle"
+                        className={`form-input ${touched.calle &amp;&amp; fieldErrors.calle ? 'input-error' : ''}`}
+                        value={direccion.calle}
+                        onChange={handleDireccionChange}
+                        onBlur={() => handleBlur('calle')}
+                        placeholder="Nombre de la calle"
+                    />
+                    &lt;FieldError message={touched.calle &amp;&amp; fieldErrors.calle} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Número *&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="numero"
+                        className={`form-input ${touched.numero &amp;&amp; fieldErrors.numero ? 'input-error' : ''}`}
+                        value={direccion.numero}
+                        onChange={handleDireccionChange}
+                        onBlur={() => handleBlur('numero')}
+                        placeholder="123"
+                    />
+                    &lt;FieldError message={touched.numero &amp;&amp; fieldErrors.numero} />
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Piso&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="piso"
+                        className="form-input"
+                        value={direccion.piso}
+                        onChange={handleDireccionChange}
+                        placeholder="1"
+                    />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Departamento&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="departamento"
+                        className="form-input"
+                        value={direccion.departamento}
+                        onChange={handleDireccionChange}
+                        placeholder="A"
+                    />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Código Postal&lt;/label>
+                    &lt;input
+                        type="text"
+                        name="codigoPostal"
+                        className="form-input"
+                        value={direccion.codigoPostal}
+                        onChange={handleDireccionChange}
+                        placeholder="1234"
+                    />
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Provincia *&lt;/label>
+                    &lt;select
+                        name="provinciaId"
+                        className={`form-input ${touched.provinciaId &amp;&amp; fieldErrors.provinciaId ? 'input-error' : ''}`}
+                        value={direccion.provinciaId}
+                        onChange={handleDireccionChange}
+                        onBlur={() => handleBlur('provinciaId')}
+                    >
+                        &lt;option value="">Seleccionar provincia&lt;/option>
+                        {provincias.map(prov => (
+                            &lt;option key={prov.id} value={prov.id}>{prov.nombre}&lt;/option>
+                        ))}
+                    &lt;/select>
+                    &lt;FieldError message={touched.provinciaId &amp;&amp; fieldErrors.provinciaId} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Ciudad&lt;/label>
+                    &lt;select
+                        name="ciudadId"
+                        className="form-input"
+                        value={direccion.ciudadId}
+                        onChange={handleDireccionChange}
+                        disabled={!direccion.provinciaId}
+                    >
+                        &lt;option value="">
+                            {direccion.provinciaId ? 'Seleccionar ciudad' : 'Primero seleccione provincia'}
+                        &lt;/option>
+                        {ciudades.map(city => (
+                            &lt;option key={city.id} value={city.id}>{city.nombre}&lt;/option>
+                        ))}
+                    &lt;/select>
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+
+
+
+
+    const content = (
+        &lt;>
+            &lt;div className="modal-body" style={{ padding: '2rem' }}>
+                &lt;StepTracker steps={steps} currentStep={currentStep} />
+
+                &lt;div style={{ marginTop: '2rem', textAlign: 'center', marginBottom: '2rem' }}>
+                    &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                        {steps[currentStep - 1].title}
+                    &lt;/h3>
+                    &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                        {currentStep === 1 &amp;&amp; 'Ingresa los datos básicos del empleado'}
+                        {currentStep === 2 &amp;&amp; 'Ingresa la dirección del empleado'}
+                    &lt;/p>
+                &lt;/div>
+
+                {error &amp;&amp; (
+                    &lt;div className="alert alert-error">
+                        {error}
+                    &lt;/div>
+                )}
+
+                {currentStep === 1 &amp;&amp; renderStep1()}
+                {currentStep === 2 &amp;&amp; renderStep2()}
+            &lt;/div>
+
+            &lt;div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 2rem', borderTop: '1px solid var(--border-color)' }}>
+                &lt;div>
+                    {currentStep > 1 &amp;&amp; (
+                        &lt;button className="btn btn-secondary" onClick={prevStep}>
+                            Anterior
+                        &lt;/button>
+                    )}
+                &lt;/div>
+                &lt;div style={{ display: 'flex', gap: '1rem' }}>
+                    &lt;button className="btn btn-secondary" onClick={onClose}>
+                        Cancelar
+                    &lt;/button>
+                    {currentStep &lt; 2 ? (
+                        &lt;button className="btn btn-primary" onClick={nextStep}>
+                            Siguiente
+                        &lt;/button>
+                    ) : (
+                        &lt;button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+                            {loading ? 'Guardando...' : (isEditMode ? 'Actualizar' : 'Crear')} Empleado
+                        &lt;/button>
+                    )}
+                &lt;/div>
+            &lt;/div>
+        &lt;/>
+    );
+
+    // Render with modal wrapper
+    return (
+        &lt;div className="modal-overlay" onClick={onClose}>
+            &lt;div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
+                &lt;div className="modal-header">
+                    &lt;h2 className="modal-title">
+                        {isEditMode ? 'Editar Empleado' : 'Nuevo Empleado'}
+                    &lt;/h2>
+                    &lt;button className="modal-close" onClick={onClose}>
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        &lt;/svg>
+                    &lt;/button>
+                &lt;/div>
+                {content}
+            &lt;/div>
+        &lt;/div>
+    );
+};
+
+export default EmpleadoWizard;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

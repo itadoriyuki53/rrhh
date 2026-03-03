@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages/Dashboard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages/Dashboard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Vista principal con resumen de actividad y solicitudes pendientes.
+ * @module pages/Dashboard
+ */
+
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { getSolicitudes, updateSolicitud, deleteSolicitud, getFeriados } from '../services/api';
+import ConfirmDialog from '../components/ConfirmDialog';
+import Alert from '../components/Alert';
+import { useAuth } from '../context/AuthContext';
+
+const ESTADO_STYLES = {
+    pendiente: { bg: '#fef3c7', color: '#92400e', label: 'Pendiente' },
+    aprobada: { bg: '#d1fae5', color: '#065f46', label: 'Aprobada' },
+};
+
+const TIPO_LABELS = {
+    vacaciones: 'Vacaciones',
+    licencia: 'Licencia',
+    horas_extras: 'Horas Extras',
+    renuncia: 'Renuncia',
+};
+/**
+ * Componente Dashboard
+ * Muestra un resumen de actividad, próximos feriados y las solicitudes pendientes de los empleados.
+ *
+ * @returns {JSX.Element} La vista del Dashboard.
+ */
+const Dashboard = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { user } = useAuth();
+
+    // Permisos del módulo solicitudes
+    const isEmpleadoUser = user?.esEmpleado &amp;&amp; !user?.esAdministrador;
+    const userPermisos = user?.rol?.permisos || [];
+    const canReadSolicitudes = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'solicitudes' &amp;&amp; p.accion === 'leer');
+    const canEditSolicitudes = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'solicitudes' &amp;&amp; p.accion === 'actualizar');
+    const canDeleteSolicitudes = !isEmpleadoUser || user?.esAdministrador || userPermisos.some(p => p.modulo === 'solicitudes' &amp;&amp; p.accion === 'eliminar');
+
+    const [solicitudesPendientes, setSolicitudesPendientes] = useState([]);
+    const [feriados, setFeriados] = useState([]);
+    const [loadingSolicitudes, setLoadingSolicitudes] = useState(true);
+    const [loadingFeriados, setLoadingFeriados] = useState(true);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+    const [showWelcomeAlert, setShowWelcomeAlert] = useState(false);
+
+    // Session storage check for welcome alert
+    useEffect(() => {
+        if (sessionStorage.getItem('justLoggedIn')) {
+            setShowWelcomeAlert(true);
+            sessionStorage.removeItem('justLoggedIn');
+        }
+    }, []);
+
+    // Confirmation dialog state
+    const [confirmDialog, setConfirmDialog] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: null,
+        variant: 'danger',
+        confirmText: 'Confirmar'
+    });
+
+    /**
+     * Carga la lista de solicitudes con estado pendiente.
+     * Filtra localmente los registros obtenidos considerando estado vacío ("") como 'pendiente'.
+     *
+     * @async
+     * @returns {Promise&lt;void>}
+     */
+    const loadSolicitudesPendientes = async () => {
+        try {
+            setLoadingSolicitudes(true);
+            const result = await getSolicitudes({
+                activo: 'true',
+                page: 1,
+                limit: 50,
+            });
+            // Filtrar pendientes en el cliente
+            // estado vacío ("") se trata como 'pendiente' para datos legacy
+            const pendientes = (result.data || []).filter(sol => {
+                const typeData = sol.licencia || sol.vacaciones || sol.horasExtras || sol.renuncia;
+                const estadoNorm = typeData?.estado || 'pendiente';
+                return estadoNorm === 'pendiente';
+            }).slice(0, 5);
+            setSolicitudesPendientes(pendientes);
+        } catch (err) {
+            console.error('Dashboard: error al cargar solicitudes pendientes:', err.message);
+        } finally {
+            setLoadingSolicitudes(false);
+        }
+    };
+
+    /**
+     * Carga la lista de los próximos feriados nacionales utilizando el servicio de API.
+     *
+     * @async
+     * @returns {Promise&lt;void>}
+     */
+    const loadFeriados = async () => {
+        try {
+            setLoadingFeriados(true);
+            const data = await getFeriados();
+            setFeriados(data.slice(0, 5));
+        } catch (err) {
+            console.error('Error loading holidays:', err);
+            setError('No se pudieron cargar los feriados');
+        } finally {
+            setLoadingFeriados(false);
+        }
+    };
+
+    useEffect(() => {
+        loadSolicitudesPendientes();
+        loadFeriados();
+    }, []);
+
+    /**
+     * Navega a la pantalla de solicitudes en modo edición para la solicitud especificada.
+     *
+     * @param {Object} solicitud - Objeto con los datos de la solicitud a editar.
+     * @returns {void}
+     */
+    const handleEditar = (solicitud) => {
+        navigate('/solicitudes', { state: { editSolicitudId: solicitud.id } });
+    };
+
+    /**
+     * Abre el modal de confirmación para desactivar o eliminar una solicitud específica.
+     *
+     * @param {Object} solicitud - Objeto con los datos de la solicitud.
+     * @returns {void}
+     */
+    const handleDesactivar = (solicitud) => {
+        setConfirmDialog({
+            isOpen: true,
+            title: '¿Desactivar solicitud?',
+            message: `¿Está seguro que desea desactivar la solicitud? Esta acción no se puede deshacer.`,
+            variant: 'danger',
+            confirmText: 'Desactivar',
+            onConfirm: async () => {
+                try {
+                    await deleteSolicitud(solicitud.id);
+                    setSuccess(`Solicitud desactivada correctamente`);
+                    loadSolicitudesPendientes();
+                    setConfirmDialog({ ...confirmDialog, isOpen: false });
+                } catch (err) {
+                    setError(err.message || 'Error al desactivar la solicitud');
+                    setConfirmDialog({ ...confirmDialog, isOpen: false });
+                }
+            }
+        });
+    };
+
+    /**
+     * Abre el modal de confirmación para aceptar/aprobar una solicitud específica.
+     * Aplica reglas de normalización del estado según el tipo de solicitud.
+     *
+     * @param {Object} solicitud - Objeto con los datos de la solicitud.
+     * @returns {Promise&lt;void>}
+     */
+    const handleAceptar = async (solicitud) => {
+        setConfirmDialog({
+            isOpen: true,
+            title: '¿Aceptar solicitud?',
+            message: `¿Está seguro que desea aceptar la solicitud? Esta acción no se puede deshacer.`,
+            variant: 'success',
+            confirmText: 'Aceptar',
+            onConfirm: async () => {
+                try {
+                    // Set estado based on solicitud type
+                    let estado = 'aprobada';
+                    if (solicitud.renuncia) {
+                        estado = 'aceptada';
+                    }
+                    if (solicitud.licencia) {
+                        estado = 'justificada';
+                    }
+
+                    await updateSolicitud(solicitud.id, { estado });
+                    setSuccess('Solicitud aceptada correctamente');
+                    loadSolicitudesPendientes();
+                    setConfirmDialog({ ...confirmDialog, isOpen: false });
+                } catch (err) {
+                    setError(err.message);
+                    setConfirmDialog({ ...confirmDialog, isOpen: false });
+                }
+            }
+        });
+    };
+
+    /**
+     * Da formato legible a una cadena de fecha a formato local ES-AR.
+     *
+     * @param {string} dateString - Cadena de texto o ISO de la fecha.
+     * @returns {string} Fecha formateada o '-' si es inválida.
+     */
+    const formatDate = (dateString) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    /**
+     * Obtiene el nombre completo formateado del empleado asociado a una solicitud.
+     *
+     * @param {Object} sol - Objeto de la solicitud.
+     * @returns {string} Nombre formateado "Apellido, Nombre" o '-'.
+     */
+    const getEmpleadoNombre = (sol) => {
+        const emp = sol.contrato?.empleado.usuario;
+        return emp ? `${emp.apellido}, ${emp.nombre}` : '-';
+    };
+
+    /**
+     * Extrae de forma segura el estado de una solicitud revisando la nested data correspondiente.
+     *
+     * @param {Object} sol - Objeto de la solicitud.
+     * @returns {string} El estado de la misma, por defecto 'pendiente'.
+     */
+    const getEstado = (sol) => {
+        const typeData = sol.licencia || sol.vacaciones || sol.horasExtras || sol.renuncia;
+        return typeData?.estado || 'pendiente';
+    };
+
+    return (
+        &lt;div>
+            {showWelcomeAlert &amp;&amp; (
+                &lt;Alert
+                    type="success"
+                    message="¡Bienvenido! Has iniciado sesión correctamente."
+                    onClose={() => setShowWelcomeAlert(false)}
+                    duration={3000}
+                />
+            )}
+
+            {/* Confirmation Dialog */}
+            &lt;ConfirmDialog
+                isOpen={confirmDialog.isOpen}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                variant={confirmDialog.variant}
+                confirmText={confirmDialog.confirmText}
+                onConfirm={confirmDialog.onConfirm}
+                onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+            />
+
+            {/* Header */}
+            &lt;div className="page-header">
+                &lt;div>
+                    &lt;h1 className="page-title">Dashboard&lt;/h1>
+                    &lt;p className="page-subtitle">Resumen de actividad y próximos eventos&lt;/p>
+                &lt;/div>
+            &lt;/div>
+
+            {/* Alerts */}
+            {error &amp;&amp; (
+                &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                    {error}
+                    &lt;button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕&lt;/button>
+                &lt;/div>
+            )}
+            {success &amp;&amp; (
+                &lt;div className="alert alert-success" style={{ marginBottom: '1rem' }}>
+                    {success}
+                    &lt;button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕&lt;/button>
+                &lt;/div>
+            )}
+
+            {/* Dashboard Grid */}
+            &lt;div className="dashboard-main-grid">
+                {/* Próximos Eventos */}
+                &lt;div className="card">
+                    &lt;div className="card-header" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        &lt;div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20, color: 'var(--primary-color)' }}>
+                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                            &lt;/svg>
+                            &lt;h3 className="card-title">Próximos Eventos&lt;/h3>
+                        &lt;/div>
+                    &lt;/div>
+
+                    &lt;div style={{ padding: '1rem' }}>
+                        {loadingFeriados ? (
+                            &lt;div className="loading" style={{ padding: '2rem' }}>&lt;div className="spinner">&lt;/div>&lt;/div>
+                        ) : feriados.length === 0 ? (
+                            &lt;div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+                                &lt;p>No hay feriados próximos&lt;/p>
+                            &lt;/div>
+                        ) : (
+                            &lt;div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {feriados.map((feriado, index) => (
+                                    &lt;div key={index} style={{
+                                        background: 'var(--card-bg)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '0.5rem',
+                                        padding: '1rem',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center'
+                                    }}>
+                                        &lt;div>
+                                            &lt;div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                                                {feriado.nombre}
+                                            &lt;/div>
+                                            &lt;div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                {formatDate(feriado.fecha)}
+                                            &lt;/div>
+                                        &lt;/div>
+                                        &lt;span style={{
+                                            display: 'inline-block',
+                                            padding: '0.25rem 0.75rem',
+                                            borderRadius: '9999px',
+                                            background: feriado.tipo === 'inamovible' ? '#fee2e2' : '#dbeafe',
+                                            color: feriado.tipo === 'inamovible' ? '#991b1b' : '#1e40af',
+                                            fontSize: '0.75rem',
+                                            fontWeight: '500',
+                                            textTransform: 'capitalize'
+                                        }}>
+                                            {feriado.tipo}
+                                        &lt;/span>
+                                    &lt;/div>
+                                ))}
+                            &lt;/div>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+
+                {/* Solicitudes Pendientes */}
+                &lt;div className="card">
+                    &lt;div className="card-header" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        &lt;div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20, color: 'var(--primary-color)' }}>
+                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V19.5a2.25 2.25 0 002.25 2.25h6a2.25 2.25 0 002.25-2.25V6.108" />
+                            &lt;/svg>
+                            &lt;h3 className="card-title">Solicitudes Pendientes&lt;/h3>
+                        &lt;/div>
+                    &lt;/div>
+
+                    &lt;div style={{ padding: '1rem' }}>
+                        {loadingSolicitudes ? (
+                            &lt;div className="loading" style={{ padding: '2rem' }}>&lt;div className="spinner">&lt;/div>&lt;/div>
+                        ) : solicitudesPendientes.length === 0 ? (
+                            &lt;div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+                                &lt;p>No hay solicitudes pendientes&lt;/p>
+                            &lt;/div>
+                        ) : (
+                            &lt;div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {solicitudesPendientes.map((solicitud) => {
+                                    const estado = getEstado(solicitud);
+                                    const estadoStyle = ESTADO_STYLES[estado] || ESTADO_STYLES.pendiente;
+
+                                    return (
+                                        &lt;div key={solicitud.id} style={{
+                                            background: 'var(--card-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '0.5rem',
+                                            padding: '1rem'
+                                        }}>
+                                            {/* First row: Employee name and action buttons */}
+                                            &lt;div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                                &lt;div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                    {getEmpleadoNombre(solicitud)}
+                                                &lt;/div>
+                                                &lt;div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                    {canEditSolicitudes &amp;&amp; (
+                                                        &lt;button
+                                                            className="btn btn-primary btn-sm"
+                                                            onClick={() => handleAceptar(solicitud)}
+                                                            title="Aceptar"
+                                                            style={{
+                                                                padding: '0.5rem',
+                                                                minWidth: 'auto',
+                                                                width: '36px',
+                                                                height: '36px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center'
+                                                            }}
+                                                        >
+                                                            &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75l2.25 2.25L15 9.75" />
+                                                                &lt;circle cx="12" cy="12" r="9" />
+                                                            &lt;/svg>
+                                                        &lt;/button>
+                                                    )}
+                                                    {canEditSolicitudes &amp;&amp; (
+                                                        &lt;button
+                                                            className="btn btn-warning btn-sm"
+                                                            onClick={() => handleEditar(solicitud)}
+                                                            title="Editar"
+                                                            style={{
+                                                                padding: '0.5rem',
+                                                                minWidth: 'auto',
+                                                                width: '36px',
+                                                                height: '36px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center'
+                                                            }}
+                                                        >
+                                                            &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                                            &lt;/svg>
+                                                        &lt;/button>
+                                                    )}
+                                                    {canDeleteSolicitudes &amp;&amp; (
+                                                        &lt;button
+                                                            className="btn btn-danger btn-sm"
+                                                            onClick={() => handleDesactivar(solicitud)}
+                                                            title="Desactivar"
+                                                            style={{
+                                                                padding: '0.5rem',
+                                                                minWidth: 'auto',
+                                                                width: '36px',
+                                                                height: '36px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center'
+                                                            }}
+                                                        >
+                                                            &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                                            &lt;/svg>
+                                                        &lt;/button>
+                                                    )}
+                                                &lt;/div>
+                                            &lt;/div>
+                                            {/* Second row: Type, date and badge */}
+                                            &lt;div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                &lt;span>{TIPO_LABELS[solicitud.tipoSolicitud]} • {formatDate(solicitud.createdAt)}&lt;/span>
+                                                &lt;span style={{
+                                                    display: 'inline-block',
+                                                    padding: '0.15rem 0.5rem',
+                                                    borderRadius: '9999px',
+                                                    background: estadoStyle.bg,
+                                                    color: estadoStyle.color,
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: '500'
+                                                }}>
+                                                    {estadoStyle.label}
+                                                &lt;/span>
+                                            &lt;/div>
+                                        &lt;/div>
+                                    );
+                                })}
+                            &lt;/div>
+                        )}
+
+                        {solicitudesPendientes.length > 0 &amp;&amp; (
+                            &lt;div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                                &lt;button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => navigate('/solicitudes')}
+                                >
+                                    Ver todas las solicitudes
+                                &lt;/button>
+                            &lt;/div>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+};
+
+export default Dashboard;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

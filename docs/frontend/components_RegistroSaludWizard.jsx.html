@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/RegistroSaludWizard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/RegistroSaludWizard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Orquestador para la creación y edición de registros de salud mediante un proceso guiado.
+ * @module components/RegistroSaludWizard
+ */
+
+import { useState, useEffect } from 'react';
+import Select from 'react-select';
+import StepTracker from './StepTracker';
+import { getEmpleados, createRegistroSalud, updateRegistroSalud } from '../services/api';
+import { validarDiaHabil } from '../helpers/diasHabiles';
+import { getTodayStr, formatFullName } from '../helpers/formatters';
+import { useIsDark } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
+
+const TIPOS_EXAMEN = [
+    { value: 'pre_ocupacional', label: 'Pre-Ocupacional' },
+    { value: 'periodico', label: 'Periódico' },
+    { value: 'post_ocupacional', label: 'Post-Ocupacional' },
+    { value: 'retorno_trabajo', label: 'Retorno al Trabajo' },
+];
+
+const RESULTADOS = [
+    { value: 'apto', label: 'Apto' },
+    { value: 'apto_preexistencias', label: 'Apto con Preexistencias' },
+    { value: 'no_apto', label: 'No Apto' },
+];
+
+// Tooltip content for medical certificate
+const TOOLTIP_COMPROBANTE = `El comprobante médico sirve para **justificar una licencia o inasistencia** laboral.
+Cuando la inasistencia está debidamente justificada con un comprobante médico, el empleado puede solicitar licencia o inasistencia y continuar percibiendo su salario, conforme a la normativa vigente de la ART.`;
+
+// Field error component
+const FieldError = ({ message }) => {
+    if (!message) return null;
+    return &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}&lt;/span>;
+};
+
+
+
+/**
+ * Componente RegistroSaludWizard
+ * 
+ * Gestiona el alta y modificación de exámenes de salud, permitiendo
+ * la carga de múltiples comprobantes y validando fechas en 2 pasos.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.registro] - Objeto registro a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @returns {JSX.Element}
+ */
+const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
+    const isEditing = !!registro;
+    const [currentStep, setCurrentStep] = useState(1);
+
+    const [formData, setFormData] = useState({
+        empleadoId: null,
+        tipoExamen: '',
+        resultado: '',
+        fechaRealizacion: getTodayStr(),
+        fechaVencimiento: '',
+        comprobantes: [],
+    });
+
+    const [empleados, setEmpleados] = useState([]);
+    const [loadingEmpleados, setLoadingEmpleados] = useState(true);
+    const [selectedEmpleado, setSelectedEmpleado] = useState(null);
+    const [touched, setTouched] = useState({});
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [error, setError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [showTooltip, setShowTooltip] = useState(false);
+    const isDark = useIsDark();
+
+    const steps = [
+        { number: 1, title: 'Información Básica' },
+        { number: 2, title: 'Documentación Médica' },
+    ];
+
+
+
+    // Load empleados
+    useEffect(() => {
+        const loadEmpleados = async () => {
+            try {
+                setLoadingEmpleados(true);
+                const result = await getEmpleados({ activo: 'true', limit: 1000 });
+                setEmpleados(result.data);
+            } catch (err) {
+                console.error('Error loading empleados:', err);
+            } finally {
+                setLoadingEmpleados(false);
+            }
+        };
+        loadEmpleados();
+    }, []);
+
+    // Initialize form with existing data
+    useEffect(() => {
+        if (registro) {
+            if (registro.empleado) {
+                const empOption = {
+                    value: registro.empleado.id,
+                    label: `${formatFullName(registro.empleado)} (${registro.empleado.numeroDocumento || 'Sin doc'})`,
+                    empleado: registro.empleado
+                };
+                setSelectedEmpleado(empOption);
+            }
+
+            // Parse comprobantes - could be single or array
+            let comprobantes = [];
+            if (registro.comprobante) {
+                comprobantes = [{
+                    data: registro.comprobante,
+                    nombre: registro.comprobanteNombre || 'Comprobante',
+                    tipo: registro.comprobanteTipo || 'application/pdf',
+                }];
+            }
+            if (registro.comprobantes &amp;&amp; Array.isArray(registro.comprobantes)) {
+                comprobantes = registro.comprobantes;
+            }
+
+            setFormData({
+                empleadoId: registro.empleado?.id || null,
+                tipoExamen: registro.tipoExamen || '',
+                resultado: registro.resultado || '',
+                fechaRealizacion: registro.fechaRealizacion || '',
+                fechaVencimiento: registro.fechaVencimiento || '',
+                comprobantes,
+            });
+        }
+    }, [registro]);
+
+    const empleadoOptions = Object.values(empleados.reduce((acc, emp) => {
+        const wsName = emp.espacioTrabajo?.nombre || 'Sin Espacio';
+        if (!acc[wsName]) acc[wsName] = { label: wsName, options: [] };
+        acc[wsName].options.push({
+            value: emp.id,
+            label: `${formatFullName(emp)} - ${emp.numeroDocumento || 'Sin doc'}`,
+            empleado: emp,
+        });
+        return acc;
+    }, {}));
+
+    const handleEmpleadoChange = (option) => {
+        setSelectedEmpleado(option);
+        setFormData(prev => ({
+            ...prev,
+            empleadoId: option ? option.value : null,
+        }));
+        if (touched.empleadoId) validateStep();
+    };
+
+    const handleBlur = (field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+        validateStep();
+    };
+
+    const handleChange = (field, value) => { // ✅ Síncrono ahora
+        setFormData(prev => ({ ...prev, [field]: value }));
+        setError('');
+
+        // Validar días hábiles en tiempo real SÍNCRONO
+        if ((field === 'fechaRealizacion' || field === 'fechaVencimiento') &amp;&amp; value) {
+            try {
+                const nombreCampo = field === 'fechaRealizacion'
+                    ? 'La fecha de realización'
+                    : 'La fecha de vencimiento';
+                validarDiaHabil(value, nombreCampo); // ✅ Síncrono
+                setFieldErrors(prev => ({ ...prev, [field]: null }));
+            } catch (error) {
+                setFieldErrors(prev => ({ ...prev, [field]: error.message }));
+                setTouched(prev => ({ ...prev, [field]: true })); // Marcar como touched para mostrar error
+            }
+        }
+
+        if (touched[field]) validateStep();
+    };
+
+    const handleFileChange = (e) => {
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
+
+        const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        const newComprobantes = [...formData.comprobantes];
+        let hasError = false;
+
+        files.forEach(file => {
+            if (!validTypes.includes(file.type)) {
+                setFieldErrors(prev => ({ ...prev, comprobantes: 'Solo se permiten archivos PDF o imágenes' }));
+                hasError = true;
+                return;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                setFieldErrors(prev => ({ ...prev, comprobantes: 'Cada archivo no puede superar 10MB' }));
+                hasError = true;
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                newComprobantes.push({
+                    data: reader.result,
+                    nombre: file.name,
+                    tipo: file.type,
+                });
+                setFormData(prev => ({ ...prev, comprobantes: [...newComprobantes] }));
+                setFieldErrors(prev => ({ ...prev, comprobantes: null }));
+            };
+            reader.readAsDataURL(file);
+        });
+
+        e.target.value = '';
+    };
+
+    const removeFile = (index) => {
+        setFormData(prev => ({
+            ...prev,
+            comprobantes: prev.comprobantes.filter((_, i) => i !== index),
+        }));
+    };
+
+    const validateStep = () => {
+        const errors = {};
+
+        if (currentStep === 1) {
+            if (!formData.empleadoId) errors.empleadoId = 'Debe seleccionar un empleado';
+            if (!formData.tipoExamen) errors.tipoExamen = 'El tipo de examen es requerido';
+            if (!formData.resultado) errors.resultado = 'El resultado es requerido';
+            if (!formData.fechaRealizacion) {
+                errors.fechaRealizacion = 'La fecha de realización es requerida';
+            } else if (new Date(formData.fechaRealizacion) > new Date()) {
+                errors.fechaRealizacion = 'La fecha de realización no puede ser mayor a la fecha actual';
+            }
+            if (!formData.fechaVencimiento) {
+                errors.fechaVencimiento = 'La fecha de vencimiento es requerida';
+            } else if (formData.fechaRealizacion &amp;&amp; new Date(formData.fechaVencimiento) &lt; new Date(formData.fechaRealizacion)) {
+                errors.fechaVencimiento = 'La fecha de vencimiento no puede ser anterior a la fecha de realización';
+            }
+        }
+        // Step 2 has no required fields (comprobantes are optional)
+
+        // Preservar solo los errores de días hábiles de campos de fecha
+        setFieldErrors(prev => {
+            const camposFecha = ['fechaRealizacion', 'fechaVencimiento'];
+            const erroresDiasHabiles = {};
+
+            // Preservar errores de días hábiles en campos de fecha
+            camposFecha.forEach(campo => {
+                if (prev[campo] &amp;&amp; prev[campo].includes('día hábil')) {
+                    erroresDiasHabiles[campo] = prev[campo];
+                }
+            });
+
+            // Combinar: errores de la validación actual + errores de días hábiles preservados
+            return { ...erroresDiasHabiles, ...errors };
+        });
+
+        if (Object.keys(errors).length > 0) {
+            const allTouched = {};
+            Object.keys(errors).forEach(key => { allTouched[key] = true; });
+            setTouched(prev => ({ ...prev, ...allTouched }));
+            setError('Por favor completa todos los campos obligatorios');
+        }
+
+        return Object.keys(errors).length === 0;
+    };
+
+    const nextStep = () => {
+        if (validateStep()) {
+            setCurrentStep(prev => prev + 1);
+            setTouched({});
+            setError('');
+        }
+    };
+
+    const prevStep = () => setCurrentStep(prev => prev - 1);
+
+    const handleSubmit = async () => {
+        if (!validateStep()) return;
+
+        try {
+            setSubmitting(true);
+            const payload = {
+                tipoExamen: formData.tipoExamen,
+                resultado: formData.resultado,
+                fechaRealizacion: formData.fechaRealizacion,
+                fechaVencimiento: formData.fechaVencimiento,
+                comprobantes: formData.comprobantes,
+                empleadoId: formData.empleadoId,
+            };
+
+            if (isEditing) {
+                await updateRegistroSalud(registro.id, payload);
+            } else {
+                await createRegistroSalud(payload);
+            }
+            onSuccess();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const renderStep1 = () => (
+        &lt;div style={{ display: 'grid', gap: '1.5rem' }}>
+            {/* Empleado Selection with react-select */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">Empleado *&lt;/label>
+                &lt;Select
+                    isLoading={loadingEmpleados}
+                    options={empleadoOptions}
+                    value={selectedEmpleado}
+                    onChange={handleEmpleadoChange}
+                    onBlur={() => handleBlur('empleadoId')}
+                    placeholder="Buscar y seleccionar empleado..."
+                    noOptionsMessage={() => "No se encontraron empleados"}
+                    styles={buildSelectStyles(isDark)}
+                    formatGroupLabel={data => (
+                        &lt;div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
+                            {data.label}
+                        &lt;/div>
+                    )}
+                    isClearable
+                    menuPortalTarget={document.body}
+                    menuPosition="fixed"
+                />
+                &lt;FieldError message={touched.empleadoId &amp;&amp; fieldErrors.empleadoId} />
+            &lt;/div>
+
+            {/* Tipo de Examen y Resultado - 2 columns */}
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Tipo de Examen *&lt;/label>
+                    &lt;select
+                        className={`form-input ${touched.tipoExamen &amp;&amp; fieldErrors.tipoExamen ? 'input-error' : ''}`}
+                        value={formData.tipoExamen}
+                        onChange={(e) => handleChange('tipoExamen', e.target.value)}
+                        onBlur={() => handleBlur('tipoExamen')}
+                    >
+                        &lt;option value="">Seleccionar tipo...&lt;/option>
+                        {TIPOS_EXAMEN.map(t => (
+                            &lt;option key={t.value} value={t.value}>{t.label}&lt;/option>
+                        ))}
+                    &lt;/select>
+                    &lt;FieldError message={touched.tipoExamen &amp;&amp; fieldErrors.tipoExamen} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Resultado *&lt;/label>
+                    &lt;select
+                        className={`form-input ${touched.resultado &amp;&amp; fieldErrors.resultado ? 'input-error' : ''}`}
+                        value={formData.resultado}
+                        onChange={(e) => handleChange('resultado', e.target.value)}
+                        onBlur={() => handleBlur('resultado')}
+                    >
+                        &lt;option value="">Seleccionar resultado...&lt;/option>
+                        {RESULTADOS.map(r => (
+                            &lt;option key={r.value} value={r.value}>{r.label}&lt;/option>
+                        ))}
+                    &lt;/select>
+                    &lt;FieldError message={touched.resultado &amp;&amp; fieldErrors.resultado} />
+                &lt;/div>
+            &lt;/div>
+
+            {/* Fechas - 2 columns */}
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Fecha de Realización *&lt;/label>
+                    &lt;input
+                        type="date"
+                        className={`form-input ${touched.fechaRealizacion &amp;&amp; fieldErrors.fechaRealizacion ? 'input-error' : ''}`}
+                        value={formData.fechaRealizacion}
+                        onChange={(e) => handleChange('fechaRealizacion', e.target.value)}
+                        onBlur={() => handleBlur('fechaRealizacion')}
+                    />
+                    &lt;FieldError message={touched.fechaRealizacion &amp;&amp; fieldErrors.fechaRealizacion} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Fecha de Vencimiento *&lt;/label>
+                    &lt;input
+                        type="date"
+                        className={`form-input ${touched.fechaVencimiento &amp;&amp; fieldErrors.fechaVencimiento ? 'input-error' : ''}`}
+                        value={formData.fechaVencimiento}
+                        onChange={(e) => handleChange('fechaVencimiento', e.target.value)}
+                        onBlur={() => handleBlur('fechaVencimiento')}
+                    />
+                    &lt;FieldError message={touched.fechaVencimiento &amp;&amp; fieldErrors.fechaVencimiento} />
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+
+    const renderStep2 = () => (
+        &lt;div style={{ display: 'grid', gap: '1.5rem' }}>
+            {/* Comprobantes - Multiple files */}
+            &lt;div className="form-group">
+                &lt;label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    Comprobantes Médicos
+                    &lt;span
+                        className="tooltip-icon"
+                        onClick={() => setShowTooltip(!showTooltip)}
+                    >
+                        ?
+                    &lt;/span>
+                &lt;/label>
+                {showTooltip &amp;&amp; (
+                    &lt;div className="tooltip-info">
+                        {TOOLTIP_COMPROBANTE.split('**').map((part, i) =>
+                            i % 2 === 1 ? &lt;strong key={i}>{part}&lt;/strong> : part
+                        )}
+                    &lt;/div>
+                )}
+
+                {/* Files list */}
+                {formData.comprobantes.length > 0 &amp;&amp; (
+                    &lt;div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                        {formData.comprobantes.map((file, index) => (
+                            &lt;div
+                                key={index}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.75rem',
+                                    padding: '0.75rem 1rem',
+                                    background: 'var(--bg-secondary)',
+                                    borderRadius: '0.5rem',
+                                    border: '1px solid var(--border-color)'
+                                }}
+                            >
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20, color: 'var(--primary-color)', flexShrink: 0 }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                &lt;/svg>
+                                &lt;span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.875rem' }}>
+                                    {file.nombre}
+                                &lt;/span>
+                                &lt;button
+                                    type="button"
+                                    onClick={() => removeFile(index)}
+                                    className="btn btn-danger btn-sm"
+                                    style={{
+                                        padding: '0.4rem 0.6rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.35rem',
+                                    }}
+                                    title="Eliminar archivo"
+                                >
+                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 14, height: 14 }}>
+                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                    &lt;/svg>
+                                    Eliminar
+                                &lt;/button>
+                            &lt;/div>
+                        ))}
+                    &lt;/div>
+                )}
+
+                {/* Upload area */}
+                &lt;div
+                    style={{
+                        border: '2px dashed var(--border-color)',
+                        borderRadius: '0.5rem',
+                        padding: '1.5rem',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        background: 'var(--bg-secondary)',
+                        transition: 'border-color 0.2s',
+                    }}
+                    onClick={() => document.getElementById('comprobante-input').click()}
+                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#0d9488'; }}
+                    onDragLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+                    onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.style.borderColor = 'var(--border-color)';
+                        const dt = e.dataTransfer;
+                        const files = dt.files;
+                        handleFileChange({ target: { files } });
+                    }}
+                >
+                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 36, height: 36, color: 'var(--text-secondary)', margin: '0 auto 0.5rem' }}>
+                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                    &lt;/svg>
+                    &lt;p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                        Haz clic o arrastra archivos para subir
+                    &lt;/p>
+                    &lt;p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        PDF o imágenes • Máximo 10MB cada uno
+                    &lt;/p>
+                &lt;/div>
+                &lt;input
+                    id="comprobante-input"
+                    type="file"
+                    accept=".pdf,image/*"
+                    multiple
+                    onChange={handleFileChange}
+                    style={{ display: 'none' }}
+                />
+                &lt;FieldError message={fieldErrors.comprobantes} />
+            &lt;/div>
+        &lt;/div>
+    );
+
+    return (
+        &lt;div className="modal-overlay" onClick={onClose}>
+            &lt;div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
+                &lt;div className="modal-header">
+                    &lt;h2 className="modal-title">{isEditing ? 'Editar Registro de Salud' : 'Nuevo Registro de Salud'}&lt;/h2>
+                    &lt;button className="modal-close" onClick={onClose}>
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        &lt;/svg>
+                    &lt;/button>
+                &lt;/div>
+
+                &lt;div className="modal-body" style={{ padding: '2rem' }}>
+                    &lt;StepTracker steps={steps} currentStep={currentStep} />
+
+                    &lt;div style={{ marginTop: '2rem', textAlign: 'center', marginBottom: '2rem' }}>
+                        &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                            {steps[currentStep - 1].title}
+                        &lt;/h3>
+                        &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                            {currentStep === 1 &amp;&amp; 'Ingresa los datos básicos del registro de salud'}
+                            {currentStep === 2 &amp;&amp; 'Adjunta los comprobantes médicos (opcional)'}
+                        &lt;/p>
+                    &lt;/div>
+
+                    {error &amp;&amp; (
+                        &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                            {error}
+                        &lt;/div>
+                    )}
+
+                    {currentStep === 1 &amp;&amp; renderStep1()}
+                    {currentStep === 2 &amp;&amp; renderStep2()}
+                &lt;/div>
+
+                &lt;div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 2rem', borderTop: '1px solid var(--border-color)' }}>
+                    &lt;div>
+                        {currentStep > 1 &amp;&amp; (
+                            &lt;button className="btn btn-secondary" onClick={prevStep}>
+                                Anterior
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                    &lt;div style={{ display: 'flex', gap: '1rem' }}>
+                        &lt;button className="btn btn-secondary" onClick={onClose} disabled={submitting}>
+                            Cancelar
+                        &lt;/button>
+                        {currentStep &lt; 2 ? (
+                            &lt;button className="btn btn-primary" onClick={nextStep}>
+                                Siguiente
+                            &lt;/button>
+                        ) : (
+                            &lt;button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+                                {submitting ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear')} Registro
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+};
+
+export default RegistroSaludWizard;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

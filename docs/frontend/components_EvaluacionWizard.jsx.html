@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/EvaluacionWizard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/EvaluacionWizard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Wizard para la creación y edición de evaluaciones de desempeño.
+ * @module components/EvaluacionWizard
+ */
+
+import { useState, useEffect } from 'react';
+import Select from 'react-select';
+import StepTracker from './StepTracker';
+import { getContratos, createEvaluacion, updateEvaluacion } from '../services/api';
+import { validarDiaHabil } from '../helpers/diasHabiles';
+import { getTodayStr, formatFullName } from '../helpers/formatters';
+import { useIsDark } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
+
+// Periods
+const PERIODOS = [
+    { value: 'anual', label: 'Anual' },
+    { value: 'semestre_1', label: `${new Date().getFullYear()} – 1er Semestre` },
+    { value: 'semestre_2', label: `${new Date().getFullYear()} – 2do Semestre` },
+    { value: 'q1', label: 'Trimestral / Q1' },
+    { value: 'q2', label: 'Trimestral / Q2' },
+    { value: 'q3', label: 'Trimestral / Q3' },
+    { value: 'q4', label: 'Trimestral / Q4' },
+    { value: 'cierre_prueba', label: 'Cierre de Período de Prueba' },
+    { value: 'fin_proyecto', label: 'Fin de Proyecto' },
+    { value: 'ad_hoc', label: 'Ad-hoc / Extraordinaria' },
+];
+
+// Tipos de evaluación
+const TIPOS_EVALUACION = [
+    { value: 'autoevaluacion', label: 'Autoevaluación' },
+    { value: 'descendente_90', label: '90° (Descendente)' },
+    { value: 'pares_jefe_180', label: '180° (Pares + Jefe)' },
+    { value: 'ascendente_270', label: '270° (Ascendente)' },
+    { value: 'integral_360', label: '360° (Integral)' },
+    { value: 'competencias', label: 'Por Competencias' },
+    { value: 'objetivos', label: 'Por Objetivos (KPIs / OKRs)' },
+    { value: 'mixta', label: 'Mixta' },
+    { value: 'potencial', label: 'Potencial' },
+];
+
+// Estados
+const ESTADOS = [
+    { value: 'pendiente', label: 'Pendiente' },
+    { value: 'en_curso', label: 'En curso' },
+    { value: 'finalizada', label: 'Finalizada' },
+    { value: 'firmada', label: 'Firmada' },
+];
+
+// Escalas
+const ESCALAS = [
+    { value: 'supera_expectativas', label: 'Supera Expectativas' },
+    { value: 'cumple', label: 'Cumple' },
+    { value: 'necesita_mejora', label: 'Necesita Mejora' },
+];
+
+// Tooltips
+const TOOLTIP_PERIODO = `Define el **lapso evaluado**: anual, semestral, trimestral, cierre de período de prueba, fin de proyecto o fuera de calendario.`;
+const TOOLTIP_TIPO_EVALUACION = `Define la **metodología y el alcance de la evaluación**: quién evalúa a quién (auto, jefe, pares, 360°) y el enfoque (competencias, objetivos, mixto o potencial).`;
+const TOOLTIP_ESTADO = `**Estado del proceso de evaluación**: Pendiente, En curso, Finalizada o Firmada.`;
+const TOOLTIP_ESCALA = `**Escala de valoración**: Supera expectativas, Cumple o Necesita mejora.`;
+
+// Field error component
+const FieldError = ({ message }) => {
+    if (!message) return null;
+    return &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}&lt;/span>;
+};
+
+
+
+const TooltipIcon = ({ content, isOpen, onToggle }) => (
+    &lt;span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+        &lt;span className="tooltip-icon" onClick={onToggle} style={{ cursor: 'pointer' }}>?&lt;/span>
+    &lt;/span>
+);
+
+const TooltipContent = ({ content, isOpen }) => {
+    if (!isOpen) return null;
+    return (
+        &lt;div className="tooltip-info" style={{ whiteSpace: 'pre-line', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
+            {content.split('**').map((part, i) =>
+                i % 2 === 1 ? &lt;strong key={i}>{part}&lt;/strong> : part
+            )}
+        &lt;/div>
+    );
+};
+
+/**
+ * Componente EvaluacionWizard
+ * 
+ * Permite registrar evaluaciones individuales o masivas de desempeño,
+ * gestionando evaluadores, evaluados y resultados en un proceso de 3 pasos.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.evaluacion] - Objeto evaluación a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @returns {JSX.Element}
+ */
+const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
+    const isEditing = !!evaluacion;
+    const [currentStep, setCurrentStep] = useState(1);
+
+    const [formData, setFormData] = useState({
+        periodo: '',
+        tipoEvaluacion: '',
+        fecha: getTodayStr(),
+        evaluadoresIds: [],
+        contratosEvaluadosIds: [],
+        contratoEvaluadoId: null,
+        estado: 'pendiente',
+        puntaje: '',
+        escala: '',
+        feedback: '',
+        reconocidoPorEmpleado: false,
+        fechaReconocimiento: null,
+        notas: '',
+    });
+
+    const [contratos, setContratos] = useState([]);
+    const [loadingContratos, setLoadingContratos] = useState(true);
+
+    const [selectedEvaluadores, setSelectedEvaluadores] = useState([]);
+    const [selectedContratosEvaluados, setSelectedContratosEvaluados] = useState([]);
+    const [selectedSingleContratoEvaluado, setSelectedSingleContratoEvaluado] = useState(null);
+
+    const [touched, setTouched] = useState({});
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [error, setError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const isDark = useIsDark();
+    const selectStyles = buildSelectStyles(isDark);
+    const [activeTooltip, setActiveTooltip] = useState(null);
+
+    const steps = [
+        { number: 1, title: 'Información Básica' },
+        { number: 2, title: 'Participantes' },
+        { number: 3, title: 'Resultado Final' },
+    ];
+
+    // Load Contratos
+    useEffect(() => {
+        const loadRequests = async () => {
+            try {
+                setLoadingContratos(true);
+                const result = await getContratos({ activo: 'true', estado: 'en_curso', limit: 1000 });
+                setContratos(result.data);
+            } catch (err) {
+                console.error('Error loading contratos:', err);
+            } finally {
+                setLoadingContratos(false);
+            }
+        };
+        loadRequests();
+    }, []);
+
+    const workspaceId = selectedEvaluadores[0]?.contrato?.empleado?.espacioTrabajoId ||
+        selectedContratosEvaluados[0]?.contrato?.empleado?.espacioTrabajoId ||
+        selectedSingleContratoEvaluado?.contrato?.empleado?.espacioTrabajoId;
+
+    const contratoOptions = Object.values(contratos.reduce((acc, contrato) => {
+        // Filtrar por espacio de trabajo si hay alguno seleccionado
+        if (workspaceId &amp;&amp; contrato.empleado?.espacioTrabajoId !== workspaceId) return acc;
+
+        const wsName = contrato.empleado?.espacioTrabajo?.nombre || 'Sin Espacio';
+        if (!acc[wsName]) acc[wsName] = { label: wsName, options: [] };
+
+        const nombreEmpleado = formatFullName(contrato.empleado);
+        const puesto = contrato.puestos &amp;&amp; contrato.puestos.length > 0 ? contrato.puestos[0].nombre : 'Sin puesto';
+        const empresa = contrato.puestos &amp;&amp; contrato.puestos.length > 0 &amp;&amp; contrato.puestos[0].departamento?.area?.empresa?.nombre;
+        const label = `${nombreEmpleado} - ${puesto}${empresa ? ` (${empresa})` : ''}`;
+
+        acc[wsName].options.push({
+            value: contrato.id,
+            label: label,
+            contrato: contrato
+        });
+        return acc;
+    }, {}));
+
+    // Helper to find option for editing or initial values
+    const findContratoOption = (id) => {
+        for (const group of contratoOptions) {
+            const found = group.options.find(opt => opt.value === id);
+            if (found) return found;
+        }
+        return null;
+    };
+
+    // Initialize form
+    useEffect(() => {
+        if (evaluacion) {
+            // ... existing init logic ...
+            setFormData(prev => ({
+                ...prev,
+                periodo: evaluacion.periodo || '',
+                tipoEvaluacion: evaluacion.tipoEvaluacion || '',
+                fecha: evaluacion.fecha || getTodayStr(),
+                contratoEvaluadoId: evaluacion.contratoEvaluadoId,
+                estado: evaluacion.estado || 'pendiente',
+                puntaje: evaluacion.puntaje?.toString() || '',
+                escala: evaluacion.escala || '',
+                feedback: evaluacion.feedback || '',
+                reconocidoPorEmpleado: evaluacion.reconocidoPorEmpleado || false,
+                fechaReconocimiento: evaluacion.fechaReconocimiento || null,
+                notas: evaluacion.notas || '',
+            }));
+
+            if (evaluacion.contratoEvaluado) {
+                // Reconstruct option manually if not found in list yet (though list should cover it)
+                // or try to find in loaded groups
+                // Simple reconstruction for display if list not ready
+                const c = evaluacion.contratoEvaluado;
+                const nombre = formatFullName(c.empleado);
+                const puesto = c.puestos?.[0]?.nombre || 'Sin puesto';
+                const empresa = c.puestos?.[0]?.departamento?.area?.empresa?.nombre;
+                setSelectedSingleContratoEvaluado({
+                    value: c.id,
+                    label: `${nombre} - ${puesto}${empresa ? ` (${empresa})` : ''}`,
+                    contrato: c
+                });
+            }
+
+            if (evaluacion.evaluadores &amp;&amp; evaluacion.evaluadores.length > 0) {
+                // Similarly reconstruction
+                const evalOpts = evaluacion.evaluadores.map(c => {
+                    const nombre = formatFullName(c.empleado);
+                    const puesto = c.puestos?.[0]?.nombre || 'Sin puesto';
+                    const empresa = c.puestos?.[0]?.departamento?.area?.empresa?.nombre;
+                    return {
+                        value: c.id,
+                        label: `${nombre} - ${puesto}${empresa ? ` (${empresa})` : ''}`,
+                        contrato: c
+                    };
+                });
+                setSelectedEvaluadores(evalOpts);
+                setFormData(prev => ({ ...prev, evaluadoresIds: evalOpts.map(o => o.value) }));
+            }
+        }
+    }, [evaluacion]);
+
+    const handleEvaluadoresChange = (options) => {
+        const opts = options || [];
+        setSelectedEvaluadores(opts);
+        setFormData(prev => ({ ...prev, evaluadoresIds: opts.map(o => o.value) }));
+        if (touched.evaluadoresIds) validateStep();
+    };
+
+    const validateStep = (newFormData = formData) => {
+        // Validation logic can be here if needed for real-time feedback
+        // currently nextStep handles main validation
+    };
+
+
+
+    const handleContratosEvaluadosChange = (options) => {
+        const opts = options || [];
+        setSelectedContratosEvaluados(opts);
+        setFormData(prev => ({ ...prev, contratosEvaluadosIds: opts.map(o => o.value) }));
+    };
+
+    const handleBlur = (field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+    };
+
+    const handleChange = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        setError('');
+
+        if (field === 'fecha' &amp;&amp; value) {
+            try {
+                const nombresCampos = {
+                    fecha: 'La fecha de evaluación'
+                };
+                validarDiaHabil(value, nombresCampos[field]);
+                setFieldErrors(prev => ({ ...prev, fecha: null }));
+            } catch (error) {
+                setFieldErrors(prev => ({ ...prev, fecha: error.message }));
+                setTouched(prev => ({ ...prev, fecha: true }));
+            }
+        }
+    };
+
+    const nextStep = () => {
+        const errors = {};
+        let isValid = true;
+
+        if (currentStep === 1) {
+            if (!formData.periodo) errors.periodo = 'El período es requerido';
+            if (!formData.tipoEvaluacion) errors.tipoEvaluacion = 'El tipo de evaluación es requerido';
+            if (!formData.fecha) errors.fecha = 'La fecha es requerida';
+            else if (new Date(formData.fecha) > new Date()) errors.fecha = 'La fecha no puede ser futura';
+            if (!formData.estado) errors.estado = 'El estado es requerido';
+            // Validar dia habil error
+            if (fieldErrors.fecha) isValid = false;
+
+        } else if (currentStep === 2) {
+            if (!formData.evaluadoresIds || formData.evaluadoresIds.length === 0) {
+                errors.evaluadoresIds = 'Debe seleccionar al menos un evaluador';
+            }
+            if (!isEditing) {
+                if (!formData.contratosEvaluadosIds || formData.contratosEvaluadosIds.length === 0) {
+                    errors.contratosEvaluadosIds = 'Debe seleccionar al menos un contrato a evaluar';
+                }
+                // Check intersection
+                if (formData.contratosEvaluadosIds.length > 0 &amp;&amp; formData.evaluadoresIds.length > 0) {
+                    const intersection = formData.contratosEvaluadosIds.filter(id => formData.evaluadoresIds.includes(id));
+                    if (intersection.length > 0) {
+                        errors.contratosEvaluadosIds = 'No puede evaluar a quien lo evalúa (conflicto de intereses)';
+                    }
+                }
+            }
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(prev => ({ ...prev, ...errors }));
+            setTouched(prev => Object.keys(errors).reduce((acc, key) => ({ ...acc, [key]: true }), prev));
+            setError('Por favor completa todos los campos obligatorios');
+            isValid = false;
+        }
+
+        if (isValid) {
+            setCurrentStep(prev => prev + 1);
+            setTouched({});
+            setError('');
+        }
+    };
+
+
+    const prevStep = () => setCurrentStep(prev => prev - 1);
+
+    const validateFinalStep = () => {
+        const errors = {};
+        if (!formData.puntaje) {
+            errors.puntaje = 'El puntaje es requerido';
+        } else {
+            const p = parseInt(formData.puntaje, 10);
+            if (isNaN(p) || p &lt; 0 || p > 100) errors.puntaje = 'El puntaje debe estar entre 0 y 100';
+        }
+        if (!formData.escala) errors.escala = 'La escala es requerida';
+        if (!formData.feedback) {
+            errors.feedback = 'El feedback es requerido';
+        } else if (formData.feedback.length &lt; 10) {
+            errors.feedback = 'El feedback debe tener al menos 10 caracteres';
+        } else if (formData.feedback.length > 2000) {
+            errors.feedback = 'El feedback no puede exceder 2000 caracteres';
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(prev => ({ ...prev, ...errors }));
+            setTouched(prev => Object.keys(errors).reduce((acc, key) => ({ ...acc, [key]: true }), prev));
+            setError('Por favor completa todos los campos obligatorios');
+            return false;
+        }
+        return true;
+    };
+
+    const handleSubmit = async () => {
+        if (!validateFinalStep()) return;
+
+        try {
+            setSubmitting(true);
+            const payload = {
+                ...formData,
+                puntaje: parseInt(formData.puntaje, 10),
+            };
+
+            // Remove contracts logic if is editing (readonly)
+            if (isEditing) {
+                // Keep only editable fields for update? Actually backend handles update
+                await updateEvaluacion(evaluacion.id, payload);
+            } else {
+                await createEvaluacion(payload);
+            }
+            onSuccess();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const renderStep1 = () => (
+        &lt;div style={{ display: 'grid', gap: '1.5rem' }}>
+            {/* Período y Tipo */}
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Período *
+                        &lt;TooltipIcon content={TOOLTIP_PERIODO} isOpen={activeTooltip === 'periodo'} onToggle={() => setActiveTooltip(activeTooltip === 'periodo' ? null : 'periodo')} />
+                    &lt;/label>
+                    &lt;TooltipContent content={TOOLTIP_PERIODO} isOpen={activeTooltip === 'periodo'} />
+                    &lt;select
+                        className={`form-input ${touched.periodo &amp;&amp; fieldErrors.periodo ? 'input-error' : ''}`}
+                        value={formData.periodo}
+                        onChange={(e) => handleChange('periodo', e.target.value)}
+                        onBlur={() => handleBlur('periodo')}
+                    >
+                        &lt;option value="">Seleccionar...&lt;/option>
+                        {PERIODOS.map(p => &lt;option key={p.value} value={p.value}>{p.label}&lt;/option>)}
+                    &lt;/select>
+                    &lt;FieldError message={touched.periodo &amp;&amp; fieldErrors.periodo} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Tipo *
+                        &lt;TooltipIcon content={TOOLTIP_TIPO_EVALUACION} isOpen={activeTooltip === 'tipoEvaluacion'} onToggle={() => setActiveTooltip(activeTooltip === 'tipoEvaluacion' ? null : 'tipoEvaluacion')} />
+                    &lt;/label>
+                    &lt;TooltipContent content={TOOLTIP_TIPO_EVALUACION} isOpen={activeTooltip === 'tipoEvaluacion'} />
+                    &lt;select
+                        className={`form-input ${touched.tipoEvaluacion &amp;&amp; fieldErrors.tipoEvaluacion ? 'input-error' : ''}`}
+                        value={formData.tipoEvaluacion}
+                        onChange={(e) => handleChange('tipoEvaluacion', e.target.value)}
+                        onBlur={() => handleBlur('tipoEvaluacion')}
+                    >
+                        &lt;option value="">Seleccionar...&lt;/option>
+                        {TIPOS_EVALUACION.map(t => &lt;option key={t.value} value={t.value}>{t.label}&lt;/option>)}
+                    &lt;/select>
+                    &lt;FieldError message={touched.tipoEvaluacion &amp;&amp; fieldErrors.tipoEvaluacion} />
+                &lt;/div>
+            &lt;/div>
+
+            {/* Fecha y Estado */}
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Fecha *&lt;/label>
+                    &lt;input
+                        type="date"
+                        className={`form-input ${touched.fecha &amp;&amp; fieldErrors.fecha ? 'input-error' : ''}`}
+                        value={formData.fecha}
+                        onChange={(e) => handleChange('fecha', e.target.value)}
+                        onBlur={() => handleBlur('fecha')}
+                        max={getTodayStr()}
+                    />
+                    &lt;FieldError message={touched.fecha &amp;&amp; fieldErrors.fecha} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Estado *
+                        &lt;TooltipIcon content={TOOLTIP_ESTADO} isOpen={activeTooltip === 'estado'} onToggle={() => setActiveTooltip(activeTooltip === 'estado' ? null : 'estado')} />
+                    &lt;/label>
+                    &lt;TooltipContent content={TOOLTIP_ESTADO} isOpen={activeTooltip === 'estado'} />
+                    &lt;select
+                        className={`form-input ${touched.estado &amp;&amp; fieldErrors.estado ? 'input-error' : ''}`}
+                        value={formData.estado}
+                        onChange={(e) => handleChange('estado', e.target.value)}
+                        onBlur={() => handleBlur('estado')}
+                    >
+                        &lt;option value="">Seleccionar...&lt;/option>
+                        {ESTADOS.map(e => &lt;option key={e.value} value={e.value}>{e.label}&lt;/option>)}
+                    &lt;/select>
+                    &lt;FieldError message={touched.estado &amp;&amp; fieldErrors.estado} />
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+
+    const renderStep2 = () => (
+        &lt;div style={{ display: 'grid', gap: '1.5rem' }}>
+            {/* Evaluadores */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">Evaluador(es) *&lt;/label>
+                &lt;Select
+                    isMulti
+                    isLoading={loadingContratos}
+                    options={contratoOptions}
+                    value={selectedEvaluadores}
+                    onChange={handleEvaluadoresChange}
+                    onBlur={() => handleBlur('evaluadoresIds')}
+                    placeholder="Buscar..."
+                    noOptionsMessage={() => "No se encontraron contratos"}
+                    styles={buildSelectStyles(isDark)}
+                    formatGroupLabel={data => (
+                        &lt;div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
+                            {data.label}
+                        &lt;/div>
+                    )}
+                    isClearable
+                    menuPortalTarget={document.body}
+                    menuPosition="fixed"
+                />
+                &lt;FieldError message={touched.evaluadoresIds &amp;&amp; fieldErrors.evaluadoresIds} />
+            &lt;/div>
+
+            {/* Evaluados */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">{isEditing ? 'Evaluado' : 'Evaluado(s) *'}&lt;/label>
+                {isEditing ? (
+                    &lt;Select
+                        isDisabled
+                        value={selectedSingleContratoEvaluado}
+                        styles={buildSelectStyles(isDark)}
+                    />
+                ) : (
+                    &lt;>
+                        &lt;Select
+                            isMulti
+                            isLoading={loadingContratos}
+                            options={contratoOptions}
+                            value={selectedContratosEvaluados}
+                            onChange={handleContratosEvaluadosChange}
+                            onBlur={() => handleBlur('contratosEvaluadosIds')}
+                            placeholder="Buscar..."
+                            noOptionsMessage={() => "No se encontraron contratos"}
+                            styles={buildSelectStyles(isDark)}
+                            formatGroupLabel={data => (
+                                &lt;div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
+                                    {data.label}
+                                &lt;/div>
+                            )}
+                            isClearable
+                            menuPortalTarget={document.body}
+                            menuPosition="fixed"
+                        />
+                        &lt;FieldError message={touched.contratosEvaluadosIds &amp;&amp; fieldErrors.contratosEvaluadosIds} />
+                    &lt;/>
+                )}
+            &lt;/div>
+        &lt;/div>
+    );
+
+    const renderStep3 = () => (
+        &lt;div style={{ display: 'grid', gap: '1.5rem' }}>
+            {/* Puntaje y Escala */}
+            &lt;div className="form-grid-stacked-3">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Puntaje *&lt;/label>
+                    &lt;input
+                        type="number"
+                        className={`form-input ${touched.puntaje &amp;&amp; fieldErrors.puntaje ? 'input-error' : ''}`}
+                        value={formData.puntaje}
+                        onChange={(e) => handleChange('puntaje', e.target.value)}
+                        onBlur={() => handleBlur('puntaje')}
+                        min="0"
+                        max="100"
+                        placeholder="0-100"
+                    />
+                    &lt;FieldError message={touched.puntaje &amp;&amp; fieldErrors.puntaje} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Escala *
+                        &lt;TooltipIcon content={TOOLTIP_ESCALA} isOpen={activeTooltip === 'escala'} onToggle={() => setActiveTooltip(activeTooltip === 'escala' ? null : 'escala')} />
+                    &lt;/label>
+                    &lt;TooltipContent content={TOOLTIP_ESCALA} isOpen={activeTooltip === 'escala'} />
+                    &lt;select
+                        className={`form-input ${touched.escala &amp;&amp; fieldErrors.escala ? 'input-error' : ''}`}
+                        value={formData.escala}
+                        onChange={(e) => handleChange('escala', e.target.value)}
+                        onBlur={() => handleBlur('escala')}
+                    >
+                        &lt;option value="">Seleccionar...&lt;/option>
+                        {ESCALAS.map(e => &lt;option key={e.value} value={e.value}>{e.label}&lt;/option>)}
+                    &lt;/select>
+                    &lt;FieldError message={touched.escala &amp;&amp; fieldErrors.escala} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Reconocimiento&lt;/label>
+                    &lt;div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0' }}>
+                        &lt;input
+                            type="checkbox"
+                            id="reconocido"
+                            checked={formData.reconocidoPorEmpleado}
+                            onChange={(e) => handleChange('reconocidoPorEmpleado', e.target.checked)}
+                            style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                        />
+                        &lt;label htmlFor="reconocido" style={{ cursor: 'pointer', fontSize: '0.95rem', userSelect: 'none' }}>
+                            Reconocido por el empleado
+                        &lt;/label>
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>
+
+            {/* Feedback */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">Feedback *&lt;/label>
+                &lt;textarea
+                    className={`form-input ${touched.feedback &amp;&amp; fieldErrors.feedback ? 'input-error' : ''}`}
+                    value={formData.feedback}
+                    onChange={(e) => handleChange('feedback', e.target.value)}
+                    onBlur={() => handleBlur('feedback')}
+                    rows={4}
+                    style={{ resize: 'vertical', minHeight: '100px' }}
+                    maxLength={2000}
+                />
+                &lt;FieldError message={touched.feedback &amp;&amp; fieldErrors.feedback} />
+                &lt;span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>{formData.feedback.length}/2000&lt;/span>
+            &lt;/div>
+
+            {/* Notas */}
+            &lt;div className="form-group">
+                &lt;label className="form-label">Notas&lt;/label>
+                &lt;textarea
+                    className={`form-input ${fieldErrors.notas ? 'input-error' : ''}`}
+                    value={formData.notas}
+                    onChange={(e) => handleChange('notas', e.target.value)}
+                    rows={3}
+                    style={{ resize: 'vertical', minHeight: '80px' }}
+                    maxLength={1000}
+                />
+                &lt;FieldError message={touched.notas &amp;&amp; fieldErrors.notas} />
+                &lt;span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>{formData.notas.length}/1000&lt;/span>
+            &lt;/div>
+        &lt;/div>
+    );
+
+    return (
+        &lt;div className="modal-overlay" onClick={onClose}>
+            &lt;div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
+                &lt;div className="modal-header">
+                    &lt;h2 className="modal-title">{isEditing ? 'Editar Evaluación' : 'Nueva Evaluación'}&lt;/h2>
+                    &lt;button className="modal-close" onClick={onClose}>
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        &lt;/svg>
+                    &lt;/button>
+                &lt;/div>
+
+                &lt;div className="modal-body" style={{ padding: '2rem' }}>
+                    &lt;StepTracker steps={steps} currentStep={currentStep} />
+
+                    &lt;div style={{ marginTop: '2rem', textAlign: 'center', marginBottom: '2rem' }}>
+                        &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                            {steps[currentStep - 1].title}
+                        &lt;/h3>
+                        &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                            {currentStep === 1 &amp;&amp; 'Define el período, tipo y estado de la evaluación'}
+                            {currentStep === 2 &amp;&amp; 'Selecciona los evaluadores y evaluados'}
+                            {currentStep === 3 &amp;&amp; 'Ingresa el puntaje, escala y feedback'}
+                        &lt;/p>
+                    &lt;/div>
+
+                    {error &amp;&amp; (
+                        &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                            {error}
+                        &lt;/div>
+                    )}
+
+                    {currentStep === 1 &amp;&amp; renderStep1()}
+                    {currentStep === 2 &amp;&amp; renderStep2()}
+                    {currentStep === 3 &amp;&amp; renderStep3()}
+                &lt;/div>
+
+                &lt;div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 2rem', borderTop: '1px solid var(--border-color)' }}>
+                    &lt;div>
+                        {currentStep > 1 &amp;&amp; (
+                            &lt;button className="btn btn-secondary" onClick={prevStep}>
+                                Anterior
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                    &lt;div style={{ display: 'flex', gap: '1rem' }}>
+                        &lt;button className="btn btn-secondary" onClick={onClose} disabled={submitting}>
+                            Cancelar
+                        &lt;/button>
+                        {currentStep &lt; 3 ? (
+                            &lt;button className="btn btn-primary" onClick={nextStep}>
+                                Siguiente
+                            &lt;/button>
+                        ) : (
+                            &lt;button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+                                {submitting ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear')} Evaluación
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+};
+
+export default EvaluacionWizard;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: services/liquidacionService.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: services/liquidacionService.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Servicios para el módulo de Liquidaciones y Conceptos Salariales.
+ * @module services/liquidacionService
+ */
+
+import { httpClient, buildQueryString, API_URL } from './httpClient';
+
+// ===== LIQUIDACIONES =====
+
+/**
+ * Obtiene la lista de liquidaciones según filtros.
+ *
+ * @param {Object} [filters={}] - (contratoId, periodo, estaPagada, etc.)
+ * @returns {Promise&lt;Object>} Lista paginada de liquidaciones.
+ */
+export const getLiquidaciones = async (filters = {}) => {
+    const response = await httpClient(`${API_URL}/liquidaciones${buildQueryString(filters)}`);
+    if (!response.ok) throw new Error('Error al obtener liquidaciones');
+    return response.json();
+};
+
+/**
+ * Ejecuta el proceso de liquidación masiva de sueldos del período actual.
+ *
+ * @returns {Promise&lt;Object>} Resultado del proceso (cantidad liquidaciones generadas, errores, etc.).
+ */
+export const ejecutarLiquidacion = async () => {
+    const response = await httpClient(`${API_URL}/liquidaciones`, { method: 'POST' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al ejecutar liquidación');
+    return result;
+};
+
+/**
+ * Obtiene una liquidación por su ID con todo el detalle de conceptos.
+ *
+ * @param {number} id
+ * @returns {Promise&lt;Object>}
+ */
+export const getLiquidacionById = async (id) => {
+    const response = await httpClient(`${API_URL}/liquidaciones/${id}`);
+    if (!response.ok) throw new Error('Error al obtener liquidación');
+    return response.json();
+};
+
+/**
+ * Actualiza los datos de una liquidación (ej: marcar como pagada).
+ *
+ * @param {number} id
+ * @param {Object} data - Campos a modificar.
+ * @returns {Promise&lt;Object>}
+ */
+export const updateLiquidacion = async (id, data) => {
+    const response = await httpClient(`${API_URL}/liquidaciones/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al actualizar liquidación');
+    return result;
+};
+
+/**
+ * Marca una liquidación como pagada o pendiente de pago.
+ *
+ * @param {number} id - ID de la liquidación.
+ * @param {boolean} estaPagada - `true` para marcar como pagada, `false` para revertir.
+ * @returns {Promise&lt;Object>} Liquidación actualizada.
+ */
+export const marcarLiquidacionComoPagada = async (id, estaPagada) => {
+    return updateLiquidacion(id, { estaPagada });
+};
+
+/**
+ * Elimina lógicamente una liquidación.
+ *
+ * @param {number} id
+ * @returns {Promise&lt;Object>}
+ */
+export const deleteLiquidacion = async (id) => {
+    const response = await httpClient(`${API_URL}/liquidaciones/${id}`, { method: 'DELETE' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al eliminar liquidación');
+    return result;
+};
+
+/**
+ * Reactiva una liquidación dada de baja.
+ *
+ * @param {number} id
+ * @returns {Promise&lt;Object>}
+ */
+export const reactivateLiquidacion = async (id) => {
+    const response = await httpClient(`${API_URL}/liquidaciones/${id}/reactivate`, { method: 'PATCH' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al reactivar liquidación');
+    return result;
+};
+
+/**
+ * Elimina múltiples liquidaciones.
+ *
+ * @param {number[]} ids
+ * @returns {Promise&lt;Object>}
+ */
+export const deleteLiquidacionesBulk = async (ids) => {
+    const response = await httpClient(`${API_URL}/liquidaciones/bulk`, {
+        method: 'DELETE',
+        body: JSON.stringify({ ids }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al eliminar liquidaciones');
+    return result;
+};
+
+// ===== CONCEPTOS SALARIALES =====
+
+/**
+ * Obtiene la lista de conceptos salariales del espacio de trabajo.
+ *
+ * @param {Object} [filters={}] - (tipo, esObligatorio, etc.)
+ * @returns {Promise&lt;Object>}
+ */
+export const getConceptosSalariales = async (filters = {}) => {
+    const response = await httpClient(`${API_URL}/conceptos-salariales${buildQueryString(filters)}`);
+    if (!response.ok) throw new Error('Error al obtener conceptos salariales');
+    return response.json();
+};
+
+/**
+ * Obtiene un concepto salarial por su ID.
+ *
+ * @param {number} id
+ * @returns {Promise&lt;Object>}
+ */
+export const getConceptoSalarialById = async (id) => {
+    const response = await httpClient(`${API_URL}/conceptos-salariales/${id}`);
+    if (!response.ok) throw new Error('Error al obtener concepto salarial');
+    return response.json();
+};
+
+/**
+ * Crea un nuevo concepto salarial (remunerativo o deducción).
+ *
+ * @param {Object} concepto - Datos del concepto.
+ * @returns {Promise&lt;Object>}
+ */
+export const createConceptoSalarial = async (concepto) => {
+    const response = await httpClient(`${API_URL}/conceptos-salariales`, {
+        method: 'POST',
+        body: JSON.stringify(concepto),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al crear concepto salarial');
+    return result;
+};
+
+/**
+ * Actualiza un concepto salarial existente.
+ *
+ * @param {number} id
+ * @param {Object} concepto
+ * @returns {Promise&lt;Object>}
+ */
+export const updateConceptoSalarial = async (id, concepto) => {
+    const response = await httpClient(`${API_URL}/conceptos-salariales/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(concepto),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al actualizar concepto salarial');
+    return result;
+};
+
+/**
+ * Elimina un concepto salarial.
+ *
+ * @param {number} id
+ * @returns {Promise&lt;Object>}
+ */
+export const deleteConceptoSalarial = async (id) => {
+    const response = await httpClient(`${API_URL}/conceptos-salariales/${id}`, { method: 'DELETE' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al eliminar concepto salarial');
+    return result;
+};
+
+// ===== PARÁMETROS LABORALES =====
+
+/**
+ * Obtiene los parámetros laborales del espacio de trabajo activo.
+ *
+ * @param {Object} [filters={}] - Filtros opcionales.
+ * @returns {Promise&lt;Object[]>} Lista de parámetros.
+ */
+export const getParametrosLaborales = async (filters = {}) => {
+    const response = await httpClient(`${API_URL}/parametros-laborales${buildQueryString(filters)}`);
+    if (!response.ok) throw new Error('Error al obtener parámetros laborales');
+    return response.json();
+};
+
+/**
+ * Actualiza los parámetros laborales del espacio de trabajo activo.
+ *
+ * @param {Object[]} parametrosData - Array de objetos { tipo, valor }.
+ * @returns {Promise&lt;Object>}
+ */
+export const updateParametrosLaborales = async (parametrosData) => {
+    const response = await httpClient(`${API_URL}/parametros-laborales`, {
+        method: 'PUT',
+        body: JSON.stringify(parametrosData),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al actualizar parámetros laborales');
+    return result;
+};
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

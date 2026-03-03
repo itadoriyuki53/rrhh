@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/Navbar.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/Navbar.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Barra de navegación principal con menú de usuario y selector de contrato.
+ * @module components/Navbar
+ */
+
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { getContratos } from '../services/api';
+import EmpleadoDetail from './EmpleadoDetail';
+import EmpleadoWizard from './EmpleadoWizard';
+import PerfilUsuarioModal from './PerfilUsuarioModal';
+import ConfirmDialog from './ConfirmDialog';
+import Alert from './Alert';
+
+/**
+ * Componente interno ContractSelect
+ * Renderiza un selector personalizado para cambiar entre los diferentes contratos del empleado.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Array} props.contratos - Lista de objetos de contrato.
+ * @param {number|string} props.selectedId - ID del contrato actualmente seleccionado.
+ * @param {Function} props.onChange - Callback al cambiar la selección.
+ * @returns {JSX.Element}
+ */
+const ContractSelect = ({ contratos, selectedId, onChange }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const handler = (e) => {
+            if (ref.current &amp;&amp; !ref.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    if (contratos.length === 0) {
+        return (
+            &lt;div style={{ fontSize: '0.8rem', color: 'var(--neutral-400)', fontStyle: 'italic', padding: '0.35rem 0' }}>
+                Sin contratos activos
+            &lt;/div>
+        );
+    }
+
+    const selected = contratos.find(c => c.id === selectedId);
+    const getLabel = (c) => {
+        const puesto = c.puestos?.[0]?.nombre || 'Sin Puesto';
+        const empresa = c.puestos?.[0]?.departamento?.area?.empresa?.nombre || null;
+        return { puesto, empresa, rol: c.rol?.nombre || null };
+    };
+
+    const sel = selected ? getLabel(selected) : null;
+
+    return (
+        &lt;div ref={ref} style={{ position: 'relative' }}>
+            {/* Trigger */}
+            &lt;button
+                onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+                style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem',
+                    padding: '0.5rem 0.65rem',
+                    border: '1.5px solid var(--neutral-200)',
+                    borderRadius: '0.45rem',
+                    background: 'var(--neutral-50)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'border-color 0.15s',
+                    outline: open ? '2px solid var(--primary-color)' : 'none',
+                    outlineOffset: '1px',
+                }}
+            >
+                &lt;div style={{ flex: 1, minWidth: 0 }}>
+                    {sel ? (
+                        &lt;>
+                            &lt;div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {sel.puesto}{sel.empresa ? ` Â· ${sel.empresa}` : ''}
+                            &lt;/div>
+                            {sel.rol &amp;&amp; (
+                                &lt;div style={{ marginTop: '0.2rem' }}>
+                                    &lt;span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '0.22rem',
+                                        fontSize: '0.68rem', fontWeight: 600,
+                                        padding: '0.08rem 0.45rem', borderRadius: '9999px',
+                                        background: 'rgba(13,148,136,0.1)', color: '#0d9488',
+                                        border: '1px solid rgba(13,148,136,0.2)',
+                                    }}>
+                                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" style={{ width: 9, height: 9 }}>
+                                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                        &lt;/svg>
+                                        {sel.rol}
+                                    &lt;/span>
+                                &lt;/div>
+                            )}
+                        &lt;/>
+                    ) : (
+                        &lt;span style={{ fontSize: '0.82rem', color: 'var(--neutral-400)' }}>Seleccionar contrato...&lt;/span>
+                    )}
+                &lt;/div>
+                {/* Chevron */}
+                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+                    style={{ width: 14, height: 14, color: 'var(--neutral-400)', flexShrink: 0, transition: 'transform 0.15s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                &lt;/svg>
+            &lt;/button>
+
+            {/* Dropdown */}
+            {open &amp;&amp; (
+                &lt;div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    left: 0,
+                    right: 0,
+                    background: 'var(--card-bg, #fff)',
+                    border: '1.5px solid var(--neutral-200)',
+                    borderRadius: '0.5rem',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    zIndex: 9999,
+                    overflow: 'hidden',
+                    animation: 'fadeInDown 0.12s ease',
+                }}>
+                    {contratos.map((c, i) => {
+                        const { puesto, empresa, rol } = getLabel(c);
+                        const isSelected = c.id === selectedId;
+                        return (
+                            &lt;button
+                                key={c.id}
+                                onClick={(e) => { e.stopPropagation(); onChange(c.id); setOpen(false); }}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.6rem',
+                                    width: '100%',
+                                    padding: '0.6rem 0.75rem',
+                                    background: isSelected ? 'rgba(var(--primary-rgb, 99,102,241), 0.07)' : 'transparent',
+                                    border: 'none',
+                                    borderBottom: i &lt; contratos.length - 1 ? '1px solid var(--neutral-100)' : 'none',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'background 0.1s',
+                                }}
+                                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--neutral-50)'; }}
+                                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                            >
+                                {/* Check icon */}
+                                &lt;div style={{ width: 16, flexShrink: 0, color: isSelected ? 'var(--primary-color)' : 'transparent' }}>
+                                    &lt;svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style={{ width: 16, height: 16 }}>
+                                        &lt;path fillRule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clipRule="evenodd" />
+                                    &lt;/svg>
+                                &lt;/div>
+                                &lt;div style={{ flex: 1, minWidth: 0 }}>
+                                    &lt;div style={{ fontSize: '0.82rem', fontWeight: isSelected ? 700 : 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {puesto}{empresa ? ` Â· ${empresa}` : ''}
+                                    &lt;/div>
+                                    {rol &amp;&amp; (
+                                        &lt;div style={{ marginTop: '0.2rem' }}>
+                                            &lt;span style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: '0.22rem',
+                                                fontSize: '0.68rem', fontWeight: 600,
+                                                padding: '0.08rem 0.45rem', borderRadius: '9999px',
+                                                background: 'rgba(13,148,136,0.1)', color: '#0d9488',
+                                                border: '1px solid rgba(13,148,136,0.2)',
+                                            }}>
+                                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" style={{ width: 9, height: 9 }}>
+                                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                                &lt;/svg>
+                                                {rol}
+                                            &lt;/span>
+                                        &lt;/div>
+                                    )}
+                                &lt;/div>
+                            &lt;/button>
+                        );
+                    })}
+                &lt;/div>
+            )}
+        &lt;/div>
+    );
+};
+
+/**
+ * Componente Navbar
+ * Barra superior que contiene el disparador del sidebar móvil, 
+ * información del usuario, selector de contrato y cierre de sesión.
+ * 
+ * @returns {JSX.Element}
+ */
+const Navbar = () => {
+    const navigate = useNavigate();
+    const { user, logout, checkAuth, seleccionarContrato } = useAuth();
+
+    const [showMenu, setShowMenu] = useState(false);
+    const [contratos, setContratos] = useState([]);
+    const [showProfile, setShowProfile] = useState(false);
+    const [showEditWizard, setShowEditWizard] = useState(false);
+    const [showPerfilModal, setShowPerfilModal] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [globalSuccessAlert, setGlobalSuccessAlert] = useState('');
+    const [avatarPath, setAvatarPath] = useState('');
+    const menuRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current &amp;&amp; !menuRef.current.contains(event.target)) {
+                setShowMenu(false);
+            }
+        };
+        if (showMenu) document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showMenu]);
+
+    if (!user) return null;
+
+    useEffect(() => {
+        if (!user) return;
+        const genero = user.genero?.toLowerCase() || 'otro';
+        const randomIndex = Math.floor(Math.random() * 3) + 1;
+        setAvatarPath(`/avatares/${genero}/${genero}${randomIndex}.jpg`);
+
+        if (user.esEmpleado &amp;&amp; user.empleadoId) {
+            getContratos({ empleadoId: user.empleadoId, activo: true })
+                .then(res => setContratos(res.data || []))
+                .catch(console.error);
+        } else {
+            setContratos([]);
+        }
+    }, [user]);
+
+    /**
+     * Gestiona el cambio de contrato activo del usuario empleado.
+     * 
+     * @async
+     * @param {number|string} id - ID del contrato a seleccionar.
+     * @returns {Promise&lt;void>}
+     */
+    const handleContractChange = async (id) => {
+        try {
+            await seleccionarContrato(id);
+        } catch (err) {
+            console.error('Failed to select contract', err);
+        }
+    };
+
+    /**
+     * Trunca un nombre largo para evitar desbordes en la UI.
+     * 
+     * @param {string} name - Nombre completo.
+     * @param {number} [maxLength=20] - Longitud máxima permitida.
+     * @returns {string} Nombre truncado.
+     */
+    const truncateName = (name, maxLength = 20) => {
+        if (!name) return '';
+        return name.length > maxLength ? `${name.substring(0, maxLength)}...` : name;
+    };
+
+    const fullName = `${user.nombre} ${user.apellido}`;
+    const displayName = truncateName(fullName);
+    const role = user.esAdministrador ? 'Administrador' : 'Usuario';
+
+    const handleViewProfile = () => { setShowMenu(false); setShowProfile(true); };
+    const handleEditProfile = () => {
+        setShowProfile(false);
+        if (user.esEmpleado) {
+            // Empleado → wizard de empleado
+            setShowEditWizard(true);
+        } else {
+            // Propietario (no empleado) → modal de edición de perfil
+            setShowPerfilModal(true);
+        }
+    };
+    const handleEditSuccess = async () => {
+        setShowEditWizard(false);
+        await checkAuth();
+        setGlobalSuccessAlert('Perfil actualizado correctamente');
+    };
+    const handlePerfilSuccess = async () => {
+        await checkAuth();
+        setGlobalSuccessAlert('Perfil actualizado correctamente');
+    };
+    const handleLogoutClick = () => { setShowMenu(false); setShowLogoutConfirm(true); };
+    const handleConfirmLogout = async () => {
+        try { await logout(); navigate('/login'); }
+        catch (error) { console.error('Error al cerrar sesión:', error); }
+    };
+
+    /**
+     * Dispara un evento personalizado para alternar la visibilidad del sidebar en móviles.
+     * 
+     * @returns {void}
+     */
+    const toggleSidebar = () => {
+        // Dispatch custom event for sidebar toggle on mobile
+        window.dispatchEvent(new CustomEvent('toggle-sidebar'));
+    };
+
+    return (
+        &lt;>
+            {globalSuccessAlert &amp;&amp; (
+                &lt;Alert
+                    type="success"
+                    message={globalSuccessAlert}
+                    onClose={() => setGlobalSuccessAlert('')}
+                    duration={3000}
+                />
+            )}
+            &lt;nav className="navbar">
+                &lt;div className="navbar-content">
+                    &lt;div className="navbar-left">
+                        &lt;button
+                            className="navbar-menu-btn"
+                            onClick={toggleSidebar}
+                            aria-label="Abrir menú"
+                        >
+                            &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                            &lt;/svg>
+                        &lt;/button>
+                    &lt;/div>
+
+                    &lt;div className="navbar-right">
+                        &lt;div className="user-menu-wrapper" ref={menuRef}>
+                            &lt;button
+                                className="user-menu-trigger"
+                                onClick={() => setShowMenu(!showMenu)}
+                                aria-label="Menú de usuario"
+                            >
+                                &lt;img
+                                    src={avatarPath}
+                                    alt="Avatar"
+                                    className="user-avatar"
+                                    onError={(e) => { e.target.src = '/avatares/otro/otro1.jpg'; }}
+                                />
+                                &lt;div className="user-info">
+                                    &lt;span className="user-name">{displayName}&lt;/span>
+                                    &lt;span className="user-role">{role}&lt;/span>
+                                &lt;/div>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"
+                                    className={`chevron-icon ${showMenu ? 'rotated' : ''}`}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                &lt;/svg>
+                            &lt;/button>
+
+                            {showMenu &amp;&amp; (
+                                &lt;div className="user-menu-dropdown">
+                                    {/* Selector de contrato */}
+                                    &lt;div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--neutral-200)', minWidth: '270px' }}>
+                                        &lt;label style={{ display: 'block', fontSize: '0.70rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--neutral-500)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>
+                                            Contrato Activo
+                                        &lt;/label>
+                                        &lt;ContractSelect
+                                            contratos={contratos}
+                                            selectedId={user.ultimoContratoSeleccionadoId}
+                                            onChange={handleContractChange}
+                                        />
+                                    &lt;/div>
+
+                                    &lt;button className="menu-item" onClick={handleViewProfile}>
+                                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                        &lt;/svg>
+                                        Ver información
+                                    &lt;/button>
+                                    &lt;div className="menu-divider">&lt;/div>
+                                    &lt;button className="menu-item menu-item-danger" onClick={handleLogoutClick}>
+                                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                                        &lt;/svg>
+                                        Cerrar sesión
+                                    &lt;/button>
+                                &lt;/div>
+                            )}
+                        &lt;/div>
+                    &lt;/div>
+                &lt;/div>
+            &lt;/nav>
+
+            {showProfile &amp;&amp; user &amp;&amp; (
+                &lt;EmpleadoDetail
+                    empleado={user}
+                    onClose={() => setShowProfile(false)}
+                    onEdit={handleEditProfile}
+                    hideEditButton={false}
+                />
+            )}
+
+            {showEditWizard &amp;&amp; user &amp;&amp; (
+                &lt;EmpleadoWizard
+                    empleado={user}
+                    onClose={() => setShowEditWizard(false)}
+                    onSuccess={handleEditSuccess}
+                />
+            )}
+
+            {showPerfilModal &amp;&amp; user &amp;&amp; (
+                &lt;PerfilUsuarioModal
+                    user={user}
+                    onClose={() => setShowPerfilModal(false)}
+                    onSuccess={handlePerfilSuccess}
+                />
+            )}
+
+            &lt;ConfirmDialog
+                isOpen={showLogoutConfirm}
+                title="Cerrar sesión"
+                message="¿Estás seguro de que deseas cerrar sesión?"
+                onConfirm={handleConfirmLogout}
+                onCancel={() => setShowLogoutConfirm(false)}
+                confirmText="Cerrar sesión"
+                variant="danger"
+            />
+        &lt;/>
+    );
+};
+
+export default Navbar;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

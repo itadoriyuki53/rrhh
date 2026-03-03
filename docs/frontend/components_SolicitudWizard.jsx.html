@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/SolicitudWizard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/SolicitudWizard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Orquestador multi-paso para la creación y edición de cualquier tipo de solicitud.
+ * @module components/SolicitudWizard
+ */
+
+import { useState, useEffect } from 'react';
+import Select from 'react-select';
+import StepTracker from './StepTracker';
+import { getContratos, getRegistrosSalud, createSolicitud, updateSolicitud, getDiasDisponiblesVacaciones, getDiasSolicitadosVacaciones } from '../services/api';
+import { validarDiaHabil, esDiaHabilSincrono } from '../helpers/diasHabiles';
+import { getTodayStr, formatFullName } from '../helpers/formatters';
+import { useIsDark } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
+
+// Constants
+const TIPOS_SOLICITUD = [
+    { value: 'vacaciones', label: 'Vacaciones' },
+    { value: 'licencia', label: 'Licencia / Inasistencia' },
+    { value: 'horas_extras', label: 'Horas Extras' },
+    { value: 'renuncia', label: 'Renuncia' },
+];
+
+const TIPOS_RELACION_DEPENDENCIA = [
+    'tiempo_indeterminado',
+    'periodo_prueba',
+    'plazo_fijo',
+    'eventual',
+    'teletrabajo'
+];
+
+const MOTIVOS_LEGALES = [
+    { value: 'matrimonio', label: 'Matrimonio (LCT Art. 168)' },
+    { value: 'nacimiento_hijo', label: 'Nacimiento de hijo (Paternidad)' },
+    { value: 'fallecimiento_conyugue_hijo_padres', label: 'Fallecimiento de cónyuge, hijo o padres' },
+    { value: 'fallecimiento_hermano', label: 'Fallecimiento de hermano' },
+    { value: 'examen_estudio', label: 'Examen / Estudio' },
+    { value: 'accidente_trabajo_art', label: 'Accidente de trabajo / Enfermedad profesional (ART)' },
+    { value: 'enfermedad_inculpable', label: 'Enfermedad inculpable' },
+    { value: 'maternidad', label: 'Maternidad' },
+    { value: 'excedencia', label: 'Estado de excedencia' },
+    { value: 'donacion_sangre', label: 'Donación de sangre' },
+    { value: 'citacion_judicial', label: 'Citación judicial' },
+    { value: 'presidente_mesa', label: 'Presidente de mesa (electoral)' },
+    { value: 'mudanza', label: 'Mudanza' },
+    { value: 'cumpleanos', label: 'Día de cumpleaños' },
+    { value: 'tramites_personales', label: 'Trámites personales' },
+    { value: 'compensatorio_franco', label: 'Compensatorio / Franco' },
+];
+
+const MOTIVOS_SALUD = ['accidente_trabajo_art', 'enfermedad_inculpable'];
+
+const TIPO_EXAMEN_LABELS = {
+    pre_ocupacional: 'Pre-ocupacional',
+    periodico: 'Periódico',
+    post_ocupacional: 'Post-ocupacional',
+    retorno_trabajo: 'Retorno al trabajo',
+};
+
+const ESTADOS_LICENCIA = [
+    { value: 'pendiente', label: 'Pendiente' },
+    { value: 'justificada', label: 'Justificada' },
+    { value: 'injustificada', label: 'Injustificada' },
+    { value: 'rechazada', label: 'Rechazada' },
+];
+
+const ESTADOS_VACACIONES = [
+    { value: 'pendiente', label: 'Pendiente' },
+    { value: 'aprobada', label: 'Aprobada' },
+    { value: 'rechazada', label: 'Rechazada' },
+];
+
+const ESTADOS_HORAS_EXTRAS = [
+    { value: 'pendiente', label: 'Pendiente' },
+    { value: 'aprobada', label: 'Aprobada' },
+    { value: 'rechazada', label: 'Rechazada' },
+];
+
+const ESTADOS_RENUNCIA = [
+    { value: 'pendiente', label: 'Pendiente' },
+    { value: 'aceptada', label: 'Aceptada' },
+    { value: 'procesada', label: 'Procesada' },
+];
+
+const TIPOS_HORAS_EXTRA = [
+    { value: '50', label: '50% (días hábiles)' },
+    { value: '100', label: '100% (fines de semana / feriados)' },
+];
+
+const TOOLTIP_VACACIONES = `Según la **Ley de Contrato de Trabajo de Argentina (LCT)**, los días de vacaciones se determinan por la antigÃ¼edad del trabajador:
+
+• Hasta 5 años de antigÃ¼edad: **14 días corridos**
+• Más de 5 y hasta 10 años: **21 días corridos**
+• Más de 10 y hasta 20 años: **28 días corridos**
+• Más de 20 años: **35 días corridos**
+
+Si el trabajador no hubiere prestado servicios durante la mitad de los días hábiles del año calendario, tendrá derecho a **1 día de vacaciones por cada 20 días de trabajo efectivo**. 
+
+Los días se calculan como días hábiles (excluyendo fines de semana y feriados nacionales).`;
+
+const TOOLTIP_RENUNCIA = `Según la Ley de Contrato de Trabajo de Argentina (LCT), el **preaviso** es obligatorio y debe ser de 15 días, con el fin de que la empresa busque reemplazo.`;
+
+/**
+ * Componente interno de error de campo.
+ * 
+ * @param {Object} props - Propiedades.
+ * @param {string} [props.message] - Mensaje de error.
+ */
+const FieldError = ({ message }) => {
+    if (!message) return null;
+    return &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}&lt;/span>;
+};
+
+
+
+// Helper to format decimal hours (e.g., 2.50) to human readable time (e.g., 2:30)
+const formatDecimalToTime = (decimalValue) => {
+    if (!decimalValue || isNaN(decimalValue)) return '0:00 hs';
+    const totalMinutes = Math.round(parseFloat(decimalValue) * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}:${minutes.toString().padStart(2, '0')} hs`;
+};
+
+/**
+ * Componente SolicitudWizard
+ * 
+ * Gestiona el proceso de alta y modificación de solicitudes, 
+ * incluyendo validaciones de días hábiles, cálculo de vacaciones
+ * y adjunto de comprobantes según el tipo.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.solicitud] - Objeto solicitud a editar.
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras guardar exitosamente.
+ * @returns {JSX.Element}
+ */
+const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
+    const isEditing = !!solicitud;
+    const [currentStep, setCurrentStep] = useState(isEditing ? 2 : 1);
+    const [contratos, setContratos] = useState([]);
+    const [loadingContratos, setLoadingContratos] = useState(true);
+    const isDark = useIsDark();
+
+    const [selectedContrato, setSelectedContrato] = useState(null);
+    const [selectedTipo, setSelectedTipo] = useState('');
+
+    const [formData, setFormData] = useState({
+        fecha: getTodayStr(),
+        fechaInicio: getTodayStr(),
+        fechaNotificacion: getTodayStr()
+    });
+
+    const getAvailableTipos = () => {
+        if (!selectedContrato) return TIPOS_SOLICITUD;
+        const tipoContrato = selectedContrato.contrato?.tipoContrato;
+        const esRelacionDependencia = TIPOS_RELACION_DEPENDENCIA.includes(tipoContrato);
+        if (esRelacionDependencia) return TIPOS_SOLICITUD;
+        return TIPOS_SOLICITUD.filter(tipo => tipo.value === 'licencia');
+    };
+
+    // Reset selectedTipo if it's no longer available for the new contract
+    useEffect(() => {
+        if (selectedContrato &amp;&amp; selectedTipo) {
+            const disponibles = getAvailableTipos().map(t => t.value);
+            if (!disponibles.includes(selectedTipo)) {
+                setSelectedTipo('');
+                setFormData(prev => ({ ...prev, tipoSolicitud: '' }));
+            }
+        }
+    }, [selectedContrato]);
+    const [touched, setTouched] = useState({});
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [showTooltipVacaciones, setShowTooltipVacaciones] = useState(false);
+    const [showTooltipRenuncia, setShowTooltipRenuncia] = useState(false);
+
+    // Registros de salud para licencias ART/enfermedad
+    const [registrosSalud, setRegistrosSalud] = useState([]);
+    const [loadingRegistros, setLoadingRegistros] = useState(false);
+
+    const steps = [
+        { number: 1, title: 'Tipo de Solicitud' },
+        { number: 2, title: 'Datos de la Solicitud' },
+    ];
+
+    // Obtener contratos disponibles
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                setLoadingContratos(true);
+                const result = await getContratos({ activo: 'true', estado: 'en_curso', limit: 1000 });
+                setContratos(result.data);
+            } catch (err) {
+                console.error('Error loading contratos:', err);
+            } finally {
+                setLoadingContratos(false);
+            }
+        };
+        loadData();
+    }, []);
+
+    const contratoOptions = Object.values(contratos.reduce((acc, contrato) => {
+        const wsName = contrato.empleado?.espacioTrabajo?.nombre || 'Sin Espacio';
+        if (!acc[wsName]) acc[wsName] = { label: wsName, options: [] };
+
+        const nombreEmpleado = formatFullName(contrato.empleado);
+        const puesto = contrato.puestos &amp;&amp; contrato.puestos.length > 0 ? contrato.puestos[0].nombre : 'Sin puesto';
+        const empresa = contrato.puestos &amp;&amp; contrato.puestos.length > 0 &amp;&amp; contrato.puestos[0].departamento?.area?.empresa?.nombre;
+        const label = `${nombreEmpleado} - ${puesto}${empresa ? ` (${empresa})` : ''}`;
+
+        acc[wsName].options.push({
+            value: contrato.id,
+            label: label,
+            contrato: contrato
+        });
+        return acc;
+    }, {}));
+
+    // Helper to find option for editing or initial values
+    const findContratoOption = (id) => {
+        for (const group of contratoOptions) {
+            const found = group.options.find(opt => opt.value === id);
+            if (found) return found;
+        }
+        return null;
+    };
+
+    // Initialize form
+    useEffect(() => {
+        if (solicitud) {
+            const tipo = solicitud.tipoSolicitud;
+            // The association might be named 'horasExtras' (camelCase) while tipo is 'horas_extras' (snake_case)
+            // Checking all possible keys is the safest way to find the data sub-object
+            const subData = solicitud.licencia || solicitud.vacaciones || solicitud.horasExtras || solicitud.renuncia || solicitud[tipo] || {};
+
+            // Normalize dates to YYYY-MM-DD
+            const normalizeDate = (d) => {
+                if (!d) return '';
+                if (typeof d === 'string' &amp;&amp; d.includes('T')) return d.split('T')[0];
+                return d;
+            };
+
+            const baseData = {
+                contratoId: solicitud.contratoId || '',
+                tipoSolicitud: tipo || '',
+                // Combine top-level and sub-data, prioritizing top-level for base fields
+                fechaInicio: normalizeDate(solicitud.fechaInicio || subData.fechaInicio),
+                fechaFin: normalizeDate(solicitud.fechaFin || subData.fechaFin),
+                motivo: solicitud.motivo || subData.motivo || '',
+                descripcion: solicitud.descripcion || subData.descripcion || '',
+                documentos: solicitud.documentos || subData.documentos || [],
+                estado: subData.estado || 'pendiente',
+                fechaSolicitud: normalizeDate(solicitud.fechaSolicitud || getTodayStr()),
+                diasHabiles: solicitud.diasHabiles || 0,
+
+                // Fields from sub-objects
+                // Licencia
+                esLicencia: subData.esLicencia,
+                motivoLegal: subData.motivoLegal,
+                registroSaludId: subData.registroSaludId,
+                urlJustificativo: subData.urlJustificativo,
+                diasSolicitados: subData.diasSolicitud || subData.diasSolicitados,
+
+                // Vacaciones
+                periodo: subData.periodo,
+                diasCorrespondientes: subData.diasCorrespondientes,
+                diasTomados: subData.diasTomados,
+                diasDisponibles: subData.diasDisponibles,
+                diasSolicitud: subData.diasSolicitud,
+                fechaRegreso: normalizeDate(subData.fechaRegreso),
+                notificadoEl: normalizeDate(subData.notificadoEl),
+
+                // Horas Extras
+                fecha: normalizeDate(subData.fecha),
+                horaInicio: subData.horaInicio || '',
+                horaFin: subData.horaFin || '',
+                tipoHorasExtra: subData.tipoHorasExtra ? String(subData.tipoHorasExtra) : '',
+                cantidadHoras: subData.cantidadHoras || 0,
+
+                // Renuncia
+                fechaNotificacion: normalizeDate(subData.fechaNotificacion),
+                fechaBajaEfectiva: normalizeDate(subData.fechaBajaEfectiva),
+                urlComprobante: subData.urlComprobante,
+                preaviso: subData.preaviso
+            };
+
+            setFormData(baseData);
+            setSelectedTipo(tipo);
+
+            if (solicitud.contrato) {
+                const c = solicitud.contrato;
+                const nombre = formatFullName(c.empleado);
+                const puesto = c.puestos?.[0]?.nombre || 'Sin puesto';
+                const empresa = c.puestos?.[0]?.departamento?.area?.empresa?.nombre;
+                setSelectedContrato({
+                    value: c.id,
+                    label: `${nombre} - ${puesto}${empresa ? ` (${empresa})` : ''}`,
+                    contrato: c
+                });
+            }
+        }
+    }, [solicitud]);
+
+    // Auto-select Horas Extras type when selected
+    useEffect(() => {
+        if (selectedTipo === 'horas_extras' &amp;&amp; formData.fecha) {
+            setFormData(prev => ({
+                ...prev,
+                tipoHorasExtra: esDiaHabilSincrono(formData.fecha) ? '50' : '100'
+            }));
+        }
+    }, [selectedTipo, formData.fecha]);
+
+    // Cargar información de vacaciones (días disponibles, correspondientes, tomados)
+    useEffect(() => {
+        const loadVacationInfo = async () => {
+            if (selectedTipo === 'vacaciones' &amp;&amp; selectedContrato?.value &amp;&amp; formData.periodo) {
+                try {
+                    const result = await getDiasDisponiblesVacaciones(selectedContrato.value, formData.periodo);
+                    if (result) {
+                        setFormData(prev => ({
+                            ...prev,
+                            diasCorrespondientes: result.diasCorrespondientes,
+                            diasTomados: result.diasTomados,
+                            diasDisponibles: result.diasDisponibles
+                        }));
+                    }
+                } catch (err) {
+                    console.error('Error loading vacation info:', err);
+                }
+            }
+        };
+        loadVacationInfo();
+    }, [selectedTipo, selectedContrato, formData.periodo]);
+
+    // Calcular días solicitados y fecha de regreso (Vacaciones y Licencias)
+    useEffect(() => {
+        const calculateDays = async () => {
+            if (!formData.fechaInicio || !formData.fechaFin) return;
+
+            const inicio = new Date(formData.fechaInicio);
+            const fin = new Date(formData.fechaFin);
+            if (fin &lt; inicio) return;
+
+            if (selectedTipo === 'vacaciones') {
+                try {
+                    const result = await getDiasSolicitadosVacaciones(formData.fechaInicio, formData.fechaFin);
+                    if (result) {
+                        setFormData(prev => ({
+                            ...prev,
+                            diasSolicitud: result.diasSolicitud,
+                            fechaRegreso: result.fechaRegreso
+                        }));
+                    }
+                } catch (err) {
+                    console.error('Error loading requested days:', err);
+                }
+            } else if (selectedTipo === 'licencia') {
+                const diffTime = Math.abs(fin - inicio);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                setFormData(prev => ({
+                    ...prev,
+                    diasSolicitud: diffDays, // Usar diasSolicitud para unificar con vacaciones
+                }));
+            }
+        };
+        calculateDays();
+    }, [formData.fechaInicio, formData.fechaFin, selectedTipo]);
+
+    // Load registros de salud when motivo requires it
+    useEffect(() => {
+        const loadRegistros = async () => {
+            // selectedContrato.contrato.empleado.id es la estructura correcta
+            const empleadoId = selectedContrato?.contrato?.empleado?.id;
+            if (selectedTipo === 'licencia' &amp;&amp; MOTIVOS_SALUD.includes(formData.motivoLegal) &amp;&amp; empleadoId) {
+                try {
+                    setLoadingRegistros(true);
+                    // Solo filtrar por empleadoId, activo y VIGENTE
+                    const result = await getRegistrosSalud({ empleadoId, activo: 'true', vigente: 'true', limit: 100 });
+                    setRegistrosSalud(result.data || []);
+                } catch (err) {
+                    console.error('Error loading registros:', err);
+                    setRegistrosSalud([]);
+                } finally {
+                    setLoadingRegistros(false);
+                }
+            } else {
+                setRegistrosSalud([]);
+            }
+        };
+        loadRegistros();
+    }, [formData.motivoLegal, selectedTipo, selectedContrato]);
+
+
+
+    const handleChange = (field, value) => {
+        setFormData(prev => {
+            const newData = { ...prev, [field]: value };
+
+            // Logic for Horas Extras
+            if (selectedTipo === 'horas_extras') {
+                // Auto-calculate duration
+                if (field === 'horaInicio' || field === 'horaFin') {
+                    const inicio = field === 'horaInicio' ? value : prev.horaInicio;
+                    const fin = field === 'horaFin' ? value : prev.horaFin;
+                    if (inicio &amp;&amp; fin) {
+                        const [h1, m1] = inicio.split(':').map(Number);
+                        const [h2, m2] = fin.split(':').map(Number);
+                        const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+                        if (diff > 0) {
+                            newData.cantidadHoras = (diff / 60).toFixed(2);
+                        } else {
+                            newData.cantidadHoras = '0.00';
+                        }
+                    }
+                }
+
+                // Auto-select Type based on Date
+                if (field === 'fecha' &amp;&amp; value) {
+                    const esHabil = esDiaHabilSincrono(value);
+                    newData.tipoHorasExtra = esHabil ? '50' : '100';
+                }
+            }
+
+            // Logic for Licencia
+            if (selectedTipo === 'licencia') {
+                if (field === 'motivoLegal' &amp;&amp; !MOTIVOS_SALUD.includes(value)) {
+                    newData.registroSaludId = null;
+                }
+            }
+
+            return newData;
+        });
+        setError('');
+
+        // Validar día hábil en tiempo real SÍNCRONO
+        const camposFecha = ['fechaInicio', 'fechaFin', 'fecha', 'fechaNotificacion', 'fechaBajaEfectiva', 'notificadoEl'];
+        const esHorasExtrasFecha = selectedTipo === 'horas_extras' &amp;&amp; field === 'fecha';
+
+        if (camposFecha.includes(field) &amp;&amp; value &amp;&amp; !esHorasExtrasFecha) {
+            try {
+                const nombresCampos = {
+                    fechaInicio: 'La fecha de inicio',
+                    fechaFin: 'La fecha de fin',
+                    fecha: 'La fecha',
+                    fechaNotificacion: 'La fecha de notificación',
+                    fechaBajaEfectiva: 'La fecha de baja',
+                    notificadoEl: 'La fecha de notificación'
+                };
+                validarDiaHabil(value, nombresCampos[field]); // ✅ Síncrono
+                setFieldErrors(prev => ({ ...prev, [field]: null }));
+            } catch (error) {
+                setFieldErrors(prev => ({ ...prev, [field]: error.message }));
+                setTouched(prev => ({ ...prev, [field]: true })); // Marcar como touched para mostrar error
+            }
+        } else if (esHorasExtrasFecha) {
+            // Limpiar error de día hábil si existiera (aunque ya no se valida)
+            setFieldErrors(prev => ({ ...prev, [field]: null }));
+        }
+
+        if (touched[field]) {
+            validateStep2();
+        }
+    };
+
+    const handleBlur = (field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+        validateStep2();
+    };
+
+    const isReadOnly = () => {
+        if (!isEditing) return false;
+        const typeData = solicitud.licencia || solicitud.vacaciones || solicitud.horasExtras || solicitud.renuncia;
+        return typeData?.estado !== 'pendiente';
+    };
+
+    const validateStep1 = () => {
+        const errors = {};
+        if (!selectedContrato) errors.contrato = 'Debe seleccionar un contrato';
+        if (!selectedTipo) errors.tipoSolicitud = 'Debe seleccionar un tipo de solicitud';
+
+        setFieldErrors(prev => ({ ...prev, ...errors })); // Preservar errores existentes
+        if (Object.keys(errors).length > 0) {
+            setTouched({ contrato: true, tipoSolicitud: true });
+            setError('Por favor complete todos los campos obligatorios');
+            return false;
+        }
+        return true;
+    };
+
+    const validateStep2 = () => {
+        const errors = {};
+        const today = getTodayStr();
+
+        if (selectedTipo === 'licencia') {
+            if (!formData.motivoLegal) errors.motivoLegal = 'El motivo legal es requerido';
+            if (!formData.fechaInicio) errors.fechaInicio = 'La fecha de inicio es requerida';
+            if (!formData.fechaFin) errors.fechaFin = 'La fecha de fin es requerida';
+            if (formData.fechaFin &amp;&amp; formData.fechaInicio &amp;&amp; formData.fechaFin &lt; formData.fechaInicio) {
+                errors.fechaFin = 'La fecha de fin no puede ser anterior a la de inicio';
+            }
+            if (formData.descripcion &amp;&amp; formData.descripcion.length > 500) {
+                errors.descripcion = 'La descripción no puede exceder los 500 caracteres';
+            }
+        } else if (selectedTipo === 'vacaciones') {
+            if (!formData.periodo) errors.periodo = 'El período es requerido';
+            if (!formData.fechaInicio) errors.fechaInicio = 'La fecha de inicio es requerida';
+            if (!formData.fechaFin) errors.fechaFin = 'La fecha de fin es requerida';
+            // Today IS valid - only reject strictly past dates
+            if (formData.fechaInicio &amp;&amp; formData.fechaInicio &lt; today &amp;&amp; !isEditing) {
+                errors.fechaInicio = 'La fecha de inicio no puede ser anterior a hoy';
+            }
+            if (formData.fechaFin &amp;&amp; formData.fechaInicio &amp;&amp; formData.fechaFin &lt; formData.fechaInicio) {
+                errors.fechaFin = 'La fecha de fin no puede ser anterior a la de inicio';
+            }
+
+            // Validar rango por período (1 de Mayo año X al 30 de Abril año X+1)
+            if (formData.periodo &amp;&amp; (formData.fechaInicio || formData.fechaFin)) {
+                const anio = parseInt(formData.periodo);
+                const minFecha = `${anio}-05-01`;
+                const maxFecha = `${anio + 1}-04-30`;
+
+                if (formData.fechaInicio &amp;&amp; (formData.fechaInicio &lt; minFecha || formData.fechaInicio > maxFecha)) {
+                    errors.fechaInicio = `Para el período ${anio}, la fecha debe ser entre el 01/05/${anio} y el 30/04/${anio + 1}`;
+                }
+                if (formData.fechaFin &amp;&amp; (formData.fechaFin &lt; minFecha || formData.fechaFin > maxFecha)) {
+                    errors.fechaFin = `Para el período ${anio}, la fecha debe ser entre el 01/05/${anio} y el 30/04/${anio + 1}`;
+                }
+            }
+
+            if (formData.diasSolicitud &amp;&amp; formData.diasDisponibles &amp;&amp; formData.diasSolicitud > formData.diasDisponibles) {
+                errors.fechaFin = `Los días solicitados (${formData.diasSolicitud}) exceden los disponibles (${formData.diasDisponibles})`;
+            }
+            if (formData.descripcion &amp;&amp; formData.descripcion.length > 500) {
+                errors.descripcion = 'La descripción no puede exceder los 500 caracteres';
+            }
+        } else if (selectedTipo === 'horas_extras') {
+            if (!formData.fecha) errors.fecha = 'La fecha es requerida';
+            if (formData.fecha &amp;&amp; formData.fecha > today) {
+                errors.fecha = 'La fecha no puede ser posterior a hoy';
+            }
+            if (!formData.horaInicio) errors.horaInicio = 'La hora de inicio es requerida';
+            if (!formData.horaFin) errors.horaFin = 'La hora de fin es requerida';
+            if (formData.horaInicio &amp;&amp; formData.horaFin &amp;&amp; formData.horaFin &lt;= formData.horaInicio) {
+                errors.horaFin = 'La hora de fin debe ser posterior a la de inicio';
+            }
+            if (!formData.tipoHorasExtra) errors.tipoHorasExtra = 'El tipo es requerido';
+            if (formData.motivo &amp;&amp; formData.motivo.length > 500) {
+                errors.motivo = 'El motivo no puede exceder los 500 caracteres';
+            }
+        } else if (selectedTipo === 'renuncia') {
+            // Usar valor de formData o valor por defecto (hoy)
+            const fechaNot = formData.fechaNotificacion || getTodayStr();
+            if (!fechaNot) errors.fechaNotificacion = 'La fecha de notificación es requerida';
+            if (formData.motivo &amp;&amp; formData.motivo.length > 500) {
+                errors.motivo = 'El motivo no puede exceder los 500 caracteres';
+            }
+        }
+
+        // Preservar solo los errores de días hábiles de campos que NO están siendo validados ahora
+        const allErrors = setFieldErrors(prev => {
+            const camposFecha = ['fechaInicio', 'fechaFin', 'fecha', 'fechaNotificacion', 'fechaBajaEfectiva', 'notificadoEl'];
+            const erroresDiasHabiles = {};
+
+            // Preservar solo errores de días hábiles en campos de fecha
+            camposFecha.forEach(campo => {
+                if (prev[campo] &amp;&amp; prev[campo].includes('día hábil')) {
+                    erroresDiasHabiles[campo] = prev[campo];
+                }
+            });
+
+            // Combinar: errores de la validación actual + errores de días hábiles preservados
+            const combined = { ...erroresDiasHabiles, ...errors };
+            return combined;
+        });
+
+        // Retornar false si hay CUALQUIER error (validación básica O días hábiles)
+        return Object.keys(errors).length === 0 &amp;&amp; !Object.values(fieldErrors).some(err => err !== null);
+    };
+
+    const nextStep = () => {
+        if (validateStep1()) {
+            setCurrentStep(2);
+            setError('');
+            setTouched({});
+            setFieldErrors({});
+        }
+    };
+
+    const prevStep = () => setCurrentStep(1);
+
+    const handleSubmit = async () => {
+        // Mark all Step 2 fields as touched
+        const step2Fields = selectedTipo === 'licencia'
+            ? ['motivoLegal', 'fechaInicio', 'fechaFin']
+            : selectedTipo === 'vacaciones'
+                ? ['periodo', 'fechaInicio', 'fechaFin']
+                : selectedTipo === 'horas_extras'
+                    ? ['fecha', 'horaInicio', 'horaFin', 'tipoHorasExtra']
+                    : ['fechaNotificacion'];
+
+        setTouched(step2Fields.reduce((acc, f) => ({ ...acc, [f]: true }), {}));
+
+        if (!validateStep2()) {
+            setError('Por favor complete todos los campos obligatorios');
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const payload = {
+                contratoId: selectedContrato.value,
+                tipoSolicitud: selectedTipo,
+                ...formData,
+            };
+
+            // Asegurar que fechaNotificacion tenga valor por defecto para renuncia
+            if (selectedTipo === 'renuncia' &amp;&amp; !payload.fechaNotificacion) {
+                payload.fechaNotificacion = getTodayStr();
+            }
+
+            if (isEditing) {
+                await updateSolicitud(solicitud.id, payload);
+            } else {
+                await createSolicitud(payload);
+            }
+            onSuccess();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const renderStep1 = () => (
+        &lt;div style={{ display: 'grid', gap: '1.5rem' }}>
+            &lt;div className="form-group">
+                &lt;label className="form-label">Contrato *&lt;/label>
+                {loadingContratos ? (
+                    &lt;div className="form-input" style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                        Cargando contratos...
+                    &lt;/div>
+                ) : (
+                    &lt;Select
+                        options={contratoOptions}
+                        value={selectedContrato}
+                        onChange={setSelectedContrato}
+                        onBlur={() => setTouched(prev => ({ ...prev, contrato: true }))}
+                        placeholder="Buscar contrato por empleado..."
+                        noOptionsMessage={() => "No se encontraron contratos"}
+                        styles={buildSelectStyles(isDark)}
+                        isDisabled={isEditing}
+                        isClearable={!isEditing}
+                        formatGroupLabel={data => (
+                            &lt;div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', color: '#64748b' }}>
+                                {data.label}
+                            &lt;/div>
+                        )}
+                    />
+                )}
+                &lt;FieldError message={touched.contrato &amp;&amp; fieldErrors.contrato} />
+            &lt;/div>
+
+            &lt;div className="form-group">
+                &lt;label className="form-label">Tipo de Solicitud *&lt;/label>
+                &lt;select
+                    className={`form-input ${touched.tipoSolicitud &amp;&amp; fieldErrors.tipoSolicitud ? 'input-error' : ''}`}
+                    value={selectedTipo}
+                    onChange={e => setSelectedTipo(e.target.value)}
+                    onBlur={() => setTouched(prev => ({ ...prev, tipoSolicitud: true }))}
+                    disabled={isEditing}
+                >
+                    &lt;option value="">Seleccionar tipo de solicitud&lt;/option>
+                    {getAvailableTipos().map(tipo => (
+                        &lt;option key={tipo.value} value={tipo.value}>{tipo.label}&lt;/option>
+                    ))}
+                &lt;/select>
+                &lt;FieldError message={touched.tipoSolicitud &amp;&amp; fieldErrors.tipoSolicitud} />
+            &lt;/div>
+        &lt;/div>
+    );
+
+    const renderLicenciaForm = () => {
+        const requiresSalud = MOTIVOS_SALUD.includes(formData.motivoLegal);
+
+        return (
+            &lt;div style={{ display: 'grid', gap: '1rem' }}>
+                &lt;div className="form-grid-stacked">
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Tipo *&lt;/label>
+                        &lt;select
+                            className="form-input"
+                            value={formData.esLicencia !== false ? 'true' : 'false'}
+                            onChange={e => handleChange('esLicencia', e.target.value === 'true')}
+                            disabled={isReadOnly()}
+                        >
+                            &lt;option value="true">Licencia&lt;/option>
+                            &lt;option value="false">Inasistencia&lt;/option>
+                        &lt;/select>
+                    &lt;/div>
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Motivo Legal *&lt;/label>
+                        &lt;select
+                            className={`form-input ${touched.motivoLegal &amp;&amp; fieldErrors.motivoLegal ? 'input-error' : ''}`}
+                            value={formData.motivoLegal || ''}
+                            onChange={e => handleChange('motivoLegal', e.target.value)}
+                            onBlur={() => handleBlur('motivoLegal')}
+                            disabled={isReadOnly()}
+                        >
+                            &lt;option value="">Seleccionar...&lt;/option>
+                            {MOTIVOS_LEGALES.map(m => &lt;option key={m.value} value={m.value}>{m.label}&lt;/option>)}
+                        &lt;/select>
+                        &lt;FieldError message={touched.motivoLegal &amp;&amp; fieldErrors.motivoLegal} />
+                    &lt;/div>
+                &lt;/div>
+
+                {requiresSalud &amp;&amp; (
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Registro de Salud&lt;/label>
+                        &lt;select
+                            className="form-input"
+                            value={formData.registroSaludId || ''}
+                            onChange={e => handleChange('registroSaludId', e.target.value ? parseInt(e.target.value) : null)}
+                            disabled={isReadOnly() || loadingRegistros}
+                        >
+                            &lt;option value="">Seleccionar registro de salud...&lt;/option>
+                            {registrosSalud.map(r => (
+                                &lt;option key={r.id} value={r.id}>
+                                    {TIPO_EXAMEN_LABELS[r.tipoExamen] || r.tipoExamen} - {r.fechaRealizacion ? new Date(r.fechaRealizacion + 'T00:00:00').toLocaleDateString('es-AR') : 'Sin fecha'}
+                                &lt;/option>
+                            ))}
+                        &lt;/select>
+                        {loadingRegistros &amp;&amp; &lt;span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Cargando registros...&lt;/span>}
+                        {!loadingRegistros &amp;&amp; registrosSalud.length === 0 &amp;&amp; (
+                            &lt;span style={{ fontSize: '0.75rem', color: '#f59e0b' }}>No hay registros de salud para este empleado&lt;/span>
+                        )}
+                    &lt;/div>
+                )}
+
+                &lt;div className="form-grid-stacked-3">
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Fecha Inicio *&lt;/label>
+                        &lt;input
+                            type="date"
+                            className={`form-input ${touched.fechaInicio &amp;&amp; fieldErrors.fechaInicio ? 'input-error' : ''}`}
+                            value={formData.fechaInicio || ''}
+                            onChange={e => handleChange('fechaInicio', e.target.value)}
+                            onBlur={() => handleBlur('fechaInicio')}
+                            disabled={isReadOnly()}
+                        />
+                        &lt;FieldError message={touched.fechaInicio &amp;&amp; fieldErrors.fechaInicio} />
+                    &lt;/div>
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Fecha Fin *&lt;/label>
+                        &lt;input
+                            type="date"
+                            className={`form-input ${touched.fechaFin &amp;&amp; fieldErrors.fechaFin ? 'input-error' : ''}`}
+                            value={formData.fechaFin || ''}
+                            onChange={e => handleChange('fechaFin', e.target.value)}
+                            onBlur={() => handleBlur('fechaFin')}
+                            min={formData.fechaInicio || ''}
+                            disabled={isReadOnly()}
+                        />
+                        &lt;FieldError message={touched.fechaFin &amp;&amp; fieldErrors.fechaFin} />
+                    &lt;/div>
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Días Solicitados&lt;/label>
+                        &lt;input
+                            type="number"
+                            className="form-input"
+                            value={formData.diasSolicitud || 0}
+                            disabled
+                        />
+                    &lt;/div>
+                &lt;/div>
+
+                &lt;div className="form-grid-stacked">
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">URL Justificativo&lt;/label>
+                        &lt;input
+                            type="url"
+                            className="form-input"
+                            value={formData.urlJustificativo || ''}
+                            onChange={e => handleChange('urlJustificativo', e.target.value)}
+                            placeholder="https://..."
+                            maxLength={100}
+                            disabled={isReadOnly()}
+                        />
+                    &lt;/div>
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Estado *&lt;/label>
+                        &lt;select
+                            className="form-input"
+                            value={formData.estado || 'pendiente'}
+                            onChange={e => handleChange('estado', e.target.value)}
+                        >
+                            {ESTADOS_LICENCIA.map(e => &lt;option key={e.value} value={e.value}>{e.label}&lt;/option>)}
+                        &lt;/select>
+                    &lt;/div>
+                &lt;/div>
+
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Descripción&lt;/label>
+                    &lt;textarea
+                        className="form-input"
+                        placeholder="Información adicional sobre la licencia..."
+                        value={formData.descripcion || ''}
+                        onChange={e => handleChange('descripcion', e.target.value)}
+                        rows={2}
+                        maxLength={500}
+                        disabled={isReadOnly()}
+                    />
+                    &lt;FieldError message={touched.descripcion &amp;&amp; fieldErrors.descripcion} />
+                    &lt;span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>{(formData.descripcion || '').length}/500&lt;/span>
+                &lt;/div>
+            &lt;/div>
+        );
+    };
+
+    const renderVacacionesForm = () => {
+        const currentYear = new Date().getFullYear();
+        const periodos = [
+            { value: currentYear, label: currentYear.toString() },
+            { value: currentYear + 1, label: (currentYear + 1).toString() },
+        ];
+
+        return (
+            &lt;div style={{ display: 'grid', gap: '1rem' }}>
+                {/* Row 1: Period and days info */}
+                &lt;div className="form-grid-stacked">
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Período *&lt;/label>
+                        &lt;select
+                            className={`form-input ${touched.periodo &amp;&amp; fieldErrors.periodo ? 'input-error' : ''}`}
+                            value={formData.periodo || ''}
+                            onChange={e => handleChange('periodo', parseInt(e.target.value))}
+                            onBlur={() => handleBlur('periodo')}
+                            disabled={isReadOnly()}
+                        >
+                            &lt;option value="">Año...&lt;/option>
+                            {periodos.map(p => &lt;option key={p.value} value={p.value}>{p.label}&lt;/option>)}
+                        &lt;/select>
+                        &lt;FieldError message={touched.periodo &amp;&amp; fieldErrors.periodo} />
+                    &lt;/div>
+                    &lt;div className="form-group">
+                        &lt;label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            Días Corresp.
+                            &lt;span
+                                className="tooltip-icon"
+                                onClick={() => setShowTooltipVacaciones(!showTooltipVacaciones)}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                ?
+                            &lt;/span>
+                        &lt;/label>
+                        &lt;input type="number" className="form-input" value={formData.diasCorrespondientes || 0} disabled />
+                    &lt;/div>
+                &lt;/div>
+                {showTooltipVacaciones &amp;&amp; (
+                    &lt;div className="tooltip-info" style={{ whiteSpace: 'pre-line', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
+                        {TOOLTIP_VACACIONES.split('**').map((part, i) =>
+                            i % 2 === 1 ? &lt;strong key={i}>{part}&lt;/strong> : part
+                        )}
+                    &lt;/div>
+                )}
+                &lt;div className="form-grid-stacked">
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Días Tomados&lt;/label>
+                        &lt;input type="number" className="form-input" value={formData.diasTomados || 0} disabled />
+                    &lt;/div>
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Días Disponibles&lt;/label>
+                        &lt;input type="number" className="form-input" value={formData.diasDisponibles || 0} disabled />
+                    &lt;/div>
+                &lt;/div>
+                {/* Row 2: Dates */}
+                &lt;div className="form-grid-stacked">
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Fecha Inicio *&lt;/label>
+                        &lt;input
+                            type="date"
+                            className={`form-input ${touched.fechaInicio &amp;&amp; fieldErrors.fechaInicio ? 'input-error' : ''}`}
+                            value={formData.fechaInicio || ''}
+                            onChange={e => handleChange('fechaInicio', e.target.value)}
+                            onBlur={() => handleBlur('fechaInicio')}
+                            disabled={isReadOnly()}
+                        />
+                        &lt;FieldError message={touched.fechaInicio &amp;&amp; fieldErrors.fechaInicio} />
+                    &lt;/div>
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Fecha Fin *&lt;/label>
+                        &lt;input
+                            type="date"
+                            className={`form-input ${touched.fechaFin &amp;&amp; fieldErrors.fechaFin ? 'input-error' : ''}`}
+                            value={formData.fechaFin || ''}
+                            onChange={e => handleChange('fechaFin', e.target.value)}
+                            onBlur={() => handleBlur('fechaFin')}
+                            min={formData.fechaInicio || ''}
+                            disabled={isReadOnly()}
+                        />
+                        &lt;FieldError message={touched.fechaFin &amp;&amp; fieldErrors.fechaFin} />
+                    &lt;/div>
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Fecha Regreso&lt;/label>
+                        &lt;input type="date" className="form-input" value={formData.fechaRegreso || ''} disabled />
+                    &lt;/div>
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Días Solic.&lt;/label>
+                        &lt;input type="number" className="form-input" value={formData.diasSolicitud || 0} disabled />
+                    &lt;/div>
+                &lt;/div>
+
+                {/* Row 3: Notificado and Estado */}
+                &lt;div className="form-grid-stacked">
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Notificado el&lt;/label>
+                        &lt;input
+                            type="date"
+                            className="form-input"
+                            value={formData.notificadoEl || ''}
+                            onChange={e => handleChange('notificadoEl', e.target.value)}
+                            max={getTodayStr()}
+                            disabled={true}
+                        />
+                        &lt;small style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', display: 'block' }}>
+                            Se completa automáticamente al aprobar la solicitud
+                        &lt;/small>
+                    &lt;/div>
+                    &lt;div className="form-group">
+                        &lt;label className="form-label">Estado *&lt;/label>
+                        &lt;select
+                            className="form-input"
+                            value={formData.estado || 'pendiente'}
+                            onChange={e => handleChange('estado', e.target.value)}
+                        >
+                            {ESTADOS_VACACIONES.map(e => &lt;option key={e.value} value={e.value}>{e.label}&lt;/option>)}
+                        &lt;/select>
+                    &lt;/div>
+                &lt;/div>
+
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Descripción&lt;/label>
+                    &lt;textarea
+                        className="form-input"
+                        placeholder="Información adicional sobre las vacaciones..."
+                        value={formData.descripcion || ''}
+                        onChange={e => handleChange('descripcion', e.target.value)}
+                        rows={2}
+                        maxLength={500}
+                        disabled={isReadOnly()}
+                    />
+                    &lt;FieldError message={touched.descripcion &amp;&amp; fieldErrors.descripcion} />
+                    &lt;span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>{(formData.descripcion || '').length}/500&lt;/span>
+                &lt;/div>
+            &lt;/div>
+        );
+    };
+
+    const renderHorasExtrasForm = () => (
+        &lt;div style={{ display: 'grid', gap: '1rem' }}>
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Fecha *&lt;/label>
+                    &lt;input
+                        type="date"
+                        className={`form-input ${touched.fecha &amp;&amp; fieldErrors.fecha ? 'input-error' : ''}`}
+                        value={formData.fecha || ''}
+                        onChange={e => handleChange('fecha', e.target.value)}
+                        onBlur={() => handleBlur('fecha')}
+                        max={getTodayStr()}
+                        disabled={isReadOnly()}
+                    />
+                    &lt;FieldError message={touched.fecha &amp;&amp; fieldErrors.fecha} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Hora Inicio *&lt;/label>
+                    &lt;input
+                        type="time"
+                        className={`form-input ${touched.horaInicio &amp;&amp; fieldErrors.horaInicio ? 'input-error' : ''}`}
+                        value={formData.horaInicio || ''}
+                        onChange={e => handleChange('horaInicio', e.target.value)}
+                        onBlur={() => handleBlur('horaInicio')}
+                        disabled={isReadOnly()}
+                    />
+                    &lt;FieldError message={touched.horaInicio &amp;&amp; fieldErrors.horaInicio} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Hora Fin *&lt;/label>
+                    &lt;input
+                        type="time"
+                        className={`form-input ${touched.horaFin &amp;&amp; fieldErrors.horaFin ? 'input-error' : ''}`}
+                        value={formData.horaFin || ''}
+                        onChange={e => handleChange('horaFin', e.target.value)}
+                        onBlur={() => handleBlur('horaFin')}
+                        disabled={isReadOnly()}
+                    />
+                    &lt;FieldError message={touched.horaFin &amp;&amp; fieldErrors.horaFin} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Cantidad Horas&lt;/label>
+                    &lt;input
+                        type="text"
+                        className="form-input"
+                        value={formatDecimalToTime(formData.cantidadHoras)}
+                        disabled
+                    />
+                    &lt;small style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                        (Equivale a {formData.cantidadHoras || '0.00'} hs decimales)
+                    &lt;/small>
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Tipo de Horas Extra *&lt;/label>
+                    &lt;select
+                        className={`form-input ${touched.tipoHorasExtra &amp;&amp; fieldErrors.tipoHorasExtra ? 'input-error' : ''}`}
+                        value={formData.tipoHorasExtra || ''}
+                        onChange={e => handleChange('tipoHorasExtra', e.target.value)}
+                        onBlur={() => handleBlur('tipoHorasExtra')}
+                        disabled={true}
+                    >
+                        &lt;option value="">Seleccionar...&lt;/option>
+                        {TIPOS_HORAS_EXTRA.map(t => &lt;option key={t.value} value={t.value}>{t.label}&lt;/option>)}
+                    &lt;/select>
+                    &lt;FieldError message={touched.tipoHorasExtra &amp;&amp; fieldErrors.tipoHorasExtra} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Estado *&lt;/label>
+                    &lt;select
+                        className="form-input"
+                        value={formData.estado || 'pendiente'}
+                        onChange={e => handleChange('estado', e.target.value)}
+                    >
+                        {ESTADOS_HORAS_EXTRAS.map(e => &lt;option key={e.value} value={e.value}>{e.label}&lt;/option>)}
+                    &lt;/select>
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-group">
+                &lt;label className="form-label">URL Justificativo&lt;/label>
+                &lt;input
+                    type="url"
+                    className="form-input"
+                    value={formData.urlJustificativo || ''}
+                    onChange={e => handleChange('urlJustificativo', e.target.value)}
+                    placeholder="https://..."
+                    maxLength={100}
+                    disabled={isReadOnly()}
+                />
+            &lt;/div>
+
+            &lt;div className="form-group">
+                &lt;label className="form-label">Motivo&lt;/label>
+                &lt;textarea
+                    className="form-input"
+                    placeholder="Describa el motivo de las horas extras (opcional)..."
+                    value={formData.motivo || ''}
+                    onChange={e => handleChange('motivo', e.target.value)}
+                    rows={2}
+                    maxLength={500}
+                    disabled={isReadOnly()}
+                />
+                &lt;FieldError message={touched.motivo &amp;&amp; fieldErrors.motivo} />
+                &lt;span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>{(formData.motivo || '').length}/500&lt;/span>
+            &lt;/div>
+        &lt;/div>
+    );
+
+    const renderRenunciaForm = () => (
+        &lt;div style={{ display: 'grid', gap: '1rem' }}>
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Fecha Notificación *&lt;/label>
+                    &lt;input
+                        type="date"
+                        className={`form-input ${touched.fechaNotificacion &amp;&amp; fieldErrors.fechaNotificacion ? 'input-error' : ''}`}
+                        value={formData.fechaNotificacion || getTodayStr()}
+                        onChange={e => handleChange('fechaNotificacion', e.target.value)}
+                        onBlur={() => handleBlur('fechaNotificacion')}
+                        max={getTodayStr()}
+                        disabled={isReadOnly()}
+                    />
+                    &lt;FieldError message={touched.fechaNotificacion &amp;&amp; fieldErrors.fechaNotificacion} />
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Fecha Baja Efectiva
+                        &lt;span
+                            className="tooltip-icon"
+                            onClick={() => setShowTooltipRenuncia(!showTooltipRenuncia)}
+                            style={{ cursor: 'pointer' }}
+                        >
+                            ?
+                        &lt;/span>
+                    &lt;/label>
+                    &lt;input
+                        type="date"
+                        className="form-input"
+                        value={formData.fechaBajaEfectiva || ''}
+                        disabled
+                    />
+                    &lt;span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Se calcula automáticamente: 15 días desde la notificación (preaviso)&lt;/span>
+                &lt;/div>
+            &lt;/div>
+
+            {showTooltipRenuncia &amp;&amp; (
+                &lt;div className="tooltip-info" style={{ whiteSpace: 'pre-line', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
+                    {TOOLTIP_RENUNCIA.split('**').map((part, i) =>
+                        i % 2 === 1 ? &lt;strong key={i}>{part}&lt;/strong> : part
+                    )}
+                &lt;/div>
+            )}
+
+            &lt;div className="form-grid-stacked">
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Estado *&lt;/label>
+                    &lt;select
+                        className="form-input"
+                        value={formData.estado || 'pendiente'}
+                        onChange={e => handleChange('estado', e.target.value)}
+                    >
+                        {ESTADOS_RENUNCIA.map(e => &lt;option key={e.value} value={e.value}>{e.label}&lt;/option>)}
+                    &lt;/select>
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">URL Comprobante&lt;/label>
+                    &lt;input
+                        type="url"
+                        className="form-input"
+                        value={formData.urlComprobante || ''}
+                        onChange={e => handleChange('urlComprobante', e.target.value)}
+                        placeholder="https://..."
+                        maxLength={100}
+                        disabled={isReadOnly()}
+                    />
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-group">
+                &lt;label className="form-label">Motivo&lt;/label>
+                &lt;textarea
+                    className="form-input"
+                    placeholder="Describa los motivos de la renuncia (opcional)..."
+                    value={formData.motivo || ''}
+                    onChange={e => handleChange('motivo', e.target.value)}
+                    rows={2}
+                    maxLength={500}
+                    disabled={isReadOnly()}
+                />
+                &lt;FieldError message={touched.motivo &amp;&amp; fieldErrors.motivo} />
+                &lt;span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>{(formData.motivo || '').length}/500&lt;/span>
+            &lt;/div>
+        &lt;/div>
+    );
+
+    const renderStep2 = () => {
+        switch (selectedTipo) {
+            case 'licencia': return renderLicenciaForm();
+            case 'vacaciones': return renderVacacionesForm();
+            case 'horas_extras': return renderHorasExtrasForm();
+            case 'renuncia': return renderRenunciaForm();
+            default: return &lt;p>Seleccione un tipo de solicitud en el paso anterior&lt;/p>;
+        }
+    };
+
+    return (
+        &lt;div className="modal-overlay" onClick={onClose}>
+            &lt;div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '900px' }}>
+                &lt;div className="modal-header">
+                    &lt;h2 className="modal-title">{isEditing ? 'Editar Solicitud' : 'Nueva Solicitud'}&lt;/h2>
+                    &lt;button className="modal-close" onClick={onClose}>
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        &lt;/svg>
+                    &lt;/button>
+                &lt;/div>
+
+                &lt;div className="modal-body" style={{ padding: '1.5rem' }}>
+                    &lt;StepTracker steps={steps} currentStep={currentStep} />
+
+                    &lt;div style={{ marginTop: '1.5rem', textAlign: 'center', marginBottom: '1.5rem' }}>
+                        &lt;h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                            {steps[currentStep - 1].title}
+                        &lt;/h3>
+                        &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                            {currentStep === 1 &amp;&amp; 'Selecciona el contrato y tipo de solicitud'}
+                            {currentStep === 2 &amp;&amp; 'Completa los datos de la solicitud'}
+                        &lt;/p>
+                    &lt;/div>
+
+                    {/* isReadOnly() &amp;&amp; (
+                        &lt;div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
+                            No podés editar los datos de la solicitud porque no está pendiente. Solo podés cambiar su estado.
+                        &lt;/div>
+                    )*/}
+
+                    {error &amp;&amp; &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}&lt;/div>}
+
+                    {currentStep === 1 &amp;&amp; renderStep1()}
+                    {currentStep === 2 &amp;&amp; renderStep2()}
+                &lt;/div>
+
+                &lt;div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)' }}>
+                    &lt;div>
+                        {currentStep > 1 &amp;&amp; !isEditing &amp;&amp; (
+                            &lt;button className="btn btn-secondary" onClick={prevStep}>Anterior&lt;/button>
+                        )}
+                    &lt;/div>
+                    &lt;div style={{ display: 'flex', gap: '1rem' }}>
+                        &lt;button className="btn btn-secondary" onClick={onClose} disabled={loading}>Cancelar&lt;/button>
+                        {currentStep &lt; 2 ? (
+                            &lt;button className="btn btn-primary" onClick={nextStep}>Siguiente&lt;/button>
+                        ) : (
+                            &lt;button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+                                {loading ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear')} Solicitud
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+};
+
+export default SolicitudWizard;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

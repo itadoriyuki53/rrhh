@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/EmpresaWizard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/EmpresaWizard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>﻿/**
+ * @fileoverview Orquestador de creación y edición de empresas mediante un formulario multi-paso.
+ * @module components/EmpresaWizard
+ */
+
+import { useState, useEffect } from 'react';
+import StepTracker from './StepTracker';
+import EspacioTrabajoSelector from './EspacioTrabajoSelector';
+import { createEmpresa, updateEmpresa, checkCanDeleteEmpresaItem, canChangeEmpresaWorkspace } from '../services/api';
+
+/**
+ * Componente EmpresaWizard
+ * 
+ * Gestiona el ciclo de vida de creación/edición de una empresa, incluyendo su información básica,
+ * estructura organizacional (Áreas, Departamentos, Puestos) y asignación a Espacios de Trabajo.
+ * 
+ * @param {Object} props - Propiedades del componente.
+ * @param {Object} [props.empresa] - Objeto empresa a editar (si es null, el modo es creación).
+ * @param {Function} props.onClose - Callback para cerrar el asistente.
+ * @param {Function} props.onSuccess - Callback tras una operación exitosa.
+ * @returns {JSX.Element}
+ */
+const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
+    const [step, setStep] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [errors, setErrors] = useState({});
+
+    const primaryColor = '#0d9488';
+    const borderColor = 'var(--border-color, #e2e8f0)';
+
+    const [empresa, setEmpresa] = useState({
+        nombre: '',
+        email: '',
+        telefono: '',
+        industria: '',
+        direccion: '',
+        areas: []
+    });
+
+    // Espacio de Trabajo
+    const [espacioTrabajoId, setEspacioTrabajoId] = useState('');
+    const [canChangeWorkspace, setCanChangeWorkspace] = useState(true);
+    const [workspaceChangeMessage, setWorkspaceChangeMessage] = useState('');
+
+    const [tempArea, setTempArea] = useState({ nombre: '', descripcion: '' });
+    const [tempDepto, setTempDepto] = useState({ nombre: '', descripcion: '' });
+    const [tempPuesto, setTempPuesto] = useState({ nombre: '', descripcion: '' });
+
+    const [selectedAreaId, setSelectedAreaId] = useState(null);
+    const [selectedDeptoId, setSelectedDeptoId] = useState(null);
+
+    const isEditing = !!empresaToEdit;
+
+    // Cargar datos de empresa a editar
+    useEffect(() => {
+        if (empresaToEdit) {
+            setEmpresa({
+                nombre: empresaToEdit.nombre || '',
+                email: empresaToEdit.email || '',
+                telefono: empresaToEdit.telefono || '',
+                industria: empresaToEdit.industria || '',
+                direccion: empresaToEdit.direccion || '',
+                areas: (empresaToEdit.areas || []).map(area => ({
+                    ...area,
+                    id: area.id || generateId(),
+                    departamentos: (area.departamentos || []).map(depto => ({
+                        ...depto,
+                        id: depto.id || generateId(),
+                        puestos: (depto.puestos || []).map(puesto => ({
+                            ...puesto,
+                            id: puesto.id || generateId()
+                        }))
+                    }))
+                }))
+            });
+
+            // Cargar espacio de trabajo
+            setEspacioTrabajoId(String(empresaToEdit.espacioTrabajoId || ''));
+
+            // Verificar si puede cambiar de espacio
+            if (empresaToEdit.id) {
+                checkCanChangeWorkspace(empresaToEdit.id);
+            }
+        }
+    }, [empresaToEdit]);
+
+    const checkCanChangeWorkspace = async (empresaId) => {
+        try {
+            const result = await canChangeEmpresaWorkspace(empresaId);
+            setCanChangeWorkspace(result.canChange);
+            setWorkspaceChangeMessage(result.reason || '');
+        } catch (err) {
+            console.error('Error al verificar cambio de espacio:', err);
+            setCanChangeWorkspace(true);
+        }
+    };
+
+    const generateId = () => Math.random().toString(36).substr(2, 9);
+
+    const handleInfoChange = (e) => {
+        const { name, value } = e.target;
+        setEmpresa(prev => ({ ...prev, [name]: value }));
+        if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+    };
+
+    const addArea = () => {
+        if (!tempArea.nombre.trim()) {
+            setErrors(prev => ({ ...prev, areaNombre: 'El nombre del área es requerido' }));
+            return;
+        }
+        setEmpresa(prev => ({
+            ...prev,
+            areas: [...prev.areas, { ...tempArea, id: generateId(), departamentos: [] }]
+        }));
+        setTempArea({ nombre: '', descripcion: '' });
+        setErrors(prev => ({ ...prev, areaNombre: '' }));
+    };
+
+    const removeArea = async (id) => {
+        // Only check with backend if this is an existing area (numeric id from DB)
+        if (isEditing &amp;&amp; typeof id === 'number') {
+            try {
+                const result = await checkCanDeleteEmpresaItem('area', id);
+                if (!result.canDelete) {
+                    setErrors({ general: result.message });
+                    return;
+                }
+            } catch (err) {
+                console.error('Error checking delete:', err);
+            }
+        }
+        setEmpresa(prev => ({ ...prev, areas: prev.areas.filter(a => a.id !== id) }));
+        if (selectedAreaId === id) setSelectedAreaId(null);
+        setErrors({});
+    };
+
+    const addDepto = () => {
+        if (!tempDepto.nombre.trim()) {
+            setErrors(prev => ({ ...prev, deptoNombre: 'El nombre del departamento es requerido' }));
+            return;
+        }
+        if (!selectedAreaId) return;
+        setEmpresa(prev => ({
+            ...prev,
+            areas: prev.areas.map(area => {
+                if (area.id === selectedAreaId) {
+                    return { ...area, departamentos: [...area.departamentos, { ...tempDepto, id: generateId(), puestos: [] }] };
+                }
+                return area;
+            })
+        }));
+        setTempDepto({ nombre: '', descripcion: '' });
+        setErrors(prev => ({ ...prev, deptoNombre: '' }));
+    };
+
+    const removeDepto = async (areaId, deptoId) => {
+        // Only check with backend if this is an existing departamento (numeric id from DB)
+        if (isEditing &amp;&amp; typeof deptoId === 'number') {
+            try {
+                const result = await checkCanDeleteEmpresaItem('departamento', deptoId);
+                if (!result.canDelete) {
+                    setErrors({ general: result.message });
+                    return;
+                }
+            } catch (err) {
+                console.error('Error checking delete:', err);
+            }
+        }
+        setEmpresa(prev => ({
+            ...prev,
+            areas: prev.areas.map(area => {
+                if (area.id === areaId) {
+                    return { ...area, departamentos: area.departamentos.filter(d => d.id !== deptoId) };
+                }
+                return area;
+            })
+        }));
+        if (selectedDeptoId === deptoId) setSelectedDeptoId(null);
+        setErrors({});
+    };
+
+    const addPuesto = () => {
+        if (!tempPuesto.nombre.trim()) {
+            setErrors(prev => ({ ...prev, puestoNombre: 'El nombre del puesto es requerido' }));
+            return;
+        }
+        if (!selectedDeptoId) return;
+        setEmpresa(prev => ({
+            ...prev,
+            areas: prev.areas.map(area => ({
+                ...area,
+                departamentos: area.departamentos.map(depto => {
+                    if (depto.id === selectedDeptoId) {
+                        return { ...depto, puestos: [...depto.puestos, { ...tempPuesto, id: generateId() }] };
+                    }
+                    return depto;
+                })
+            }))
+        }));
+        setTempPuesto({ nombre: '', descripcion: '' });
+        setErrors(prev => ({ ...prev, puestoNombre: '' }));
+    };
+
+    const removePuesto = async (deptoId, puestoId) => {
+        // Only check with backend if this is an existing puesto (numeric id from DB)
+        if (isEditing &amp;&amp; typeof puestoId === 'number') {
+            try {
+                const result = await checkCanDeleteEmpresaItem('puesto', puestoId);
+                if (!result.canDelete) {
+                    setErrors({ general: result.message });
+                    return;
+                }
+            } catch (err) {
+                console.error('Error checking delete:', err);
+            }
+        }
+        setEmpresa(prev => ({
+            ...prev,
+            areas: prev.areas.map(area => ({
+                ...area,
+                departamentos: area.departamentos.map(depto => {
+                    if (depto.id === deptoId) {
+                        return { ...depto, puestos: depto.puestos.filter(p => p.id !== puestoId) };
+                    }
+                    return depto;
+                })
+            }))
+        }));
+        setErrors({});
+    };
+
+    const validateStep = () => {
+        const newErrors = {};
+        if (step === 1) {
+            if (!empresa.nombre.trim()) newErrors.nombre = 'El nombre es requerido';
+            else if (empresa.nombre.length &lt; 2 || empresa.nombre.length > 200) newErrors.nombre = 'El nombre debe tener entre 2 y 200 caracteres';
+
+            if (!empresa.email.trim()) newErrors.email = 'El email es requerido';
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empresa.email)) newErrors.email = 'El email no es válido';
+            else if (empresa.email.length &lt; 5 || empresa.email.length > 100) newErrors.email = 'El email debe tener entre 5 y 100 caracteres';
+
+            // Validación de teléfono (opcional pero con formato si se ingresa)
+            if (empresa.telefono &amp;&amp; !/^[0-9+\-\s()]*$/.test(empresa.telefono)) {
+                newErrors.telefono = 'El teléfono solo puede contener números, +, -, espacios y paréntesis';
+            } else if (empresa.telefono &amp;&amp; empresa.telefono.length > 50) {
+                newErrors.telefono = 'El teléfono no puede exceder 50 caracteres';
+            }
+
+            if (!empresa.industria.trim()) newErrors.industria = 'La industria es requerida';
+            else if (empresa.industria.length &lt; 2 || empresa.industria.length > 100) newErrors.industria = 'La industria debe tener entre 2 y 100 caracteres';
+
+            if (!empresa.direccion.trim()) newErrors.direccion = 'La dirección es requerida';
+            else if (empresa.direccion.length &lt; 5 || empresa.direccion.length > 255) newErrors.direccion = 'La dirección debe tener entre 5 y 255 caracteres';
+
+            // Add general error message if any field has errors
+            if (Object.keys(newErrors).length > 0) {
+                newErrors.general = 'Por favor completa todos los campos obligatorios';
+            }
+
+            // Validación de espacio de trabajo
+            if (!espacioTrabajoId) {
+                newErrors.espacioTrabajoId = 'El espacio de trabajo es requerido';
+            }
+        }
+        if (step === 2 &amp;&amp; empresa.areas.length === 0) newErrors.general = 'Debes agregar al menos un área para continuar';
+        setErrors(newErrors);
+        return Object.keys(newErrors).filter(k => k !== 'general').length === 0 &amp;&amp; !newErrors.general;
+    };
+
+    const nextStep = () => { if (validateStep()) { setStep(s => s + 1); setErrors({}); } };
+    const prevStep = () => { setStep(s => s - 1); setErrors({}); };
+
+    const validateFinalSubmit = () => {
+        if (!empresa.nombre.trim()) { setErrors({ nombre: 'El nombre de la empresa es requerido' }); setStep(1); return false; }
+        if (!empresa.email.trim()) { setErrors({ email: 'El email es requerido' }); setStep(1); return false; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empresa.email)) { setErrors({ email: 'El email no es válido' }); setStep(1); return false; }
+        if (!empresa.industria.trim()) { setErrors({ industria: 'La industria es requerida' }); setStep(1); return false; }
+        if (!empresa.direccion.trim()) { setErrors({ direccion: 'La dirección es requerida' }); setStep(1); return false; }
+        if (!espacioTrabajoId) { setErrors({ espacioTrabajoId: 'El espacio de trabajo es requerido' }); setStep(1); return false; }
+        if (empresa.areas.length === 0) { setErrors({ general: 'Debes agregar al menos un área' }); setStep(2); return false; }
+        return true;
+    };
+
+    const handleSubmit = async () => {
+        if (!validateFinalSubmit()) return;
+        try {
+            setLoading(true);
+            let payload;
+
+            if (isEditing) {
+                // When editing, include IDs to preserve existing items
+                payload = {
+                    ...empresa,
+                    areas: empresa.areas.map(area => ({
+                        id: area.id, // Keep the ID for existing areas
+                        nombre: area.nombre,
+                        departamentos: area.departamentos.map(depto => ({
+                            id: depto.id, // Keep the ID for existing departamentos
+                            nombre: depto.nombre,
+                            puestos: depto.puestos.map(puesto => ({
+                                id: puesto.id, // Keep the ID for existing puestos
+                                nombre: puesto.nombre,
+                                descripcion: puesto.descripcion
+                            }))
+                        }))
+                    }))
+                };
+            } else {
+                // When creating, don't include IDs
+                payload = {
+                    ...empresa,
+                    areas: empresa.areas.map(({ id, departamentos, ...areaRest }) => ({
+                        ...areaRest,
+                        departamentos: departamentos.map(({ id, puestos, ...deptoRest }) => ({
+                            ...deptoRest,
+                            puestos: puestos.map(({ id, ...puestoRest }) => puestoRest)
+                        }))
+                    }))
+                };
+            }
+
+            // Agregar espacioTrabajoId al payload
+            payload.espacioTrabajoId = espacioTrabajoId ? parseInt(espacioTrabajoId) : undefined;
+
+            if (isEditing) {
+                await updateEmpresa(empresaToEdit.id, payload);
+            } else {
+                await createEmpresa(payload);
+            }
+            onSuccess();
+        } catch (err) {
+            const errorMessage = err.message.toLowerCase();
+            // Detect step 1 field errors (nombre, email, industria, direccion)
+            const step1Fields = ['nombre', 'email', 'industria', 'direccion', 'dirección'];
+            const isStep1Error = step1Fields.some(field => errorMessage.includes(field));
+
+            if (isStep1Error) {
+                setStep(1);
+                const newErrors = { submit: err.message };
+                if (errorMessage.includes('email')) {
+                    if (errorMessage.includes('unique') || errorMessage.includes('existe') || errorMessage.includes('duplicado') || errorMessage.includes('registrado')) {
+                        newErrors.email = 'Este email ya está registrado';
+                    } else {
+                        newErrors.email = 'Debe ser un email válido';
+                    }
+                }
+                if (errorMessage.includes('nombre')) {
+                    newErrors.nombre = err.message;
+                }
+                setErrors(newErrors);
+            } else {
+                setErrors({ submit: err.message });
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const renderDeleteIcon = () => (
+        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
+            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+        &lt;/svg>
+    );
+
+    const getCardStyle = (isSelected) => ({
+        padding: '1rem',
+        background: isSelected ? `${primaryColor}15` : 'var(--card-bg)',
+        border: `2px solid ${isSelected ? primaryColor : borderColor}`,
+        borderRadius: '0.5rem',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease'
+    });
+
+    const handleCardHover = (e, isSelected) => {
+        if (!isSelected) {
+            e.currentTarget.style.borderColor = primaryColor;
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = `0 4px 12px ${primaryColor}20`;
+        }
+    };
+
+    const handleCardLeave = (e, isSelected) => {
+        if (!isSelected) {
+            e.currentTarget.style.borderColor = borderColor;
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+        }
+    };
+
+    // Estilos para contenedores con borde
+    const listContainerStyle = {
+        border: `1px solid ${borderColor}`,
+        borderRadius: '0.5rem',
+        padding: '1rem',
+        minHeight: '200px'
+    };
+
+    const emptyStateStyle = {
+        textAlign: 'center',
+        color: 'var(--text-secondary)',
+        padding: '3rem 1rem',
+        background: 'var(--card-bg)',
+        border: `2px dashed ${primaryColor}50`,
+        borderRadius: '0.5rem'
+    };
+
+    const renderStep1 = () => (
+        &lt;div>
+            &lt;div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
+                &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Información de la Empresa&lt;/h3>
+                &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Ingresa los datos básicos de la empresa&lt;/p>
+            &lt;/div>
+
+            {(errors.submit || errors.general) &amp;&amp; (&lt;div className="alert alert-error" style={{ marginBottom: '1.5rem', }}>{errors.submit || errors.general}&lt;/div>)}
+
+            &lt;div className="form-grid-stacked" style={{ marginBottom: '1rem' }}>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Nombre de la Empresa *&lt;/label>
+                    &lt;input type="text" name="nombre" className={`form-input ${errors.nombre ? 'input-error' : ''}`}
+                        value={empresa.nombre} onChange={handleInfoChange} placeholder="Ej: Tech Solutions S.A." autoFocus />
+                    {errors.nombre &amp;&amp; &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.nombre}&lt;/span>}
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Email Corporativo *&lt;/label>
+                    &lt;input type="email" name="email" className={`form-input ${errors.email ? 'input-error' : ''}`}
+                        value={empresa.email} onChange={handleInfoChange} placeholder="Ej: contacto@empresa.com" />
+                    {errors.email &amp;&amp; &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.email}&lt;/span>}
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-grid-stacked" style={{ marginBottom: '1rem' }}>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Teléfono&lt;/label>
+                    &lt;input type="tel" name="telefono" className={`form-input ${errors.telefono ? 'input-error' : ''}`} value={empresa.telefono} onChange={handleInfoChange} placeholder="Ej: +54 11 1234-5678" />
+                    {errors.telefono &amp;&amp; &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.telefono}&lt;/span>}
+                &lt;/div>
+                &lt;div className="form-group">
+                    &lt;label className="form-label">Industria / Sector *&lt;/label>
+                    &lt;input type="text" name="industria" className={`form-input ${errors.industria ? 'input-error' : ''}`}
+                        value={empresa.industria} onChange={handleInfoChange} placeholder="Ej: Tecnología, Salud..." />
+                    {errors.industria &amp;&amp; &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.industria}&lt;/span>}
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div className="form-group" style={{ marginBottom: '1rem' }}>
+                &lt;label className="form-label">Dirección *&lt;/label>
+                &lt;input type="text" name="direccion" className={`form-input ${errors.direccion ? 'input-error' : ''}`}
+                    value={empresa.direccion} onChange={handleInfoChange} placeholder="Ej: Calle Falsa 123, Ciudad" />
+                {errors.direccion &amp;&amp; &lt;span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.direccion}&lt;/span>}
+            &lt;/div>
+
+            {/* Espacio de Trabajo */}
+            &lt;EspacioTrabajoSelector
+                value={espacioTrabajoId}
+                onChange={(e) => setEspacioTrabajoId(e.target.value)}
+                onBlur={() => { }}
+                canChange={!isEditing || canChangeWorkspace}
+                changeRestrictionMessage={workspaceChangeMessage}
+                touched={!!errors.espacioTrabajoId}
+                error={errors.espacioTrabajoId}
+            />
+        &lt;/div>
+    );
+
+    const renderStep2 = () => (
+        &lt;div>
+            &lt;div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
+                &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Áreas de la Empresa&lt;/h3>
+                &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Define las áreas principales que componen tu organización&lt;/p>
+            &lt;/div>
+
+            {errors.general &amp;&amp; (
+                &lt;div className="alert alert-error">
+                    {errors.general}
+                &lt;/div>
+            )}
+
+            &lt;div className="form-grid-stacked" style={{ gap: '2rem' }}>
+                &lt;div>
+                    &lt;h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Áreas Agregadas ({empresa.areas.length})&lt;/h4>
+                    &lt;div style={listContainerStyle}>
+                        {empresa.areas.length === 0 ? (
+                            &lt;div style={emptyStateStyle}>
+                                &lt;p>No hay áreas agregadas aún&lt;/p>
+                                &lt;p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Agrega tu primera área →&lt;/p>
+                            &lt;/div>
+                        ) : (
+                            &lt;div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {empresa.areas.map(area => (
+                                    &lt;div key={area.id} style={{ padding: '1rem', background: 'var(--card-bg)', border: `2px solid ${primaryColor}`, borderRadius: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                                        &lt;div style={{ flex: 1 }}>
+                                            &lt;div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>{area.nombre}&lt;/div>
+                                            {area.descripcion &amp;&amp; &lt;div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{area.descripcion}&lt;/div>}
+                                        &lt;/div>
+                                        &lt;button onClick={() => removeArea(area.id)} className="btn-icon-delete" style={{ marginLeft: '0.75rem' }} type="button">{renderDeleteIcon()}&lt;/button>
+                                    &lt;/div>
+                                ))}
+                            &lt;/div>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+
+                &lt;div>
+                    &lt;h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Agregar Nueva Área&lt;/h4>
+                    &lt;div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                        &lt;label className="form-label">Nombre del Área &lt;span className="required">*&lt;/span>&lt;/label>
+                        &lt;input type="text" className={`form-input ${errors.areaNombre ? 'error' : ''}`}
+                            value={tempArea.nombre} onChange={(e) => { setTempArea(prev => ({ ...prev, nombre: e.target.value })); if (errors.areaNombre) setErrors(prev => ({ ...prev, areaNombre: '' })); }}
+                            placeholder="Ej: Recursos Humanos" />
+                        {errors.areaNombre &amp;&amp; &lt;span className="form-error">{errors.areaNombre}&lt;/span>}
+                    &lt;/div>
+                    &lt;div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                        &lt;label className="form-label">Descripción (Opcional)&lt;/label>
+                        &lt;textarea className="form-input" value={tempArea.descripcion} onChange={(e) => setTempArea(prev => ({ ...prev, descripcion: e.target.value }))} placeholder="Breve descripción del área..." rows={3} />
+                    &lt;/div>
+                    &lt;button className="btn btn-primary" onClick={addArea} type="button" style={{ width: '100%' }}>+ Agregar Área&lt;/button>
+                &lt;/div>
+            &lt;/div>
+        &lt;/div>
+    );
+
+    const renderStep3 = () => {
+        const selectedArea = empresa.areas.find(a => a.id === selectedAreaId);
+        const deptosCount = selectedArea?.departamentos.length || 0;
+
+        return (
+            &lt;div>
+                &lt;div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
+                    &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Departamentos por Área&lt;/h3>
+                    &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Organiza cada área en departamentos específicos&lt;/p>
+                &lt;/div>
+
+                {errors.general &amp;&amp; (
+                    &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                        {errors.general}
+                    &lt;/div>
+                )}
+
+                &lt;div className="form-grid-stacked" style={{ gap: '2rem' }}>
+                    &lt;div>
+                        &lt;h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Selecciona un Área&lt;/h4>
+                        &lt;div style={listContainerStyle}>
+                            &lt;div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {empresa.areas.map(area => (
+                                    &lt;div key={area.id} onClick={() => setSelectedAreaId(area.id)} style={getCardStyle(selectedAreaId === area.id)}
+                                        onMouseEnter={(e) => handleCardHover(e, selectedAreaId === area.id)}
+                                        onMouseLeave={(e) => handleCardLeave(e, selectedAreaId === area.id)}>
+                                        &lt;div style={{ fontWeight: '600', color: selectedAreaId === area.id ? primaryColor : 'var(--text-primary)', marginBottom: '0.25rem' }}>{area.nombre}&lt;/div>
+                                        &lt;div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{area.departamentos.length} Departamento(s)&lt;/div>
+                                    &lt;/div>
+                                ))}
+                            &lt;/div>
+                        &lt;/div>
+                    &lt;/div>
+
+                    &lt;div>
+                        {selectedAreaId ? (
+                            &lt;>
+                                &lt;h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Departamentos de: {selectedArea?.nombre}&lt;/h4>
+                                &lt;div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                    &lt;label className="form-label">Nombre del Departamento &lt;span className="required">*&lt;/span>&lt;/label>
+                                    &lt;input type="text" className={`form-input ${errors.deptoNombre ? 'error' : ''}`}
+                                        value={tempDepto.nombre} onChange={(e) => { setTempDepto(prev => ({ ...prev, nombre: e.target.value })); if (errors.deptoNombre) setErrors(prev => ({ ...prev, deptoNombre: '' })); }}
+                                        placeholder="Ej: Reclutamiento" />
+                                    {errors.deptoNombre &amp;&amp; &lt;span className="form-error">{errors.deptoNombre}&lt;/span>}
+                                &lt;/div>
+                                &lt;div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                    &lt;label className="form-label">Descripción (Opcional)&lt;/label>
+                                    &lt;textarea className="form-input" value={tempDepto.descripcion} onChange={(e) => setTempDepto(prev => ({ ...prev, descripcion: e.target.value }))} placeholder="Descripción del departamento..." rows={2} />
+                                &lt;/div>
+                                &lt;button className="btn btn-primary" onClick={addDepto} type="button" style={{ width: '100%', marginBottom: '1.5rem' }}>+ Agregar Departamento&lt;/button>
+
+                                &lt;h5 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Departamentos Agregados ({deptosCount})&lt;/h5>
+                                &lt;div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '180px', overflowY: 'auto' }}>
+                                    {deptosCount === 0 ? (
+                                        &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '1rem' }}>No hay departamentos&lt;/p>
+                                    ) : (
+                                        selectedArea?.departamentos.map(depto => (
+                                            &lt;div key={depto.id} style={{ padding: '0.75rem', background: 'var(--card-bg)', border: `1px solid ${primaryColor}50`, borderRadius: '0.375rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                &lt;div style={{ flex: 1 }}>
+                                                    &lt;div style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-primary)' }}>{depto.nombre}&lt;/div>
+                                                    {depto.descripcion &amp;&amp; &lt;div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{depto.descripcion}&lt;/div>}
+                                                &lt;/div>
+                                                &lt;button onClick={() => removeDepto(selectedAreaId, depto.id)} className="btn-icon-delete" style={{ marginLeft: '0.75rem' }} type="button">{renderDeleteIcon()}&lt;/button>
+                                            &lt;/div>
+                                        ))
+                                    )}
+                                &lt;/div>
+                            &lt;/>
+                        ) : (
+                            &lt;div style={emptyStateStyle}>
+                                &lt;p style={{ fontSize: '1rem' }}>← Selecciona un área&lt;/p>
+                                &lt;p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>para gestionar sus departamentos&lt;/p>
+                            &lt;/div>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>
+        );
+    };
+
+    const renderStep4 = () => {
+        const selectedDepto = empresa.areas.flatMap(a => a.departamentos).find(d => d.id === selectedDeptoId);
+        const puestosCount = selectedDepto?.puestos.length || 0;
+
+        return (
+            &lt;div>
+                &lt;div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
+                    &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Puestos por Departamento&lt;/h3>
+                    &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Define los puestos de trabajo para cada departamento&lt;/p>
+                &lt;/div>
+
+                {errors.general &amp;&amp; (
+                    &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                        {errors.general}
+                    &lt;/div>
+                )}
+
+                &lt;div className="form-grid-stacked" style={{ gap: '2rem' }}>
+                    &lt;div>
+                        &lt;h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Selecciona un Departamento&lt;/h4>
+                        &lt;div style={listContainerStyle}>
+                            &lt;div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                {empresa.areas.map(area => (
+                                    &lt;div key={area.id}>
+                                        &lt;h5 style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>{area.nombre}&lt;/h5>
+                                        {area.departamentos.length === 0 ? (
+                                            &lt;p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', paddingLeft: '0.75rem', fontStyle: 'italic' }}>Sin departamentos&lt;/p>
+                                        ) : (
+                                            &lt;div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingLeft: '0.5rem' }}>
+                                                {area.departamentos.map(depto => (
+                                                    &lt;div key={depto.id} onClick={() => setSelectedDeptoId(depto.id)} style={getCardStyle(selectedDeptoId === depto.id)}
+                                                        onMouseEnter={(e) => handleCardHover(e, selectedDeptoId === depto.id)}
+                                                        onMouseLeave={(e) => handleCardLeave(e, selectedDeptoId === depto.id)}>
+                                                        &lt;div style={{ fontWeight: '600', color: selectedDeptoId === depto.id ? primaryColor : 'var(--text-primary)', marginBottom: '0.25rem' }}>{depto.nombre}&lt;/div>
+                                                        &lt;div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{depto.puestos.length} Puesto(s)&lt;/div>
+                                                    &lt;/div>
+                                                ))}
+                                            &lt;/div>
+                                        )}
+                                    &lt;/div>
+                                ))}
+                            &lt;/div>
+                        &lt;/div>
+                    &lt;/div>
+
+                    &lt;div>
+                        {selectedDeptoId ? (
+                            &lt;>
+                                &lt;h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Puestos de: {selectedDepto?.nombre}&lt;/h4>
+                                &lt;div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                    &lt;label className="form-label">Nombre del Puesto &lt;span className="required">*&lt;/span>&lt;/label>
+                                    &lt;input type="text" className={`form-input ${errors.puestoNombre ? 'error' : ''}`}
+                                        value={tempPuesto.nombre} onChange={(e) => { setTempPuesto(prev => ({ ...prev, nombre: e.target.value })); if (errors.puestoNombre) setErrors(prev => ({ ...prev, puestoNombre: '' })); }}
+                                        placeholder="Ej: Analista de RRHH" />
+                                    {errors.puestoNombre &amp;&amp; &lt;span className="form-error">{errors.puestoNombre}&lt;/span>}
+                                &lt;/div>
+                                &lt;div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                    &lt;label className="form-label">Descripción (Opcional)&lt;/label>
+                                    &lt;textarea className="form-input" value={tempPuesto.descripcion} onChange={(e) => setTempPuesto(prev => ({ ...prev, descripcion: e.target.value }))} placeholder="Descripción del puesto..." rows={2} />
+                                &lt;/div>
+                                &lt;button className="btn btn-primary" onClick={addPuesto} type="button" style={{ width: '100%', marginBottom: '1.5rem' }}>+ Agregar Puesto&lt;/button>
+
+                                &lt;h5 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Puestos Agregados ({puestosCount})&lt;/h5>
+                                &lt;div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '180px', overflowY: 'auto' }}>
+                                    {puestosCount === 0 ? (
+                                        &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '1rem' }}>No hay puestos&lt;/p>
+                                    ) : (
+                                        selectedDepto?.puestos.map(puesto => (
+                                            &lt;div key={puesto.id} style={{ padding: '0.75rem', background: 'var(--card-bg)', border: `1px solid ${primaryColor}50`, borderRadius: '0.375rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                &lt;div style={{ flex: 1 }}>
+                                                    &lt;div style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-primary)' }}>{puesto.nombre}&lt;/div>
+                                                    {puesto.descripcion &amp;&amp; &lt;div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{puesto.descripcion}&lt;/div>}
+                                                &lt;/div>
+                                                &lt;button onClick={() => removePuesto(selectedDeptoId, puesto.id)} className="btn-icon-delete" style={{ marginLeft: '0.75rem' }} type="button">{renderDeleteIcon()}&lt;/button>
+                                            &lt;/div>
+                                        ))
+                                    )}
+                                &lt;/div>
+                            &lt;/>
+                        ) : (
+                            &lt;div style={emptyStateStyle}>
+                                &lt;p style={{ fontSize: '1rem' }}>← Selecciona un departamento&lt;/p>
+                                &lt;p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>para gestionar sus puestos&lt;/p>
+                            &lt;/div>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>
+        );
+    };
+
+    const renderStep5 = () => (
+        &lt;div style={{ maxWidth: '900px', margin: '0 auto' }}>
+            &lt;div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
+                &lt;h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Resumen de Estructura Organizacional&lt;/h3>
+                &lt;p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Revisa la estructura completa antes de crear la empresa&lt;/p>
+            &lt;/div>
+
+            &lt;div className="empresa-resumen-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                &lt;div style={{ padding: '1.25rem', background: 'var(--card-bg)', border: `1px solid ${borderColor}`, borderRadius: '0.5rem', textAlign: 'center' }}>
+                    &lt;div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-primary)' }}>{empresa.nombre}&lt;/div>
+                    &lt;div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Empresa&lt;/div>
+                &lt;/div>
+                &lt;div style={{ padding: '1.25rem', background: 'var(--card-bg)', border: `1px solid ${borderColor}`, borderRadius: '0.5rem', textAlign: 'center' }}>
+                    &lt;div style={{ fontSize: '1.5rem', fontWeight: '700', color: primaryColor }}>{empresa.areas.length}&lt;/div>
+                    &lt;div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Áreas&lt;/div>
+                &lt;/div>
+                &lt;div style={{ padding: '1.25rem', background: 'var(--card-bg)', border: `1px solid ${borderColor}`, borderRadius: '0.5rem', textAlign: 'center' }}>
+                    &lt;div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#22c55e' }}>{empresa.areas.reduce((acc, area) => acc + area.departamentos.length, 0)}&lt;/div>
+                    &lt;div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Departamentos&lt;/div>
+                &lt;/div>
+            &lt;/div>
+
+            &lt;div style={{ background: 'var(--card-bg)', border: `1px solid ${borderColor}`, borderRadius: '0.75rem', padding: '1.5rem' }}>
+                &lt;h4 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    Estructura Jerárquica
+                &lt;/h4>
+
+                {empresa.areas.length === 0 ? (
+                    &lt;p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>No hay áreas definidas&lt;/p>
+                ) : (
+                    &lt;div style={{ paddingLeft: '1rem' }}>
+                        {empresa.areas.map((area, areaIndex) => (
+                            &lt;div key={area.id} style={{ position: 'relative', paddingLeft: '1.5rem', marginBottom: areaIndex === empresa.areas.length - 1 ? 0 : '1.5rem' }}>
+                                &lt;div style={{ position: 'absolute', left: 0, top: '0.75rem', bottom: area.departamentos.length > 0 ? '0.75rem' : 0, width: '2px', background: primaryColor }} />
+                                &lt;div style={{ position: 'absolute', left: 0, top: '0.75rem', width: '1rem', height: '2px', background: primaryColor }} />
+
+                                &lt;div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                    &lt;div style={{ width: '10px', height: '10px', borderRadius: '50%', background: primaryColor, flexShrink: 0 }} />
+                                    &lt;span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '1rem' }}>{area.nombre}&lt;/span>
+                                    &lt;span style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem', background: `${primaryColor}15`, color: primaryColor, borderRadius: '1rem', fontWeight: '500' }}>{area.departamentos.length} Depto(s)&lt;/span>
+                                &lt;/div>
+
+                                {area.departamentos.map((depto, deptoIndex) => (
+                                    &lt;div key={depto.id} style={{ position: 'relative', paddingLeft: '2rem', marginBottom: deptoIndex === area.departamentos.length - 1 ? 0 : '0.75rem' }}>
+                                        {depto.puestos.length > 0 &amp;&amp; &lt;div style={{ position: 'absolute', left: '1rem', top: '0.5rem', bottom: '0.5rem', width: '2px', background: '#22c55e' }} />}
+                                        &lt;div style={{ position: 'absolute', left: 0, top: '0.5rem', width: '1.5rem', height: '2px', background: '#22c55e' }} />
+
+                                        &lt;div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: depto.puestos.length > 0 ? '0.5rem' : 0 }}>
+                                            &lt;div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                                            &lt;span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{depto.nombre}&lt;/span>
+                                            &lt;span style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', background: '#22c55e20', color: '#22c55e', borderRadius: '1rem' }}>{depto.puestos.length} Puesto(s)&lt;/span>
+                                        &lt;/div>
+
+                                        {depto.puestos.map((puesto, puestoIndex) => (
+                                            &lt;div key={puesto.id} style={{ position: 'relative', paddingLeft: '2rem', marginBottom: puestoIndex === depto.puestos.length - 1 ? 0 : '0.25rem' }}>
+                                                &lt;div style={{ position: 'absolute', left: '0.5rem', top: '0.5rem', width: '1rem', height: '2px', background: 'var(--text-secondary)', opacity: 0.3 }} />
+                                                &lt;div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    &lt;div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--text-secondary)', opacity: 0.5, flexShrink: 0 }} />
+                                                    &lt;span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{puesto.nombre}&lt;/span>
+                                                &lt;/div>
+                                            &lt;/div>
+                                        ))}
+                                    &lt;/div>
+                                ))}
+                            &lt;/div>
+                        ))}
+                    &lt;/div>
+                )}
+            &lt;/div>
+
+            {errors.submit &amp;&amp; &lt;div className="alert alert-error" style={{ marginTop: '1.5rem' }}>{errors.submit}&lt;/div>}
+        &lt;/div>
+    );
+
+    return (
+        &lt;div className="modal-overlay" onClick={onClose}>
+            &lt;div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '950px' }}>
+                &lt;div className="modal-header">
+                    &lt;h2 className="modal-title">{isEditing ? 'Editar' : 'Nueva'} Empresa&lt;/h2>
+                    &lt;button className="modal-close" onClick={onClose}>
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        &lt;/svg>
+                    &lt;/button>
+                &lt;/div>
+
+                &lt;div className="modal-body" style={{ padding: '2rem' }}>
+                    &lt;StepTracker currentStep={step} totalSteps={5} />
+
+                    {step === 1 &amp;&amp; renderStep1()}
+                    {step === 2 &amp;&amp; renderStep2()}
+                    {step === 3 &amp;&amp; renderStep3()}
+                    {step === 4 &amp;&amp; renderStep4()}
+                    {step === 5 &amp;&amp; renderStep5()}
+                &lt;/div>
+
+                &lt;div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 2rem', borderTop: '1px solid var(--border-color)' }}>
+                    &lt;div>
+                        {step > 1 &amp;&amp; (
+                            &lt;button className="btn btn-secondary" onClick={prevStep}>
+                                Anterior
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                    &lt;div style={{ display: 'flex', gap: '1rem' }}>
+                        &lt;button className="btn btn-secondary" onClick={onClose}>
+                            Cancelar
+                        &lt;/button>
+                        {step &lt; 5 ? (
+                            &lt;button className="btn btn-primary" onClick={nextStep}>
+                                Siguiente
+                            &lt;/button>
+                        ) : (
+                            &lt;button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+                                {loading ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear')} Empresa
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/div>
+        &lt;/div >
+    );
+};
+
+export default EmpresaWizard;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages/Liquidaciones.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages/Liquidaciones.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Controlador del historial de recibos de sueldo y liquidaciones mensuales.
+ * @module pages/Liquidaciones
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import Select from 'react-select';
+import {
+    getLiquidaciones,
+    getLiquidacionById,
+    marcarLiquidacionComoPagada,
+    getConceptosSalariales,
+    getParametrosLaborales,
+    updateParametrosLaborales,
+    getEmpleados,
+    getEspaciosTrabajo,
+    ejecutarLiquidacion,
+} from '../services/api';
+import { formatDateOnly, formatCurrency, truncateText, formatFullName } from '../helpers/formatters';
+import LiquidacionFormulario from '../components/LiquidacionFormulario';
+import LiquidacionDetail from '../components/LiquidacionDetail';
+import ConceptosSalarialesModal from '../components/ConceptosSalarialesModal';
+import ParametrosLaboralesModal from '../components/ParametrosLaboralesModal';
+import { useIsDark, useModulePermissions } from '../helpers/hooks';
+import { buildSelectStyles } from '../helpers/selectStyles';
+
+const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
+
+// Status based on estaPagada
+/**
+ * Determina el label y color de estado basado en si la liquidación está pagada.
+ *
+ * @param {boolean} estaPagada - Flag de estado de pago.
+ * @returns {{label: string, color: string}} Configuración visual del status.
+ */
+const getStatusInfo = (estaPagada) => {
+    if (estaPagada) {
+        return { label: 'Pagada', color: '#10b981' }; // green
+    }
+    return { label: 'Generada', color: '#3b82f6' }; // blue
+};
+
+/**
+ * Componente Liquidaciones
+ * 
+ * Controlador de liquidación de sueldos (Payroll) y recibos de haberes. Incorpora
+ * utilería de formato numérico y de fechas para presentarlos en listado. 
+ * Implementa helpers visuales de UI e interceptores de permisos de rol.
+ * 
+ * @returns {JSX.Element}
+ */
+const Liquidaciones = () => {
+    const navigate = useNavigate();
+    const { user } = useAuth();
+
+    const { isEmpleadoUser, canRead, canEdit } = useModulePermissions(user, 'liquidaciones');
+
+    // Data State
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+
+    // Pagination
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(10);
+    const [totalPages, setTotalPages] = useState(1);
+    const [total, setTotal] = useState(0);
+
+    // Filters
+    const [filterEspacio, setFilterEspacio] = useState(null);
+    const [filterEmpleado, setFilterEmpleado] = useState(null);
+    const [filterEstado, setFilterEstado] = useState('');
+    const [filterFechaDesde, setFilterFechaDesde] = useState('');
+    const [filterFechaHasta, setFilterFechaHasta] = useState('');
+
+    // Filter lists
+    const [empleadosList, setEmpleadosList] = useState([]);
+    const [espaciosList, setEspaciosList] = useState([]);
+    const isDark = useIsDark();
+
+    // Selection
+    const [selectedIds, setSelectedIds] = useState(new Set());
+
+    // Column Visibility
+    const [visibleColumns, setVisibleColumns] = useState({
+        espacio: false,
+        periodo: true,
+        totalBruto: false,
+        retenciones: true,
+        neto: true,
+        estado: true,
+    });
+    const [showColumnSelector, setShowColumnSelector] = useState(false);
+
+    // Delete Confirmation (not used in Liquidaciones but keep pattern)
+    const [confirmMarkPaid, setConfirmMarkPaid] = useState(null);
+
+    // Modal State
+    const [showFormulario, setShowFormulario] = useState(false);
+    const [showDetail, setShowDetail] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [showConceptosModal, setShowConceptosModal] = useState(false);
+    const [showParametrosModal, setShowParametrosModal] = useState(false);
+
+
+
+
+    // Redirigir si no tiene permiso de lectura
+    useEffect(() => {
+        if (user &amp;&amp; isEmpleadoUser &amp;&amp; !canRead) {
+            navigate('/dashboard', { replace: true });
+        }
+    }, [user, isEmpleadoUser, canRead, navigate]);
+
+    // Load filter data
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const [empRes, espRes] = await Promise.all([
+                    getEmpleados({ limit: 500, activo: 'true' }),
+                    getEspaciosTrabajo({ limit: 200, activo: 'true' }),
+                ]);
+                setEmpleadosList(empRes.data || []);
+                setEspaciosList(espRes.data || []);
+            } catch (e) { console.error(e); }
+        };
+        load();
+    }, []);
+
+    // Permisos y restricciones
+    const isRestricted = user?.esEmpleado &amp;&amp; !user?.esAdministrador;
+    const hasFullAccess = user?.esAdministrador || (user?.rol?.permisos?.some(p => p.modulo === 'liquidaciones' &amp;&amp; ['actualizar'].includes(p.accion)));
+    const isSingleEmployee = (empleadosList.length === 1 &amp;&amp; isRestricted) || (isRestricted &amp;&amp; !hasFullAccess);
+    const isSingleWorkspace = espaciosList.length === 1 &amp;&amp; isRestricted;
+
+    // Auto-select espacio y empleado para usuarios restringidos
+    useEffect(() => {
+        if (isRestricted) {
+            if (espaciosList.length === 1 &amp;&amp; !filterEspacio) {
+                setFilterEspacio({ value: espaciosList[0].id, label: espaciosList[0].nombre });
+            }
+            if (!filterEmpleado) {
+                if (empleadosList.length === 1) {
+                    const emp = empleadosList[0];
+                    const label = `${emp.usuario?.apellido || emp.apellido}, ${emp.usuario?.nombre || emp.nombre}`;
+                    setFilterEmpleado({ value: emp.id, label });
+                } else if (!hasFullAccess &amp;&amp; user?.empleadoId) {
+                    const myEmp = empleadosList.find(e => e.id === user.empleadoId);
+                    if (myEmp) {
+                        const label = `${myEmp.usuario?.apellido || myEmp.apellido}, ${myEmp.usuario?.nombre || myEmp.nombre}`;
+                        setFilterEmpleado({ value: myEmp.id, label });
+                    }
+                }
+            }
+        }
+    }, [user, espaciosList, empleadosList, filterEspacio, filterEmpleado, isRestricted, hasFullAccess]);
+
+    // Build select options
+    const empleadoOptions = Object.values(
+        (empleadosList).reduce((acc, emp) => {
+            const ws = emp.espacioTrabajo?.nombre || 'Sin Espacio';
+            if (!acc[ws]) acc[ws] = { label: ws, options: [] };
+            const ap = emp.usuario?.apellido || emp.apellido || '';
+            const nm = emp.usuario?.nombre || emp.nombre || '';
+            acc[ws].options.push({ value: emp.id, label: `${ap}, ${nm}` });
+            return acc;
+        }, {})
+    );
+    const espacioOptions = espaciosList.map(e => ({ value: e.id, label: e.nombre }));
+    const selectStyles = buildSelectStyles(isDark);
+
+    // Load Items
+    /**
+     * Refresca la vista de liquidaciones consultando `getLiquidaciones`.
+     * Filtra por periodos, empleados, espacios y estado de pago.
+     * 
+     * @async
+     * @returns {Promise&lt;void>}
+     */
+    const loadItems = useCallback(async () => {
+        try {
+            setLoading(true);
+            const params = {
+                activo: 'true',
+                page,
+                limit,
+            };
+            if (filterEspacio) params.espacioTrabajoId = filterEspacio.value;
+            if (filterEmpleado) params.empleadoId = filterEmpleado.value;
+            if (filterEstado !== '') params.estaPagada = filterEstado;
+            if (filterFechaDesde) params.fechaDesde = filterFechaDesde;
+            if (filterFechaHasta) params.fechaHasta = filterFechaHasta;
+            const result = await getLiquidaciones(params);
+            setItems(result.liquidaciones);
+            setTotalPages(result.totalPages);
+            setTotal(result.total);
+            setSelectedIds(new Set());
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [filterEstado, page, limit, filterEspacio, filterEmpleado, filterFechaDesde, filterFechaHasta]);
+
+    useEffect(() => {
+        loadItems();
+    }, [loadItems]);
+
+    // Handlers
+    /**
+     * Restablece activamente y elimina todos los filtros aplicados a la vista de datos.
+     * 
+     * @returns {void}
+     */
+    const clearFilters = () => {
+        if (!isSingleWorkspace) setFilterEspacio(null);
+        if (!isSingleEmployee) setFilterEmpleado(null);
+        setFilterEstado('');
+        setFilterFechaDesde('');
+        setFilterFechaHasta('');
+        setPage(1);
+    };
+
+    const hasActiveFilters = filterEstado || (!isSingleWorkspace &amp;&amp; filterEspacio) || (!isSingleEmployee &amp;&amp; filterEmpleado) || filterFechaDesde || filterFechaHasta;
+
+    // Selection Handlers
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            setSelectedIds(new Set(items.filter(item => !item.estaPagada).map(item => item.id)));
+        } else {
+            setSelectedIds(new Set());
+        }
+    };
+
+    const handleSelectOne = (id) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
+    const selectableItems = items.filter(item => !item.estaPagada);
+    const allSelected = selectableItems.length > 0 &amp;&amp; selectableItems.every(item => selectedIds.has(item.id));
+    const someSelected = items.some(item => selectedIds.has(item.id)) &amp;&amp; !allSelected;
+
+    // Column Toggle
+    const toggleColumn = (col) => {
+        setVisibleColumns(prev => ({ ...prev, [col]: !prev[col] }));
+    };
+
+    // CRUD Handlers
+    const handleEdit = async (item) => {
+        try {
+            const fullItem = await getLiquidacionById(item.id);
+            setEditingItem(fullItem);
+            setShowFormulario(true);
+            setError('');
+            setSuccess('');
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleView = async (item) => {
+        try {
+            const fullItem = await getLiquidacionById(item.id);
+            setSelectedItem(fullItem);
+            setShowDetail(true);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleCloseFormulario = () => {
+        setShowFormulario(false);
+        setEditingItem(null);
+    };
+
+    const handleFormularioSuccess = () => {
+        handleCloseFormulario();
+        setSuccess('Liquidación actualizada correctamente');
+        loadItems();
+    };
+
+    const handleMarcarComoPagada = async (item) => {
+        try {
+            await marcarLiquidacionComoPagada(item.id, true);
+            setSuccess('Liquidación marcada como pagada correctamente');
+            loadItems();
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleSimularLiquidacion = async () => {
+        try {
+            setLoading(true);
+            await ejecutarLiquidacion();
+            setSuccess('Simulación de liquidaciones ejecutada correctamente');
+            loadItems();
+        } catch (err) {
+            setError(err.message);
+            setLoading(false);
+        }
+    };
+
+    return (
+        &lt;div>
+            {/* Header */}
+            &lt;div className="page-header">
+                &lt;div>
+                    &lt;h1 className="page-title">Liquidaciones&lt;/h1>
+                    &lt;p className="page-subtitle">Visualiza y gestiona las liquidaciones generadas automáticamente&lt;/p>
+                &lt;/div>
+            &lt;/div>
+
+            {/* Alerts */}
+            {error &amp;&amp; (
+                &lt;div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                    {error}
+                    &lt;button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕&lt;/button>
+                &lt;/div>
+            )}
+            {success &amp;&amp; (
+                &lt;div className="alert alert-success" style={{ marginBottom: '1rem' }}>
+                    {success}
+                    &lt;button onClick={() => setSuccess('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕&lt;/button>
+                &lt;/div>
+            )}
+
+            {/* Card */}
+            &lt;div className="card">
+                &lt;div className="card-header">
+                    &lt;div className="header-left">
+                        &lt;h3 className="card-title">Listado de Liquidaciones&lt;/h3>
+                        &lt;span className="selection-indicator">
+                            {selectedIds.size} de {total} seleccionados
+                        &lt;/span>
+                    &lt;/div>
+                    &lt;div className="header-actions">
+                        {canEdit &amp;&amp; (
+                            &lt;button className="btn btn-primary" onClick={handleSimularLiquidacion}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                                &lt;/svg>
+                                Simular Liquidación
+                            &lt;/button>
+                        )}
+                        {canEdit &amp;&amp; (
+                            &lt;button className="btn btn-secondary" onClick={() => setShowConceptosModal(true)}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                &lt;/svg>
+                                Conceptos Salariales
+                            &lt;/button>
+                        )}
+                        {canEdit &amp;&amp; (
+                            &lt;button className="btn btn-secondary" onClick={() => setShowParametrosModal(true)}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.004.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                &lt;/svg>
+                                Parámetros Laborales
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+
+                {/* Filters */}
+                &lt;div className="filters-bar">
+                    &lt;div className="filters-inputs">
+                        &lt;div className="filter-group" style={{ minWidth: '160px' }}>
+                            &lt;Select isDisabled={isSingleWorkspace} options={espacioOptions} value={filterEspacio} onChange={opt => { setFilterEspacio(opt); setPage(1); }} placeholder="Espacio..." isClearable={!isSingleWorkspace} styles={selectStyles} menuPortalTarget={document.body} noOptionsMessage={() => 'Sin resultados'} />
+                        &lt;/div>
+                        &lt;div className="filter-group" style={{ minWidth: '200px' }}>
+                            &lt;Select isDisabled={isSingleEmployee} options={empleadoOptions} value={filterEmpleado} onChange={opt => { setFilterEmpleado(opt); setPage(1); }} placeholder="Empleado..." isClearable={!isSingleEmployee} styles={selectStyles} menuPortalTarget={document.body} noOptionsMessage={() => 'Sin resultados'} />
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;input
+                                type="date"
+                                className="filter-input"
+                                value={filterFechaDesde}
+                                onChange={(e) => { setFilterFechaDesde(e.target.value); setPage(1); }}
+                                title="Desde"
+                            />
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;input
+                                type="date"
+                                className="filter-input"
+                                value={filterFechaHasta}
+                                onChange={(e) => { setFilterFechaHasta(e.target.value); setPage(1); }}
+                                title="Hasta"
+                            />
+                        &lt;/div>
+                        &lt;div className="filter-group">
+                            &lt;select className="filter-input" value={filterEstado} onChange={(e) => { setFilterEstado(e.target.value); setPage(1); }}>
+                                &lt;option value="">Todas&lt;/option>
+                                &lt;option value="false">Generadas&lt;/option>
+                                &lt;option value="true">Pagadas&lt;/option>
+                            &lt;/select>
+                        &lt;/div>
+                    &lt;/div>
+                    &lt;div className="filters-actions">
+                        &lt;div className="column-selector-wrapper">
+                            &lt;button className="btn btn-secondary btn-sm" onClick={() => setShowColumnSelector(!showColumnSelector)}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.004.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                &lt;/svg>
+                                Columnas
+                            &lt;/button>
+                            {showColumnSelector &amp;&amp; (
+                                &lt;div className="column-selector-dropdown">
+                                    {Object.entries({ espacio: 'Espacio', periodo: 'Período', totalBruto: 'Total Bruto', retenciones: 'Retenciones', neto: 'Neto', estado: 'Estado' }).map(([key, label]) => (
+                                        &lt;label key={key} className="column-option">
+                                            &lt;input type="checkbox" checked={visibleColumns[key]} onChange={() => toggleColumn(key)} />
+                                            &lt;span>{label}&lt;/span>
+                                        &lt;/label>
+                                    ))}
+                                &lt;/div>
+                            )}
+                        &lt;/div>
+                        {hasActiveFilters &amp;&amp; (
+                            &lt;button className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                &lt;/svg>
+                                Limpiar
+                            &lt;/button>
+                        )}
+                    &lt;/div>
+                &lt;/div>
+
+                {/* Content */}
+                {loading ? (
+                    &lt;div className="loading">&lt;div className="spinner">&lt;/div>&lt;/div>
+                ) : items.length === 0 ? (
+                    &lt;div className="empty-state">
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+                        &lt;/svg>
+                        &lt;h3>No hay liquidaciones&lt;/h3>
+                        &lt;p>Las liquidaciones se generan automáticamente el primer día de cada mes&lt;/p>
+                    &lt;/div>
+                ) : (
+                    &lt;>
+                        &lt;div className="table-container">
+                            &lt;table className="table">
+                                &lt;thead>
+                                    &lt;tr>
+                                        &lt;th style={{ width: '40px' }}>
+                                            &lt;input type="checkbox" checked={allSelected} ref={input => { if (input) input.indeterminate = someSelected; }} onChange={handleSelectAll} />
+                                        &lt;/th>
+                                        &lt;th>Empleado&lt;/th>
+                                        {visibleColumns.espacio &amp;&amp; &lt;th>Espacio&lt;/th>}
+                                        {visibleColumns.periodo &amp;&amp; &lt;th>Período&lt;/th>}
+                                        {visibleColumns.totalBruto &amp;&amp; &lt;th>Total Bruto&lt;/th>}
+                                        {visibleColumns.retenciones &amp;&amp; &lt;th>Retenciones&lt;/th>}
+                                        {visibleColumns.neto &amp;&amp; &lt;th>Neto&lt;/th>}
+                                        {visibleColumns.estado &amp;&amp; &lt;th>Estado&lt;/th>}
+                                        &lt;th>Acciones&lt;/th>
+
+                                    &lt;/tr>
+                                &lt;/thead>
+                                &lt;tbody>
+                                    {items.map((item) => (
+                                        &lt;tr key={item.id} className={`${selectedIds.has(item.id) ? 'row-selected' : ''} ${!item.activo ? 'row-inactive' : ''}`}>
+                                            &lt;td>&lt;input type="checkbox" disabled={item.estaPagada} checked={selectedIds.has(item.id)} onChange={() => handleSelectOne(item.id)} />&lt;/td>
+                                            &lt;td>
+                                                {item.contrato?.empleado ? (
+                                                    &lt;>
+                                                        &lt;strong>{truncateText(formatFullName(item.contrato.empleado), 15)}&lt;/strong>
+                                                        &lt;div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                            {truncateText(item.contrato.puestos?.[0]?.nombre || 'Sin puesto', 15)}
+                                                        &lt;/div>
+                                                    &lt;/>
+                                                ) : (
+                                                    &lt;span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Sin empleado&lt;/span>
+                                                )}
+                                            &lt;/td>
+                                            {visibleColumns.espacio &amp;&amp; &lt;td>{truncateText(item.contrato?.empleado?.espacioTrabajo?.nombre || '-')}&lt;/td>}
+                                            {visibleColumns.periodo &amp;&amp; (
+                                                &lt;td>
+                                                    {truncateText(formatDateOnly(item.fechaInicio) + ' - ' + formatDateOnly(item.fechaFin), 15)}
+                                                &lt;/td>
+                                            )}
+                                            {visibleColumns.totalBruto &amp;&amp; &lt;td>{formatCurrency(item.totalBruto)}&lt;/td>}
+                                            {visibleColumns.retenciones &amp;&amp; &lt;td>{formatCurrency(item.totalRetenciones)}&lt;/td>}
+                                            {visibleColumns.neto &amp;&amp; &lt;td>&lt;strong>{formatCurrency(item.neto)}&lt;/strong>&lt;/td>}
+                                            {visibleColumns.estado &amp;&amp; (
+                                                &lt;td>
+                                                    {(() => {
+                                                        const statusInfo = getStatusInfo(item.estaPagada);
+                                                        return (
+                                                            &lt;span style={{
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '0.4rem',
+                                                                fontSize: '0.75rem',
+                                                                padding: '0.25rem 0.6rem',
+                                                                borderRadius: '9999px',
+                                                                background: `${statusInfo.color}20`,
+                                                                color: statusInfo.color,
+                                                                fontWeight: 700
+                                                            }}>
+                                                                {statusInfo.label}
+                                                            &lt;/span>
+                                                        );
+                                                    })()}
+                                                &lt;/td>
+                                            )}
+                                            &lt;td>
+                                                &lt;div className="table-actions">
+                                                    &lt;>
+                                                        &lt;button className="btn btn-info btn-sm" onClick={() => handleView(item)} title="Ver">
+                                                            &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            &lt;/svg>
+                                                            Ver
+                                                        &lt;/button>
+                                                        {canEdit &amp;&amp; !item.estaPagada &amp;&amp; (
+                                                            &lt;button className="btn btn-warning btn-sm" onClick={() => handleEdit(item)} title="Editar">
+                                                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                                                &lt;/svg>
+                                                                Editar
+                                                            &lt;/button>
+                                                        )}
+                                                        {canEdit &amp;&amp; (
+                                                            &lt;button
+                                                                className="btn btn-success btn-sm"
+                                                                onClick={() => handleMarcarComoPagada(item)}
+                                                                title="Marcar como Pagada"
+                                                                style={{ display: item.estaPagada ? 'none' : 'inline-flex' }}
+                                                            >
+                                                                &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                    &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                &lt;/svg>
+                                                                Pagada
+                                                            &lt;/button>
+                                                        )}
+                                                    &lt;/>
+                                                &lt;/div>
+                                            &lt;/td>
+                                        &lt;/tr>
+                                    ))}
+                                &lt;/tbody>
+                            &lt;/table>
+                        &lt;/div>
+
+                        {/* Pagination */}
+                        &lt;div className="pagination-bar">
+                            &lt;div className="pagination-info">
+                                &lt;span>Filas por página:&lt;/span>
+                                &lt;select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="pagination-select">
+                                    {ROWS_PER_PAGE_OPTIONS.map(opt => &lt;option key={opt} value={opt}>{opt}&lt;/option>)}
+                                &lt;/select>
+                                &lt;span className="pagination-total">
+                                    {((page - 1) * limit) + 1}-{Math.min(page * limit, total)} de {total}
+                                &lt;/span>
+                            &lt;/div>
+                            &lt;div className="pagination-controls">
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(1)}>«&lt;/button>
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹&lt;/button>
+                                &lt;span className="pagination-page">Página {page} de {totalPages || 1}&lt;/span>
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>›&lt;/button>
+                                &lt;button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»&lt;/button>
+                            &lt;/div>
+                        &lt;/div>
+                    &lt;/>
+                )}
+            &lt;/div>
+
+            {/* Modals */}
+            {
+                showFormulario &amp;&amp; (
+                    &lt;LiquidacionFormulario liquidacion={editingItem} onClose={handleCloseFormulario} onSuccess={handleFormularioSuccess} />
+                )
+            }
+
+            {
+                showDetail &amp;&amp; selectedItem &amp;&amp; (
+                    &lt;LiquidacionDetail
+                        liquidacion={selectedItem}
+                        onClose={() => { setShowDetail(false); setSelectedItem(null); }}
+                        onEdit={(liquidacion) => {
+                            setShowDetail(false);
+                            setSelectedItem(null);
+                            setEditingItem(liquidacion);
+                            setShowFormulario(true);
+                        }}
+                    />
+                )
+            }
+
+            {
+                showConceptosModal &amp;&amp; (
+                    &lt;ConceptosSalarialesModal
+                        onClose={() => setShowConceptosModal(false)}
+                    />
+                )
+            }
+
+            {
+                showParametrosModal &amp;&amp; (
+                    &lt;ParametrosLaboralesModal
+                        onClose={() => setShowParametrosModal(false)}
+                    />
+                )
+            }
+
+        &lt;/div >
+    );
+};
+
+export default Liquidaciones;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>

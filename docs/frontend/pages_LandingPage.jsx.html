@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pages/LandingPage.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pages/LandingPage.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Página pública explicativa con presentación comercial de CataratasRH.
+ * @module pages/LandingPage
+ */
+
+import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
+
+/* ─── SVG Icon Components ─── */
+const CheckIcon = () => (
+    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    &lt;/svg>
+);
+
+const UsersIcon = () => (
+    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+    &lt;/svg>
+);
+
+const ContractIcon = () => (
+    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+    &lt;/svg>
+);
+
+const EvalIcon = () => (
+    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+    &lt;/svg>
+);
+
+const HealthIcon = () => (
+    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75" />
+    &lt;/svg>
+);
+
+const RequestIcon = () => (
+    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V19.5a2.25 2.25 0 002.25 2.25h6a2.25 2.25 0 002.25-2.25V6.108" />
+    &lt;/svg>
+);
+
+const ChartIcon = () => (
+    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+    &lt;/svg>
+);
+
+const ArrowRightIcon = () => (
+    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+    &lt;/svg>
+);
+
+/* ─── Data ─── */
+const features = [
+    {
+        icon: &lt;UsersIcon />,
+        title: 'Gestión de Empleados',
+        description: 'Centraliza la información de todo tu equipo: datos personales, cargos, contactos de emergencia y asignaciones organizacionales en un solo lugar.',
+    },
+    {
+        icon: &lt;ContractIcon />,
+        title: 'Contratos y Liquidaciones',
+        description: 'Administra contratos laborales, tipos de vinculación y genera liquidaciones salariales de forma ágil y transparente.',
+    },
+    {
+        icon: &lt;EvalIcon />,
+        title: 'Evaluaciones de Desempeño',
+        description: 'Realiza seguimiento del rendimiento de tus colaboradores con evaluaciones periódicas configurables y métricas claras.',
+    },
+    {
+        icon: &lt;HealthIcon />,
+        title: 'Registros de Salud',
+        description: 'Gestiona certificados médicos, licencias por enfermedad y el historial sanitario de cada empleado de forma organizada.',
+    },
+    {
+        icon: &lt;RequestIcon />,
+        title: 'Solicitudes y Permisos',
+        description: 'Simplifica el proceso de solicitudes de vacaciones, permisos y licencias con flujos de aprobación claros.',
+    },
+    {
+        icon: &lt;ChartIcon />,
+        title: 'Reportes y Analíticas',
+        description: 'Obtén métricas clave sobre dotación de personal, tipos de contrato y distribución organizacional con reportes visuales.',
+    },
+];
+
+const pricingPlans = [
+    {
+        name: 'Básico',
+        description: 'Perfecto para equipos pequeños',
+        price: '$12',
+        period: '/usuario/mes',
+        cta: 'Comenzar Prueba',
+        ctaStyle: 'outline',
+        features: [
+            'Hasta 10 empleados',
+            'Gestión de contratos',
+            'Reportes básicos',
+            'Soporte por email',
+        ],
+    },
+    {
+        name: 'Profesional',
+        description: 'Para equipos en crecimiento',
+        price: '$24',
+        period: '/usuario/mes',
+        cta: 'Comenzar Prueba',
+        ctaStyle: 'primary',
+        featured: true,
+        badge: 'Más Popular',
+        features: [
+            'Hasta 50 empleados',
+            'Evaluaciones y salud',
+            'Reportes avanzados',
+            'Soporte prioritario',
+            'Liquidaciones automáticas',
+        ],
+    },
+    {
+        name: 'Empresa',
+        description: 'Para grandes organizaciones',
+        price: 'Personalizado',
+        period: '',
+        cta: 'Contactar a Ventas',
+        ctaStyle: 'outline',
+        features: [
+            'Empleados ilimitados',
+            'Módulos completos',
+            'Seguridad avanzada',
+            'Gestor de cuenta dedicado',
+            'SLA personalizado',
+        ],
+    },
+];
+
+/**
+ * Gancho personalizado (Hook) para manejar animaciones gatilladas por el scroll.
+ * Utiliza IntersectionObserver para añadir la clase 'visible' a elementos seleccionados.
+ * 
+ * @returns {React.MutableRefObject&lt;null>} Referencia compartida del contenedor.
+ */
+function useScrollAnimation() {
+    const ref = useRef(null);
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                    }
+                });
+            },
+            { threshold: 0.1, rootMargin: '0px 0px -50px 0px' }
+        );
+
+        const elements = ref.current?.querySelectorAll('.landing-animate');
+        elements?.forEach((el) => observer.observe(el));
+
+        return () => observer.disconnect();
+    }, []);
+    return ref;
+}
+
+/* ─── Main Component ─── */
+/**
+ * Componente LandingPage
+ * 
+ * Página introductoria para el proyecto CataratasRH. Explicativas visuales de features básicas.
+ * No requiere autenticación y su UI no hace match riguroso a la paleta administrativa interior.
+ * 
+ * @returns {JSX.Element}
+ */
+const LandingPage = () => {
+    const [scrolled, setScrolled] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const containerRef = useScrollAnimation();
+
+    useEffect(() => {
+        const handleScroll = () => setScrolled(window.scrollY > 20);
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    /**
+     * Maneja el clic en los elementos de navegación para realizar un scroll suave a la sección.
+     * 
+     * @param {React.MouseEvent} e - Evento de clic.
+     * @param {string} targetId - ID del elemento destino del scroll.
+     * @returns {void}
+     */
+    const handleNavClick = (e, targetId) => {
+        e.preventDefault();
+        setMenuOpen(false);
+        const el = document.getElementById(targetId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+
+    return (
+        &lt;div ref={containerRef} style={{ background: 'white' }}>
+            {/* ── Header ── */}
+            &lt;header className={`landing-header ${scrolled ? 'scrolled' : ''}`}>
+                &lt;div className="landing-header-inner">
+                    &lt;a href="#" className="landing-brand" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                        &lt;img src="/logo.png" alt="CataratasRH" className="landing-brand-logo" />
+                        &lt;span className="landing-brand-name">Cataratas&lt;span>RH&lt;/span>&lt;/span>
+                    &lt;/a>
+
+                    &lt;button className="landing-menu-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menú">
+                        &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                            {menuOpen ? (
+                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            ) : (
+                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                            )}
+                        &lt;/svg>
+                    &lt;/button>
+
+                    &lt;nav className={`landing-nav ${menuOpen ? 'open' : ''}`}>
+                        &lt;a href="#caracteristicas" className="landing-nav-link" onClick={(e) => handleNavClick(e, 'caracteristicas')}>
+                            Características
+                        &lt;/a>
+                        &lt;a href="#precios" className="landing-nav-link" onClick={(e) => handleNavClick(e, 'precios')}>
+                            Precios
+                        &lt;/a>
+                        &lt;Link
+                            to="/documentacion"
+                            className="landing-nav-link"
+                        >
+                            Documentación
+                        &lt;/Link>
+                        &lt;Link to="/login" className="landing-login-btn">
+                            &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                            &lt;/svg>
+                            Iniciar sesión
+                        &lt;/Link>
+                    &lt;/nav>
+                &lt;/div>
+            &lt;/header>
+
+            {/* ── Hero ── */}
+            &lt;section className="landing-hero">
+                &lt;div className="landing-hero-inner">
+                    &lt;div className="landing-hero-content">
+                        &lt;h1 className="landing-hero-title">
+                            Sistema de Gestión de{' '}
+                            &lt;span className="highlight">Recursos Humanos&lt;/span>
+                        &lt;/h1>
+                        &lt;p className="landing-hero-description">
+                            CataratasRH centraliza y simplifica la gestión de recursos humanos de tu empresa.
+                            Administra empleados, contratos, liquidaciones, evaluaciones y solicitudes de forma eficiente.
+                        &lt;/p>
+                        &lt;div className="landing-hero-actions">
+                            &lt;Link to="/login" className="landing-btn-primary">
+                                Comenzar ahora
+                                &lt;ArrowRightIcon />
+                            &lt;/Link>
+                            &lt;a href="#caracteristicas" className="landing-btn-secondary" onClick={(e) => handleNavClick(e, 'caracteristicas')}>
+                                Ver funcionalidades
+                            &lt;/a>
+                        &lt;/div>
+                    &lt;/div>
+                    &lt;div className="landing-hero-visual">
+                        &lt;div className="landing-hero-logo-wrapper">
+                            &lt;img src="/logo.png" alt="CataratasRH Logo" className="landing-hero-logo-img" />
+                        &lt;/div>
+                    &lt;/div>
+                &lt;/div>
+            &lt;/section>
+
+            {/* ── Stats ── */}
+            &lt;section className="landing-stats">
+                &lt;div className="landing-stats-inner">
+                    &lt;div className="landing-stat landing-animate">
+                        &lt;div className="landing-stat-number">10+&lt;/div>
+                        &lt;div className="landing-stat-label">Módulos integrados&lt;/div>
+                    &lt;/div>
+                    &lt;div className="landing-stat landing-animate">
+                        &lt;div className="landing-stat-number">100%&lt;/div>
+                        &lt;div className="landing-stat-label">Basado en la nube&lt;/div>
+                    &lt;/div>
+                    &lt;div className="landing-stat landing-animate">
+                        &lt;div className="landing-stat-number">24/7&lt;/div>
+                        &lt;div className="landing-stat-label">Disponibilidad&lt;/div>
+                    &lt;/div>
+                    &lt;div className="landing-stat landing-animate">
+                        &lt;div className="landing-stat-number">âˆž&lt;/div>
+                        &lt;div className="landing-stat-label">Escalabilidad&lt;/div>
+                    &lt;/div>
+                &lt;/div>
+            &lt;/section>
+
+            {/* ── Features ── */}
+            &lt;section id="caracteristicas" className="landing-features">
+                &lt;div className="landing-section-inner">
+                    &lt;div className="landing-section-header landing-animate">
+                        &lt;div className="landing-section-tag">Funcionalidades&lt;/div>
+                        &lt;h2 className="landing-section-title">Todo lo que necesitás para gestionar tu equipo&lt;/h2>
+                        &lt;p className="landing-section-subtitle">
+                            Herramientas poderosas diseñadas para optimizar la gestión de tu organización y el bienestar de tus colaboradores.
+                        &lt;/p>
+                    &lt;/div>
+                    &lt;div className="landing-features-grid">
+                        {features.map((feature, i) => (
+                            &lt;div key={i} className="landing-feature-card landing-animate" style={{ transitionDelay: `${i * 0.1}s` }}>
+                                &lt;div className="landing-feature-icon">{feature.icon}&lt;/div>
+                                &lt;h3 className="landing-feature-title">{feature.title}&lt;/h3>
+                                &lt;p className="landing-feature-description">{feature.description}&lt;/p>
+                            &lt;/div>
+                        ))}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/section>
+
+            {/* ── Pricing ── */}
+            &lt;section id="precios" className="landing-pricing">
+                &lt;div className="landing-section-inner">
+                    &lt;div className="landing-section-header landing-animate">
+                        &lt;div className="landing-section-tag">Precios&lt;/div>
+                        &lt;h2 className="landing-section-title">Precios simples y transparentes&lt;/h2>
+                        &lt;p className="landing-section-subtitle">
+                            Elegí el plan adecuado para tu equipo. Todos los planes incluyen una prueba gratuita de 14 días.
+                        &lt;/p>
+                    &lt;/div>
+                    &lt;div className="landing-pricing-grid">
+                        {pricingPlans.map((plan, i) => (
+                            &lt;div key={i} className={`landing-price-card landing-animate ${plan.featured ? 'featured' : ''}`} style={{ transitionDelay: `${i * 0.15}s` }}>
+                                {plan.badge &amp;&amp; &lt;div className="landing-price-badge">{plan.badge}&lt;/div>}
+                                &lt;div className="landing-price-name">{plan.name}&lt;/div>
+                                &lt;div className="landing-price-desc">{plan.description}&lt;/div>
+                                &lt;div className="landing-price-amount">
+                                    &lt;span className="amount">{plan.price}&lt;/span>
+                                    {plan.period &amp;&amp; &lt;span className="period">{plan.period}&lt;/span>}
+                                &lt;/div>
+                                &lt;button className={`landing-price-cta ${plan.ctaStyle}`}>{plan.cta}&lt;/button>
+                                &lt;ul className="landing-price-features">
+                                    {plan.features.map((f, j) => (
+                                        &lt;li key={j}>
+                                            &lt;CheckIcon />
+                                            {f}
+                                        &lt;/li>
+                                    ))}
+                                &lt;/ul>
+                            &lt;/div>
+                        ))}
+                    &lt;/div>
+                &lt;/div>
+            &lt;/section>
+
+            {/* ── Footer ── */}
+            &lt;footer className="landing-footer">
+                &lt;div className="landing-footer-inner">
+                    &lt;div className="landing-footer-grid">
+                        &lt;div>
+                            &lt;div className="landing-footer-brand-name">Cataratas&lt;span>RH&lt;/span>&lt;/div>
+                            &lt;p className="landing-footer-brand-desc">
+                                Gestión de recursos humanos moderna para equipos que se mueven rápido.
+                            &lt;/p>
+                        &lt;/div>
+                        &lt;div className="landing-footer-section">
+                            &lt;h4>Producto&lt;/h4>
+                            &lt;ul className="landing-footer-links">
+                                &lt;li>Funcionalidades&lt;/li>
+                                &lt;li>Precios&lt;/li>
+                                &lt;li>Seguridad&lt;/li>
+                                &lt;li>Hoja de Ruta&lt;/li>
+                            &lt;/ul>
+                        &lt;/div>
+                        &lt;div className="landing-footer-section">
+                            &lt;h4>Empresa&lt;/h4>
+                            &lt;ul className="landing-footer-links">
+                                &lt;li>Nosotros&lt;/li>
+                                &lt;li>Blog&lt;/li>
+                                &lt;li>Carreras&lt;/li>
+                                &lt;li>Contacto&lt;/li>
+                            &lt;/ul>
+                        &lt;/div>
+                        &lt;div className="landing-footer-section">
+                            &lt;h4>Conecta&lt;/h4>
+                            &lt;div className="landing-footer-social">
+                                &lt;a aria-label="Twitter">
+                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
+                                    &lt;/svg>
+                                &lt;/a>
+                                &lt;a href="https://github.com/joaquinkuster/rrhh" aria-label="GitHub">
+                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M15 22v-4a4.8 4.8 0 00-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 004 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M9 18c-4.51 2-5-2-7-2" />
+                                    &lt;/svg>
+                                &lt;/a>
+                                &lt;a aria-label="LinkedIn">
+                                    &lt;svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                        &lt;path strokeLinecap="round" strokeLinejoin="round" d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6z" />
+                                        &lt;rect x="2" y="9" width="4" height="12" rx="0" strokeLinecap="round" strokeLinejoin="round" />
+                                        &lt;circle cx="4" cy="4" r="2" />
+                                    &lt;/svg>
+                                &lt;/a>
+                            &lt;/div>
+                        &lt;/div>
+                    &lt;/div>
+                    &lt;div className="landing-footer-bottom">
+                        &lt;p>© 2025 CataratasRH. Todos los derechos reservados.&lt;/p>
+                        &lt;div className="landing-footer-bottom-links">
+                            &lt;a href="#">Política de Privacidad&lt;/a>
+                            &lt;a href="#">Términos de Servicio&lt;/a>
+                        &lt;/div>
+                    &lt;/div>
+                &lt;/div>
+            &lt;/footer>
+        &lt;/div>
+    );
+};
+
+export default LandingPage;
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-App.html">App</a></li><li><a href="module-components_Alert.html">components/Alert</a></li><li><a href="module-components_BackgroundCarousel.html">components/BackgroundCarousel</a></li><li><a href="module-components_ConceptosSalarialesModal.html">components/ConceptosSalarialesModal</a></li><li><a href="module-components_ConfirmDialog.html">components/ConfirmDialog</a></li><li><a href="module-components_ContactoDetail.html">components/ContactoDetail</a></li><li><a href="module-components_ContactoWizard.html">components/ContactoWizard</a></li><li><a href="module-components_ContratoDetail.html">components/ContratoDetail</a></li><li><a href="module-components_ContratoWizard.html">components/ContratoWizard</a></li><li><a href="module-components_EmpleadoDetail.html">components/EmpleadoDetail</a></li><li><a href="module-components_EmpleadoWizard.html">components/EmpleadoWizard</a></li><li><a href="module-components_EmpresaDetail.html">components/EmpresaDetail</a></li><li><a href="module-components_EmpresaWizard.html">components/EmpresaWizard</a></li><li><a href="module-components_EspacioTrabajoDetail.html">components/EspacioTrabajoDetail</a></li><li><a href="module-components_EspacioTrabajoFormulario.html">components/EspacioTrabajoFormulario</a></li><li><a href="module-components_EspacioTrabajoSelector.html">components/EspacioTrabajoSelector</a></li><li><a href="module-components_EvaluacionDetail.html">components/EvaluacionDetail</a></li><li><a href="module-components_EvaluacionWizard.html">components/EvaluacionWizard</a></li><li><a href="module-components_LiquidacionDetail.html">components/LiquidacionDetail</a></li><li><a href="module-components_LiquidacionFormulario.html">components/LiquidacionFormulario</a></li><li><a href="module-components_Modal.html">components/Modal</a></li><li><a href="module-components_Navbar.html">components/Navbar</a></li><li><a href="module-components_NonEmployeeRoute.html">components/NonEmployeeRoute</a></li><li><a href="module-components_ParametrosLaboralesModal.html">components/ParametrosLaboralesModal</a></li><li><a href="module-components_PerfilUsuarioModal.html">components/PerfilUsuarioModal</a></li><li><a href="module-components_ProtectedRoute.html">components/ProtectedRoute</a></li><li><a href="module-components_PublicRoute.html">components/PublicRoute</a></li><li><a href="module-components_RegistroPublicoForm.html">components/RegistroPublicoForm</a></li><li><a href="module-components_RegistroSaludDetail.html">components/RegistroSaludDetail</a></li><li><a href="module-components_RegistroSaludWizard.html">components/RegistroSaludWizard</a></li><li><a href="module-components_RolDetail.html">components/RolDetail</a></li><li><a href="module-components_RolWizard.html">components/RolWizard</a></li><li><a href="module-components_Sidebar.html">components/Sidebar</a></li><li><a href="module-components_SolicitudDetail.html">components/SolicitudDetail</a></li><li><a href="module-components_SolicitudWizard.html">components/SolicitudWizard</a></li><li><a href="module-components_StepTracker.html">components/StepTracker</a></li><li><a href="module-context_AuthContext.html">context/AuthContext</a></li><li><a href="module-context_ThemeContext.html">context/ThemeContext</a></li><li><a href="module-helpers_diasHabiles.html">helpers/diasHabiles</a></li><li><a href="module-helpers_formatters.html">helpers/formatters</a></li><li><a href="module-helpers_hooks.html">helpers/hooks</a></li><li><a href="module-helpers_index.html">helpers/index</a></li><li><a href="module-helpers_selectStyles.html">helpers/selectStyles</a></li><li><a href="module-main.html">main</a></li><li><a href="module-pages_Contactos.html">pages/Contactos</a></li><li><a href="module-pages_Contratos.html">pages/Contratos</a></li><li><a href="module-pages_Dashboard.html">pages/Dashboard</a></li><li><a href="module-pages_Empleados.html">pages/Empleados</a></li><li><a href="module-pages_Empresas.html">pages/Empresas</a></li><li><a href="module-pages_EspaciosTrabajo.html">pages/EspaciosTrabajo</a></li><li><a href="module-pages_Evaluaciones.html">pages/Evaluaciones</a></li><li><a href="module-pages_LandingPage.html">pages/LandingPage</a></li><li><a href="module-pages_Liquidaciones.html">pages/Liquidaciones</a></li><li><a href="module-pages_Login.html">pages/Login</a></li><li><a href="module-pages_Register.html">pages/Register</a></li><li><a href="module-pages_RegistrosSalud.html">pages/RegistrosSalud</a></li><li><a href="module-pages_Reportes.html">pages/Reportes</a></li><li><a href="module-pages_Roles.html">pages/Roles</a></li><li><a href="module-pages_Solicitudes.html">pages/Solicitudes</a></li><li><a href="module-pages_TechnicalDocs.html">pages/TechnicalDocs</a></li><li><a href="module-services_api.html">services/api</a></li><li><a href="module-services_authService.html">services/authService</a></li><li><a href="module-services_contratoService.html">services/contratoService</a></li><li><a href="module-services_dashboardService.html">services/dashboardService</a></li><li><a href="module-services_empleadoService.html">services/empleadoService</a></li><li><a href="module-services_empresaService.html">services/empresaService</a></li><li><a href="module-services_geoService.html">services/geoService</a></li><li><a href="module-services_httpClient.html">services/httpClient</a></li><li><a href="module-services_liquidacionService.html">services/liquidacionService</a></li><li><a href="module-services_registroService.html">services/registroService</a></li><li><a href="module-services_rolService.html">services/rolService</a></li><li><a href="module-services_solicitudService.html">services/solicitudService</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Mar 02 2026 20:21:51 GMT-0300 (hora estándar de Brasilia)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+<!-- INJECTED DOCS ADDON START -->
+<script>
+/* docs-addon.js */
+(function () {
+    // 0. Add Styles
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .active-nav {
+            font-weight: 700 !important;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px !important;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .active-nav a {
+            color: #3b82f6 !important;
+        }
+        .doc-pagination a:hover {
+            text-decoration: underline !important;
+            filter: brightness(0.8);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 1. Highlight Active Sidebar Link
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    const navLinks = document.querySelectorAll('nav ul li a, nav > h2 > a');
+    let currentIndex = -1;
+    const allLinks = [];
+
+    navLinks.forEach((link) => {
+        allLinks.push(link);
+        const linkPath = link.getAttribute('href');
+        if (linkPath === currentPath) {
+            link.parentElement.classList.add('active-nav');
+            currentIndex = allLinks.length - 1;
+            // Also handle the H2 case for index.html
+            if (link.parentElement.tagName === 'NAV') {
+                link.classList.add('active-nav');
+            }
+        }
+    });
+
+    // 2. Add Pagination
+    const mainDiv = document.getElementById('main');
+    if (mainDiv && currentIndex !== -1 && allLinks.length > 1) {
+        const paginationDiv = document.createElement('div');
+        paginationDiv.className = 'doc-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: space-between; margin-top: 3rem; padding: 1.5rem 30px; border-top: 1px solid #e2e8f0; background: #fafafa; border-radius: 8px;';
+
+        const prev = allLinks[currentIndex - 1];
+        const next = allLinks[currentIndex + 1];
+
+        if (prev) {
+            const prevBtn = document.createElement('a');
+            prevBtn.href = prev.getAttribute('href');
+            prevBtn.innerHTML = '← Anterior: ' + prev.innerText;
+            prevBtn.style.cssText = 'text-decoration: none; color: #64748b; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(prevBtn);
+        } else {
+            paginationDiv.appendChild(document.createElement('div'));
+        }
+
+        if (next) {
+            const nextBtn = document.createElement('a');
+            nextBtn.href = next.getAttribute('href');
+            nextBtn.innerHTML = 'Siguiente: ' + next.innerText + ' →';
+            nextBtn.style.cssText = 'text-decoration: none; color: #3b82f6; font-weight: 600; font-size: 0.9rem; padding: 0.5rem 0;';
+            paginationDiv.appendChild(nextBtn);
+        }
+
+        mainDiv.appendChild(paginationDiv);
+    }
+})();
+
+</script>
+<!-- INJECTED DOCS ADDON END -->
+</body>
+</html>
