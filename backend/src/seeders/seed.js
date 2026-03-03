@@ -216,8 +216,8 @@ const runSeed = async () => {
                 { nombre: 'Obra Social', tipo: 'deduccion', esPorcentaje: true, valor: 3, esObligatorio: true, espacioTrabajoId: espacioId },
                 { nombre: 'PAMI', tipo: 'deduccion', esPorcentaje: true, valor: 3, esObligatorio: true, espacioTrabajoId: espacioId },
                 { nombre: 'Cuota Sindical', tipo: 'deduccion', esPorcentaje: true, valor: 2.5, esObligatorio: true, espacioTrabajoId: espacioId },
-                { nombre: 'Horas Extra 50%', tipo: 'adicional', esPorcentaje: false, valor: 0, esObligatorio: false, espacioTrabajoId: espacioId },
-                { nombre: 'Presentismo', tipo: 'adicional', esPorcentaje: true, valor: 5, esObligatorio: false, espacioTrabajoId: espacioId },
+                { nombre: 'Horas Extra 50%', tipo: 'remunerativo', esPorcentaje: false, valor: 0, esObligatorio: false, espacioTrabajoId: espacioId },
+                { nombre: 'Presentismo', tipo: 'remunerativo', esPorcentaje: true, valor: 5, esObligatorio: false, espacioTrabajoId: espacioId },
             ]);
             await ParametroLaboral.create({
                 tipo: 'limite_ausencia_injustificada',
