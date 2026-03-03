@@ -37,14 +37,9 @@ Thumbs.db
 docker-compose.yml
 Dockerfile
 
-#package-lock.json
-package-lock.json
-package.json
 
 #docs
 docs
 database_model.puml
 
-#vite del frontend
-frontend/vite.config.js 
 
