@@ -84,15 +84,9 @@ const Contrato = sequelize.define('Contrato', {
         validate: {
             notEmpty: { msg: 'La fecha de inicio es requerida' },
             isDate: { msg: 'Debe ser una fecha válida' },
-            isNotPast(value) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                value = parseLocalDate(value);
-                value.setHours(0, 0, 0, 0);
-                if (value < today) {
-                    throw new Error('La fecha de inicio no puede ser anterior a hoy');
-                }
-                if (!esDiaHabil(value)) {
+            isBusinessDay(value) {
+                const dateValue = parseLocalDate(value);
+                if (!esDiaHabil(dateValue)) {
                     throw new Error('La fecha de inicio debe ser un día hábil (lunes a viernes, excluyendo feriados)');
                 }
             },
