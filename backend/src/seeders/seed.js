@@ -30,10 +30,17 @@ const {
 } = require('../models');
 
 /**
- * Verifica si ya existen datos en la tabla de usuarios.
+ * Verifica si el sistema ya tiene la configuración mínima de datos.
+ * Comprobamos Usuarios y Espacios de Trabajo para mayor seguridad.
  * @returns {Promise<boolean>}
  */
-const hasData = async () => (await Usuario.count()) > 0;
+const hasData = async () => {
+    const userCount = await Usuario.count();
+    const spaceCount = await EspacioTrabajo.count();
+    const employeeCount = await Empleado.count();
+    const companyCount = await Empresa.count();
+    return userCount > 0 && spaceCount > 0 && employeeCount > 0 && companyCount > 0;
+};
 
 /**
  * Helper: Crea una estructura completa de empleado dentro del seeder.
@@ -100,6 +107,10 @@ const runSeed = async () => {
 
         console.log('🌱 Iniciando carga de datos de semilla...');
 
+        // Desactivar checks para evitar errores de orden de inserción en el seed
+        const { sequelize } = require('../models');
+        await sequelize.query('SET FOREIGN_KEY_CHECKS = 0');
+
         // ─── 0. Permisos ─────────────────────────────────────────────────────────
         console.log('🔐 Inicializando permisos...');
         const modulos = [
@@ -129,24 +140,30 @@ const runSeed = async () => {
 
         // ─── 1. Usuarios propietarios ─────────────────────────────────────────────
         console.log('👤 Creando usuarios propietarios...');
-        const usuarioCEO = await Usuario.create({
-            nombre: 'Carlos',
-            apellido: 'Méndez',
-            email: 'ceo@cataratas.com',
-            contrasena: 'Admin123!',
-            esAdministrador: true,
-            esEmpleado: false,
-            activo: true,
+        // ─── 1. Usuarios propietarios ─────────────────────────────────────────────
+        console.log('👤 Buscando/Creando usuarios propietarios...');
+        const [usuarioCEO] = await Usuario.findOrCreate({
+            where: { email: 'ceo@cataratas.com' },
+            defaults: {
+                nombre: 'Carlos',
+                apellido: 'Méndez',
+                contrasena: 'Admin123!',
+                esAdministrador: true,
+                esEmpleado: false,
+                activo: true,
+            }
         });
 
-        const usuarioRRHH = await Usuario.create({
-            nombre: 'Laura',
-            apellido: 'Fernández',
-            email: 'user@cataratas.com',
-            contrasena: 'User123!',
-            esAdministrador: false,
-            esEmpleado: false,
-            activo: true,
+        const [usuarioRRHH] = await Usuario.findOrCreate({
+            where: { email: 'user@cataratas.com' },
+            defaults: {
+                nombre: 'Laura',
+                apellido: 'Fernández',
+                contrasena: 'User123!',
+                esAdministrador: false,
+                esEmpleado: false,
+                activo: true,
+            }
         });
 
         // ─── 2. Helper: crear roles para un espacio ───────────────────────────────
@@ -488,6 +505,9 @@ const runSeed = async () => {
 
         console.log('');
         console.log('✅ Semilla completada exitosamente.');
+
+        // Reactivar checks
+        await sequelize.query('SET FOREIGN_KEY_CHECKS = 1');
         console.log('');
         console.log('   📧 CEO (admin):  ceo@cataratas.com  / Admin123!');
         console.log('   📧 User (owner): user@cataratas.com / User123!');
