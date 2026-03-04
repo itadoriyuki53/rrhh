@@ -340,7 +340,7 @@ const LiquidacionDetail = ({ liquidacion, onClose, onEdit }) => {
                                             <td style={{ textAlign: 'right', padding: '0.75rem 1rem', fontWeight: 600, color: '#10b981' }}>+ {formatCurrency(liquidacion?.basico)}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>AntigÃ¼edad</td>
+                                            <td style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Antigüedad</td>
                                             <td style={{ textAlign: 'right', padding: '0.75rem 1rem', fontWeight: 600, color: '#10b981' }}>+ {formatCurrency(liquidacion?.antiguedad)}</td>
                                         </tr>
                                         <tr>

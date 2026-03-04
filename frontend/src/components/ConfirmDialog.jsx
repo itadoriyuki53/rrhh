@@ -37,10 +37,10 @@ const ConfirmDialog = ({ isOpen, title, message, onConfirm, onCancel, confirmTex
                 <h3 className="confirm-title">{title}</h3>
                 <p className="confirm-message">{message}</p>
                 <div className="confirm-actions">
-                    <button className="btn btn-secondary" onClick={onCancel}>
+                    <button type="button" className="btn btn-secondary" onClick={onCancel}>
                         {cancelText}
                     </button>
-                    <button className={`btn ${variant === 'danger' ? 'btn-danger' : 'btn-primary'}`} onClick={onConfirm}>
+                    <button type="button" className={`btn ${variant === 'danger' ? 'btn-danger' : 'btn-primary'}`} onClick={onConfirm}>
                         {confirmText}
                     </button>
                 </div>
